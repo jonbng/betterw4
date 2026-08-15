@@ -1,0 +1,30 @@
+/* Critical CSS injected at document_start via manifest - no JS delay */
+/* This prevents FOUC by hiding the page until our UI is ready */
+
+/* Hide entire document immediately - html exists before body */
+html:not(.il-ready):not(.il-prerendered) {
+  visibility: hidden !important;
+}
+
+/* Dark background while hidden so navigation flash is dark, not white */
+html.dark:not(.il-ready):not(.il-prerendered) {
+  background-color: oklch(0.145 0.005 285) !important;
+}
+
+/* Reveal when ready */
+html.il-ready,
+html.il-prerendered {
+  visibility: visible !important;
+}
+
+/* Body fade-in effect (only after html is visible) */
+html.il-ready body {
+  opacity: 1 !important;
+  transition: opacity 0.1s ease-out !important;
+}
+
+/* Skip transition for prerendered pages */
+html.il-prerendered body {
+  opacity: 1 !important;
+  transition: none !important;
+}

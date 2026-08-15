@@ -1,0 +1,2 @@
+/home/oscar/dev/lectioplusplus/android/app/.cxx/Debug/4g3b3h05/x86/CMakeFiles/edit_cache.dir
+/home/oscar/dev/lectioplusplus/android/app/.cxx/Debug/4g3b3h05/x86/CMakeFiles/rebuild_cache.dir

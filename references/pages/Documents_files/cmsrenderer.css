@@ -1,0 +1,114 @@
+@charset "utf-8";
+
+ul.folder-list {
+	font-size: 11pt;
+	list-style-type: none;
+	width: 600px;
+	padding: 0;
+}
+
+ul.folder-list li {
+	float: left;
+	width: 128px;
+	height: 195px;
+	text-align: center;	
+}
+
+ul.folder-list li a {
+	display: block;
+	width: 128px;
+	height: 60px;
+	padding-top: 135px;	
+}
+
+ul.folder-list li a.folder {
+	background: url(folder_128.png) top left no-repeat;
+}
+
+ul.folder-list li a.page {
+	background: url(page_128.png) top left no-repeat;
+}
+
+div.up, div.new {
+	font-size: 11pt;
+	float: left;
+	width: 128px;	
+}
+
+div.up {
+	background: url(up_128.png) top left no-repeat;
+}
+
+div.new {
+	background: url(add_128.png) top left no-repeat;
+}
+
+div.up a, div.new a {
+	display: block;
+	width: 128px;
+	height: 60px;
+	padding-top: 135px;	
+	text-align: center;
+}
+
+div.ui-dialog-content .role_container {
+	height: 2em;
+	font-size: 0.8em;
+}
+
+div.ui-dialog-content .role_container .role_name {
+	width: 200px;
+	float: left;
+}
+
+div.ui-dialog-content #permission_form-object_name {
+	font-size: 1.1em;
+	font-weight: bold;
+	margin: 0.5em 0 0.5em 0.8em;
+}
+
+/* page form */
+
+#buttons {
+	text-align: right;
+}
+
+#buttons img {
+	border: 0;
+}
+
+#page_title, #keywords {
+	font-size: larger;
+	margin-bottom: 15px;
+}
+
+#page_content {
+	font-size: larger;
+}
+
+/* page display */
+
+.page-title {
+	margin-bottom: 0;
+}
+
+.page-details {
+	margin-top: 0;
+}
+
+.page-content {
+	font-size: 11pt;
+	color: black;
+}
+
+#search_results {
+	font-size: 11pt;
+}
+
+#search_results li {
+	margin-bottom: 10px;
+}
+
+#search_results div.smaller {
+	font-size: 10pt;
+}

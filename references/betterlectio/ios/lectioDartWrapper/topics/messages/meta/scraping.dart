@@ -1,0 +1,51 @@
+import 'package:beautiful_soup_dart/beautiful_soup.dart';
+import 'package:lectio_wrapper/types/message/meta/meta.dart';
+import 'package:lectio_wrapper/utils/scraping.dart';
+
+class ScriptContent {
+  Map<String, String> queries;
+  String url;
+  ScriptContent(this.queries, this.url);
+}
+
+List<Bs4Element> extractScripts(BeautifulSoup soup) {
+  List<Bs4Element> scripts = soup.findAll("script");
+  return scripts.where((script) => script.text.contains("bcstudent") ).toList();
+ 
+}
+
+List<MetaDataEntry> extractEntries(String body, String url) {
+  var text = BeautifulSoup(body).body!.text;
+  String withOutVariableDeclaration = text.substring(text.indexOf('=')).trim();
+  int firstBracket = withOutVariableDeclaration.indexOf('[');
+  String removedFirstBracket =
+      withOutVariableDeclaration.substring(firstBracket + 2);
+  int lastBracket = removedFirstBracket.lastIndexOf(']');
+  String removedLastBracket = removedFirstBracket.substring(0, lastBracket);
+  List<String> studentStringEntries = removedLastBracket
+      .split(",\n")
+      .where((element) =>
+          !(element.contains("inaktiv") || element.contains("Brobyg")))
+      .toList();
+  return studentStringEntries.map((student) => _extractEntry(student)).toList();
+}
+
+MetaDataEntry _extractEntry(String person) {
+  int firstQuote = person.indexOf("\"");
+  int secondQuote = person.indexOf("\"", firstQuote + 1);
+  String nameWithClass = person.substring(firstQuote + 1, secondQuote);
+  int firstParentes = nameWithClass.indexOf('(');
+  int secondParentes = nameWithClass.indexOf(')');
+  String? classOrInitial;
+  String name;
+  int nextFirstQuote = person.indexOf("\"", secondQuote + 1);
+  int nextSecondQuote = person.indexOf("\"", nextFirstQuote + 1);
+  if (firstParentes != -1 && secondParentes != -1) {
+    classOrInitial = nameWithClass.substring(firstParentes + 1, secondParentes);
+    name = nameWithClass.substring(0, firstParentes).trim();
+  } else {
+    name = nameWithClass;
+  }
+  String id = person.substring(nextFirstQuote + 1, nextSecondQuote);
+  return MetaDataEntry(id: id, name: name, classOrInitials: classOrInitial);
+}

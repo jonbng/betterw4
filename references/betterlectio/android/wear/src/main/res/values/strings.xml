@@ -1,0 +1,23 @@
+<resources>
+    <string name="app_name">BetterLectio</string>
+    <string name="tile_label">Schedule</string>
+    <string name="complication_label">Class countdown</string>
+    <string name="schedule">Schedule</string>
+    <string name="today">Today</string>
+    <string name="ends_in">Ends in %1$d min</string>
+    <string name="starts_in">Starts in %1$d min</string>
+    <string name="ends_now">Ends now</string>
+    <string name="starts_now">Starts now</string>
+    <string name="no_more_classes">No more classes</string>
+    <string name="no_classes_today">No classes today</string>
+    <string name="syncing">Syncing…</string>
+    <string name="refresh">Refresh</string>
+    <string name="last_updated">Updated %1$s</string>
+    <string name="stale_schedule">Schedule may be out of date</string>
+    <string name="open_phone">Open BetterLectio on your phone to sign in</string>
+    <string name="phone_unavailable">Phone unavailable. Showing saved schedule.</string>
+    <string name="previous_day">Previous day</string>
+    <string name="next_day">Next day</string>
+    <string name="cancelled">Cancelled</string>
+    <string name="changed">Changed</string>
+</resources>

@@ -1,0 +1,49 @@
+/* 
+    Document   : helprenderer
+    Created on : 2010-04-28, 09:27:44
+    Author     : mirek
+    Description:
+        Purpose of the stylesheet follows.
+*/
+
+/* 
+   TODO customize this sample style
+   Syntax recommendation http://www.w3.org/TR/REC-CSS2/
+*/
+
+#help_display {
+    display: none;
+	width: 600px;
+	height: 400px;
+	border: 2px solid black;
+	background: white;
+}
+#help_display #help_title_bar {
+	background: transparent url(/css/images/btn_blue_bg.png) repeat-x scroll 0 -7px;
+	color: #5599BB;
+	font-weight: bold;
+	font-size: larger;
+	padding: 2px 5px;
+	text-align: center;
+	height: 21px;
+	cursor: move;
+}
+
+#help_display #help_index {
+	height: 15px;
+	border-bottom: 1px solid black;
+	padding: 2px 0 2px 5px;
+}
+
+#help_display #help_button {
+	padding: 5px 10px;
+	text-align: right;
+	border-top: 1px solid black;
+}
+
+#help_display #help_content {
+	overflow: auto;
+	height: 315px;
+	width: 100%;
+	border: 0;
+}

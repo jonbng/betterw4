@@ -1,0 +1,9 @@
+# Copy to local.properties (gitignored). Android Studio also generates sdk.dir.
+#
+#   cp local.properties.example local.properties
+#
+# sdk.dir is required for command-line builds outside Studio.
+
+## Android SDK (adjust path for your machine)
+# sdk.dir=/home/YOU/Android/Sdk
+# sdk.dir=/Users/YOU/Library/Android/sdk

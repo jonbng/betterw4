@@ -1,0 +1,155 @@
+# =============================================================================
+# BetterW4 Android — .gitignore
+# Repo root is the Gradle project (this folder). Safe for public GitHub.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Secrets & signing (NEVER commit)
+# -----------------------------------------------------------------------------
+# Local machine / SDK path + optional PostHog & Supabase overrides
+local.properties
+# Upload-key passwords for Play (see key.properties.example)
+key.properties
+# Extra secret bags
+secrets.properties
+secrets/
+**/secrets/
+# Keystores / certs
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+!key.properties.example
+# Google / Firebase / Play service accounts (if added later)
+google-services.json
+GoogleService-Info.plist
+play-store-credentials.json
+**/play_console*.json
+**/service-account*.json
+# Env dumps that might hold tokens
+.env
+.env.*
+!.env.example
+
+# -----------------------------------------------------------------------------
+# Gradle
+# -----------------------------------------------------------------------------
+.gradle/
+build/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+# Occasional local overrides (prefer not to commit)
+!gradle.properties
+# Uncomment if you keep machine-specific gradle.properties.local:
+# gradle.properties.local
+
+# -----------------------------------------------------------------------------
+# Android / NDK build outputs
+# -----------------------------------------------------------------------------
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+bin/
+gen/
+out/
+releases/
+captures/
+.externalNativeBuild/
+.cxx/
+*.hprof
+*.log
+# Lint / baseline noise (keep intentional baselines if you add them under vcs)
+lint/intermediates/
+lint/generated/
+lint/outputs/
+lint/tmp/
+
+# -----------------------------------------------------------------------------
+# Kotlin / KSP / annotation processing
+# -----------------------------------------------------------------------------
+.kotlin/
+*.kotlin_module
+
+# -----------------------------------------------------------------------------
+# IDE — Android Studio / IntelliJ
+# Prefer not committing .idea; regenerate on open.
+# If you later want shared run configs, use a narrow allowlist instead.
+# -----------------------------------------------------------------------------
+*.iml
+*.ipr
+*.iws
+.idea/
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+local.properties
+
+# -----------------------------------------------------------------------------
+# OS junk
+# -----------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+*~
+
+# -----------------------------------------------------------------------------
+# Editors / agents / misc tooling
+# -----------------------------------------------------------------------------
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json.example
+.history/
+*.swp
+*.swo
+*~
+.claude/
+.cursor/
+.grok/
+.codex/
+*.bak
+*.tmp
+*.temp
+
+# -----------------------------------------------------------------------------
+# Testing / coverage / profiling
+# -----------------------------------------------------------------------------
+.coverage
+coverage/
+*.exec
+*.ec
+test-output/
+jacoco.exec
+.gradle-test-kit/
+
+# -----------------------------------------------------------------------------
+# Packaging / Fastlane (if added under android/)
+# -----------------------------------------------------------------------------
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output/
+fastlane/readme.md
+play-store/output/
+
+# -----------------------------------------------------------------------------
+# Docs generators / site
+# -----------------------------------------------------------------------------
+docs/_site/
+site/
+
+# -----------------------------------------------------------------------------
+# Keep explicit examples & docs that look like secrets by name
+# -----------------------------------------------------------------------------
+!key.properties.example
+!local.properties.example
+!**/README.md

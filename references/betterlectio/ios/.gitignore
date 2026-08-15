@@ -1,0 +1,24 @@
+.DS_Store
+
+# Build env for scripts/sync-safari-extension.sh — contains Supabase/PostHog keys
+.env.safari
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
+xcuserdata/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Local diagnostics must never be committed.
+schedule-debug-*.html
+
+# Swift Package Manager / Xcode generated state.
+.build/
+Package.resolved.local

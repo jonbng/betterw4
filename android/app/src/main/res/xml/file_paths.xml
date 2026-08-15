@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Authenticated Lectio downloads opened via FileProvider -->
+    <cache-path name="attachments" path="attachments/" />
+    <cache-path name="letters" path="letters/" />
+</paths>

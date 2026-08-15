@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.BetterLectio.Wear" parent="android:style/Theme.DeviceDefault">
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:fontFamily">sans</item>
+    </style>
+</resources>

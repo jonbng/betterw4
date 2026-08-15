@@ -1,0 +1,20 @@
+[functions.lectio-auth]
+verify_jwt = true
+
+[functions.token-for-auth]
+verify_jwt = true
+
+[functions.verify-lectio-auth]
+verify_jwt = false
+
+[functions.referral-click]
+verify_jwt = false
+
+[functions.referral-finalize]
+verify_jwt = true
+
+[functions.profile-picture-submit]
+verify_jwt = true
+
+[functions.maintenance-cleanup]
+verify_jwt = true

@@ -1,0 +1,1302 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		C10000000000000000000001 /* BetterLectioClip.app in Embed App Clips */ = {isa = PBXBuildFile; fileRef = C10000000000000000000004 /* BetterLectioClip.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		C1000000000000000000000F /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 5F9F699A2F86363E00275076 /* AppIcon.icon */; };
+		B1000000000000000000000C /* SwiftSoup in Frameworks */ = {isa = PBXBuildFile; productRef = B1000000000000000000000D /* SwiftSoup */; };
+		5F0D2ECC2F316E6900D4C5F0 /* SwiftSoup in Frameworks */ = {isa = PBXBuildFile; productRef = 5F0D2ECB2F316E6900D4C5F0 /* SwiftSoup */; };
+		5F804D6C2F519E73001B81AB /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5F804D6B2F519E73001B81AB /* WidgetKit.framework */; };
+		5F804D6E2F519E73001B81AB /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5F804D6D2F519E73001B81AB /* SwiftUI.framework */; };
+		5F804D7F2F519E74001B81AB /* live-lessonExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5F804D692F519E73001B81AB /* live-lessonExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		5F804DE12F600002001B81AB /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5F804D6B2F519E73001B81AB /* WidgetKit.framework */; };
+		5F9F699B2F86363E00275076 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 5F9F699A2F86363E00275076 /* AppIcon.icon */; };
+		9A1B2C3D4E5F678901234568 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 9A1B2C3D4E5F678901234569 /* Supabase */; };
+		A1B2C3D4E5F60718293A4B5C /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F60718293A4B5D /* PostHog */; };
+		DEADBEEF0000000000000016 /* BetterLectioSafariExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = FEEDFACE0000000000000012 /* BetterLectioSafariExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		DEADBEEF0000000000000019 /* SafariServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DEADBEEF0000000000000018 /* SafariServices.framework */; };
+		DEADBEEF000000000000001B /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 5F9F699A2F86363E00275076 /* AppIcon.icon */; };
+		FEEDFACE0000000000000019 /* SafariServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DEADBEEF0000000000000018 /* SafariServices.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C10000000000000000000002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5F0D2E9A2F315B6A00D4C5F0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C10000000000000000000009;
+			remoteInfo = BetterLectioClip;
+		};
+		B10000000000000000000007 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5F0D2E9A2F315B6A00D4C5F0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5F0D2EA12F315B6A00D4C5F0;
+			remoteInfo = BetterLectio;
+		};
+		5F804D7D2F519E74001B81AB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5F0D2E9A2F315B6A00D4C5F0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5F804D682F519E73001B81AB;
+			remoteInfo = "live-lessonExtension";
+		};
+		DEADBEEF0000000000000015 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5F0D2E9A2F315B6A00D4C5F0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = FEEDFACE000000000000000A;
+			remoteInfo = BetterLectioSafariExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		C10000000000000000000003 /* Embed App Clips */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/AppClips";
+			dstSubfolderSpec = 16;
+			files = (
+				C10000000000000000000001 /* BetterLectioClip.app in Embed App Clips */,
+			);
+			name = "Embed App Clips";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5F804D802F519E74001B81AB /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				5F804D7F2F519E74001B81AB /* live-lessonExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DEADBEEF0000000000000011 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				DEADBEEF0000000000000016 /* BetterLectioSafariExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		C10000000000000000000004 /* BetterLectioClip.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BetterLectioClip.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10000000000000000000001 /* BetterLectioTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BetterLectioTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5F0D2EA22F315B6A00D4C5F0 /* BetterLectio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BetterLectio.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5F804D692F519E73001B81AB /* live-lessonExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "live-lessonExtension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		5F804D6B2F519E73001B81AB /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		5F804D6D2F519E73001B81AB /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		5F804D852F51A4A5001B81AB /* live-lessonExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "live-lessonExtension.entitlements"; sourceTree = "<group>"; };
+		5F9F699A2F86363E00275076 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
+		DEADBEEF0000000000000012 /* BetterLectio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BetterLectio.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DEADBEEF0000000000000018 /* SafariServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SafariServices.framework; path = System/Library/Frameworks/SafariServices.framework; sourceTree = SDKROOT; };
+		DEADBEEF000000000000001A /* BetterLectioMac.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BetterLectioMac.entitlements; sourceTree = "<group>"; };
+		FEEDFACE0000000000000012 /* BetterLectioSafariExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BetterLectioSafariExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		FEEDFACE0000000000000015 /* BetterLectioSafariExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BetterLectioSafariExtension.entitlements; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		C1000000000000000000000E /* Exceptions for BetterLectioClip */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				BetterLectioClip.entitlements,
+			);
+			target = C10000000000000000000009 /* BetterLectioClip */;
+		};
+		5F804D832F519E7E001B81AB /* Exceptions for "live-lesson" folder in "live-lessonExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 5F804D682F519E73001B81AB /* live-lessonExtension */;
+		};
+		5F804DDC2F51ACB9001B81AB /* Exceptions for "BetterLectio" folder in "live-lessonExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				LectioActivityAttributes.swift,
+				LiveActivityVariant.swift,
+				SharedScheduleData.swift,
+				SubjectMapper.swift,
+			);
+			target = 5F804D682F519E73001B81AB /* live-lessonExtension */;
+		};
+		5F804DDD2F51ACB9001B81AB /* Exceptions for "BetterLectio" folder in "BetterLectio" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 5F0D2EA12F315B6A00D4C5F0 /* BetterLectio */;
+		};
+		DEADBEEF0000000000000017 /* Exceptions for "BetterLectioMac" folder in "BetterLectioMac" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = DEADBEEF000000000000000A /* BetterLectioMac */;
+		};
+		FEEDFACE0000000000000014 /* Exceptions for "SafariExtension" folder in "BetterLectioSafariExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+				README.md,
+			);
+			target = FEEDFACE000000000000000A /* BetterLectioSafariExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		C10000000000000000000005 /* BetterLectioClip */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				C1000000000000000000000E /* Exceptions for BetterLectioClip */,
+			);
+			path = BetterLectioClip;
+			sourceTree = "<group>";
+		};
+		B10000000000000000000002 /* BetterLectioTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = BetterLectioTests;
+			sourceTree = "<group>";
+		};
+		5F0D2EA42F315B6A00D4C5F0 /* BetterLectio */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				5F804DDD2F51ACB9001B81AB /* Exceptions for "BetterLectio" folder in "BetterLectio" target */,
+				5F804DDC2F51ACB9001B81AB /* Exceptions for "BetterLectio" folder in "live-lessonExtension" target */,
+			);
+			path = BetterLectio;
+			sourceTree = "<group>";
+		};
+		5F804D6F2F519E73001B81AB /* live-lesson */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				5F804D832F519E7E001B81AB /* Exceptions for "live-lesson" folder in "live-lessonExtension" target */,
+			);
+			path = "live-lesson";
+			sourceTree = "<group>";
+		};
+		DEADBEEF0000000000000013 /* BetterLectioMac */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				DEADBEEF0000000000000017 /* Exceptions for "BetterLectioMac" folder in "BetterLectioMac" target */,
+			);
+			path = BetterLectioMac;
+			sourceTree = "<group>";
+		};
+		FEEDFACE0000000000000013 /* SafariExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				FEEDFACE0000000000000014 /* Exceptions for "SafariExtension" folder in "BetterLectioSafariExtension" target */,
+			);
+			path = SafariExtension;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C10000000000000000000007 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B10000000000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1000000000000000000000C /* SwiftSoup in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5F0D2E9F2F315B6A00D4C5F0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5F0D2ECC2F316E6900D4C5F0 /* SwiftSoup in Frameworks */,
+				9A1B2C3D4E5F678901234568 /* Supabase in Frameworks */,
+				A1B2C3D4E5F60718293A4B5C /* PostHog in Frameworks */,
+				5F804DE12F600002001B81AB /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5F804D662F519E73001B81AB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5F804D6E2F519E73001B81AB /* SwiftUI.framework in Frameworks */,
+				5F804D6C2F519E73001B81AB /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DEADBEEF000000000000000F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DEADBEEF0000000000000019 /* SafariServices.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FEEDFACE000000000000000F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FEEDFACE0000000000000019 /* SafariServices.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		5F0D2E992F315B6A00D4C5F0 = {
+			isa = PBXGroup;
+			children = (
+				5F804D852F51A4A5001B81AB /* live-lessonExtension.entitlements */,
+				DEADBEEF000000000000001A /* BetterLectioMac.entitlements */,
+				FEEDFACE0000000000000015 /* BetterLectioSafariExtension.entitlements */,
+				5F0D2EA42F315B6A00D4C5F0 /* BetterLectio */,
+				C10000000000000000000005 /* BetterLectioClip */,
+				B10000000000000000000002 /* BetterLectioTests */,
+				5F804D6F2F519E73001B81AB /* live-lesson */,
+				DEADBEEF0000000000000013 /* BetterLectioMac */,
+				FEEDFACE0000000000000013 /* SafariExtension */,
+				5F804D6A2F519E73001B81AB /* Frameworks */,
+				5F0D2EA32F315B6A00D4C5F0 /* Products */,
+				5F9F699A2F86363E00275076 /* AppIcon.icon */,
+			);
+			sourceTree = "<group>";
+		};
+		5F0D2EA32F315B6A00D4C5F0 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				5F0D2EA22F315B6A00D4C5F0 /* BetterLectio.app */,
+				C10000000000000000000004 /* BetterLectioClip.app */,
+				5F804D692F519E73001B81AB /* live-lessonExtension.appex */,
+				B10000000000000000000001 /* BetterLectioTests.xctest */,
+				DEADBEEF0000000000000012 /* BetterLectio.app */,
+				FEEDFACE0000000000000012 /* BetterLectioSafariExtension.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		5F804D6A2F519E73001B81AB /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				5F804D6B2F519E73001B81AB /* WidgetKit.framework */,
+				5F804D6D2F519E73001B81AB /* SwiftUI.framework */,
+				DEADBEEF0000000000000018 /* SafariServices.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		C10000000000000000000009 /* BetterLectioClip */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C1000000000000000000000D /* Build configuration list for PBXNativeTarget "BetterLectioClip" */;
+			buildPhases = (
+				C10000000000000000000006 /* Sources */,
+				C10000000000000000000007 /* Frameworks */,
+				C10000000000000000000008 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				C10000000000000000000005 /* BetterLectioClip */,
+			);
+			name = BetterLectioClip;
+			packageProductDependencies = (
+			);
+			productName = BetterLectioClip;
+			productReference = C10000000000000000000004 /* BetterLectioClip.app */;
+			productType = "com.apple.product-type.application.on-demand-install-capable";
+		};
+		B10000000000000000000003 /* BetterLectioTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B1000000000000000000000B /* Build configuration list for PBXNativeTarget "BetterLectioTests" */;
+			buildPhases = (
+				B10000000000000000000004 /* Sources */,
+				B10000000000000000000005 /* Frameworks */,
+				B10000000000000000000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B10000000000000000000008 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				B10000000000000000000002 /* BetterLectioTests */,
+			);
+			name = BetterLectioTests;
+			packageProductDependencies = (
+				B1000000000000000000000D /* SwiftSoup */,
+			);
+			productName = BetterLectioTests;
+			productReference = B10000000000000000000001 /* BetterLectioTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		5F0D2EA12F315B6A00D4C5F0 /* BetterLectio */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5F0D2EAD2F315B6C00D4C5F0 /* Build configuration list for PBXNativeTarget "BetterLectio" */;
+			buildPhases = (
+				5F0D2E9E2F315B6A00D4C5F0 /* Sources */,
+				5F0D2E9F2F315B6A00D4C5F0 /* Frameworks */,
+				5F0D2EA02F315B6A00D4C5F0 /* Resources */,
+				5F804D802F519E74001B81AB /* Embed Foundation Extensions */,
+				C10000000000000000000003 /* Embed App Clips */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5F804D7E2F519E74001B81AB /* PBXTargetDependency */,
+				C1000000000000000000000A /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				5F0D2EA42F315B6A00D4C5F0 /* BetterLectio */,
+			);
+			name = BetterLectio;
+			packageProductDependencies = (
+				5F0D2ECB2F316E6900D4C5F0 /* SwiftSoup */,
+				9A1B2C3D4E5F678901234569 /* Supabase */,
+				A1B2C3D4E5F60718293A4B5D /* PostHog */,
+			);
+			productName = BetterLectio;
+			productReference = 5F0D2EA22F315B6A00D4C5F0 /* BetterLectio.app */;
+			productType = "com.apple.product-type.application";
+		};
+		5F804D682F519E73001B81AB /* live-lessonExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5F804D842F519E7E001B81AB /* Build configuration list for PBXNativeTarget "live-lessonExtension" */;
+			buildPhases = (
+				5F804D652F519E73001B81AB /* Sources */,
+				5F804D662F519E73001B81AB /* Frameworks */,
+				5F804D672F519E73001B81AB /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				5F804D6F2F519E73001B81AB /* live-lesson */,
+			);
+			name = "live-lessonExtension";
+			packageProductDependencies = (
+			);
+			productName = "live-lessonExtension";
+			productReference = 5F804D692F519E73001B81AB /* live-lessonExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		DEADBEEF000000000000000A /* BetterLectioMac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DEADBEEF000000000000000B /* Build configuration list for PBXNativeTarget "BetterLectioMac" */;
+			buildPhases = (
+				DEADBEEF000000000000000E /* Sources */,
+				DEADBEEF000000000000000F /* Frameworks */,
+				DEADBEEF0000000000000010 /* Resources */,
+				DEADBEEF0000000000000011 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DEADBEEF0000000000000014 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				DEADBEEF0000000000000013 /* BetterLectioMac */,
+			);
+			name = BetterLectioMac;
+			packageProductDependencies = (
+			);
+			productName = BetterLectioMac;
+			productReference = DEADBEEF0000000000000012 /* BetterLectio.app */;
+			productType = "com.apple.product-type.application";
+		};
+		FEEDFACE000000000000000A /* BetterLectioSafariExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FEEDFACE000000000000000B /* Build configuration list for PBXNativeTarget "BetterLectioSafariExtension" */;
+			buildPhases = (
+				FEEDFACE000000000000000E /* Sources */,
+				FEEDFACE000000000000000F /* Frameworks */,
+				FEEDFACE0000000000000010 /* Resources */,
+				FEEDFACE0000000000000011 /* Copy WXT Web Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				FEEDFACE0000000000000013 /* SafariExtension */,
+			);
+			name = BetterLectioSafariExtension;
+			packageProductDependencies = (
+			);
+			productName = BetterLectioSafariExtension;
+			productReference = FEEDFACE0000000000000012 /* BetterLectioSafariExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		5F0D2E9A2F315B6A00D4C5F0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2600;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					B10000000000000000000003 = {
+						CreatedOnToolsVersion = 26.0.1;
+						TestTargetID = 5F0D2EA12F315B6A00D4C5F0;
+					};
+					5F0D2EA12F315B6A00D4C5F0 = {
+						CreatedOnToolsVersion = 26.0.1;
+					};
+					5F804D682F519E73001B81AB = {
+						CreatedOnToolsVersion = 26.0.1;
+					};
+					C10000000000000000000009 = {
+						CreatedOnToolsVersion = 26.0.1;
+					};
+					DEADBEEF000000000000000A = {
+						CreatedOnToolsVersion = 26.0.1;
+					};
+					FEEDFACE000000000000000A = {
+						CreatedOnToolsVersion = 26.0.1;
+					};
+				};
+			};
+			buildConfigurationList = 5F0D2E9D2F315B6A00D4C5F0 /* Build configuration list for PBXProject "BetterLectio" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				da,
+				Base,
+			);
+			mainGroup = 5F0D2E992F315B6A00D4C5F0;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				5F0D2ECA2F316E6900D4C5F0 /* XCRemoteSwiftPackageReference "SwiftSoup" */,
+				9A1B2C3D4E5F67890123456A /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				A1B2C3D4E5F60718293A4B5E /* XCRemoteSwiftPackageReference "posthog-ios" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 5F0D2EA32F315B6A00D4C5F0 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				5F0D2EA12F315B6A00D4C5F0 /* BetterLectio */,
+				C10000000000000000000009 /* BetterLectioClip */,
+				5F804D682F519E73001B81AB /* live-lessonExtension */,
+				B10000000000000000000003 /* BetterLectioTests */,
+				DEADBEEF000000000000000A /* BetterLectioMac */,
+				FEEDFACE000000000000000A /* BetterLectioSafariExtension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		C10000000000000000000008 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C1000000000000000000000F /* AppIcon.icon in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B10000000000000000000006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5F0D2EA02F315B6A00D4C5F0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5F9F699B2F86363E00275076 /* AppIcon.icon in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5F804D672F519E73001B81AB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DEADBEEF0000000000000010 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DEADBEEF000000000000001B /* AppIcon.icon in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FEEDFACE0000000000000010 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		FEEDFACE0000000000000011 /* Copy WXT Web Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Copy WXT Web Resources";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Copies the committed WXT MV3 build into the appex bundle, preserving the\n# nested chunks/, content-scripts/, assets/ and vendor/ structure that Safari\n# needs. A Copy Bundle Resources folder reference would land it one level too\n# deep, and a synchronized group flattens every nested file into the bundle\n# root -- both break manifest.json.\n#\n# SafariExtensionResources/ deliberately lives OUTSIDE the SafariExtension/\n# synchronized root group; if it lived inside, the group would bundle flattened\n# duplicates of every file alongside this correctly-structured copy.\n#\n# Refresh it with scripts/sync-safari-extension.sh.\nset -eu\n\nSRC=\"${SRCROOT}/SafariExtensionResources\"\nDST=\"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\n\nif [ ! -f \"${SRC}/manifest.json\" ]; then\n  echo \"error: ${SRC}/manifest.json is missing. Run ./scripts/sync-safari-extension.sh to build and vendor the web extension.\"\n  exit 1\nfi\n\nmkdir -p \"${DST}\"\n\n# Plain rsync without --delete would leave files from a previous extension build\n# stranded in the bundle; --delete would wipe anything else Xcode staged into\n# Contents/Resources. So track exactly what we copied and remove only that.\nLEDGER=\"${DERIVED_FILE_DIR}/bl-synced-web-resources.txt\"\nif [ -f \"${LEDGER}\" ]; then\n  while IFS= read -r rel; do\n    [ -n \"${rel}\" ] && rm -f \"${DST}/${rel}\"\n  done < \"${LEDGER}\"\nfi\n\nrsync -a --exclude='.DS_Store' \"${SRC}/\" \"${DST}/\"\n\nmkdir -p \"${DERIVED_FILE_DIR}\"\n( cd \"${SRC}\" && find . -type f ! -name '.DS_Store' | sed 's|^\\./||' ) > \"${LEDGER}\"\n\n# Drop directories orphaned by the prune above (never DST itself).\nfind \"${DST}\" -mindepth 1 -type d -empty -delete 2>/dev/null || true\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		C10000000000000000000006 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B10000000000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5F0D2E9E2F315B6A00D4C5F0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5F804D652F519E73001B81AB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DEADBEEF000000000000000E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FEEDFACE000000000000000E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		C1000000000000000000000A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C10000000000000000000009 /* BetterLectioClip */;
+			targetProxy = C10000000000000000000002 /* PBXContainerItemProxy */;
+		};
+		B10000000000000000000008 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5F0D2EA12F315B6A00D4C5F0 /* BetterLectio */;
+			targetProxy = B10000000000000000000007 /* PBXContainerItemProxy */;
+		};
+		5F804D7E2F519E74001B81AB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5F804D682F519E73001B81AB /* live-lessonExtension */;
+			targetProxy = 5F804D7D2F519E74001B81AB /* PBXContainerItemProxy */;
+		};
+		DEADBEEF0000000000000014 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = FEEDFACE000000000000000A /* BetterLectioSafariExtension */;
+			targetProxy = DEADBEEF0000000000000015 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		C1000000000000000000000B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = BetterLectioClip/BetterLectioClip.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9ULRK8DH95;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = BetterLectio;
+				INFOPLIST_KEY_NSAppClipRequestEphemeralUserNotification = NO;
+				INFOPLIST_KEY_NSAppClipRequestLocationConfirmation = NO;
+				INFOPLIST_KEY_SUPABASE_URL = "https://uyyqxwlojqvbpukxgxem.supabase.co";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.3;
+				PRODUCT_BUNDLE_IDENTIFIER = dk.echolabs.betterlectio.app.Clip;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C1000000000000000000000C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = BetterLectioClip/BetterLectioClip.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9ULRK8DH95;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = BetterLectio;
+				INFOPLIST_KEY_NSAppClipRequestEphemeralUserNotification = NO;
+				INFOPLIST_KEY_NSAppClipRequestLocationConfirmation = NO;
+				INFOPLIST_KEY_SUPABASE_URL = "https://uyyqxwlojqvbpukxgxem.supabase.co";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.3;
+				PRODUCT_BUNDLE_IDENTIFIER = dk.echolabs.betterlectio.app.Clip;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		B10000000000000000000009 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 9ULRK8DH95;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dk.echolabs.betterlectio.app.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BetterLectio.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BetterLectio";
+			};
+			name = Debug;
+		};
+		B1000000000000000000000A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 9ULRK8DH95;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dk.echolabs.betterlectio.app.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BetterLectio.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BetterLectio";
+			};
+			name = Release;
+		};
+		5F0D2EAB2F315B6C00D4C5F0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		5F0D2EAC2F315B6C00D4C5F0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		5F0D2EAE2F315B6C00D4C5F0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = BetterLectio/BetterLectio.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9ULRK8DH95;
+				ENABLE_PREVIEWS = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					".claude/**",
+					".cursor/**",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BetterLectio/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = BetterLectio;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = fetch;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.5;
+				PRODUCT_BUNDLE_IDENTIFIER = dk.echolabs.betterlectio.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		5F0D2EAF2F315B6C00D4C5F0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = BetterLectio/BetterLectio.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9ULRK8DH95;
+				ENABLE_PREVIEWS = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					".claude/**",
+					".cursor/**",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BetterLectio/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = BetterLectio;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = fetch;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.5;
+				PRODUCT_BUNDLE_IDENTIFIER = dk.echolabs.betterlectio.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		5F804D812F519E74001B81AB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = "live-lessonExtension.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9ULRK8DH95;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "live-lesson/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "live-lesson";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "dk.echolabs.betterlectio.app.live-lesson";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		5F804D822F519E74001B81AB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = "live-lessonExtension.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9ULRK8DH95;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "live-lesson/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "live-lesson";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "dk.echolabs.betterlectio.app.live-lesson";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		DEADBEEF000000000000000C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = BetterLectioMac.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9ULRK8DH95;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					".claude/**",
+					".cursor/**",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = BetterLectio;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © BetterLectio. All rights reserved.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.5;
+				PRODUCT_BUNDLE_IDENTIFIER = dk.echolabs.betterlectio.app;
+				PRODUCT_NAME = BetterLectio;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		DEADBEEF000000000000000D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = BetterLectioMac.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9ULRK8DH95;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					".claude/**",
+					".cursor/**",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = BetterLectio;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © BetterLectio. All rights reserved.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.5;
+				PRODUCT_BUNDLE_IDENTIFIER = dk.echolabs.betterlectio.app;
+				PRODUCT_NAME = BetterLectio;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		FEEDFACE000000000000000C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = BetterLectioSafariExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9ULRK8DH95;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SafariExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = BetterLectio;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © BetterLectio. All rights reserved.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.5;
+				PRODUCT_BUNDLE_IDENTIFIER = dk.echolabs.betterlectio.app.safari;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		FEEDFACE000000000000000D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = BetterLectioSafariExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9ULRK8DH95;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SafariExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = BetterLectio;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © BetterLectio. All rights reserved.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.5;
+				PRODUCT_BUNDLE_IDENTIFIER = dk.echolabs.betterlectio.app.safari;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		C1000000000000000000000D /* Build configuration list for PBXNativeTarget "BetterLectioClip" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C1000000000000000000000B /* Debug */,
+				C1000000000000000000000C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B1000000000000000000000B /* Build configuration list for PBXNativeTarget "BetterLectioTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B10000000000000000000009 /* Debug */,
+				B1000000000000000000000A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5F0D2E9D2F315B6A00D4C5F0 /* Build configuration list for PBXProject "BetterLectio" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5F0D2EAB2F315B6C00D4C5F0 /* Debug */,
+				5F0D2EAC2F315B6C00D4C5F0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5F0D2EAD2F315B6C00D4C5F0 /* Build configuration list for PBXNativeTarget "BetterLectio" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5F0D2EAE2F315B6C00D4C5F0 /* Debug */,
+				5F0D2EAF2F315B6C00D4C5F0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5F804D842F519E7E001B81AB /* Build configuration list for PBXNativeTarget "live-lessonExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5F804D812F519E74001B81AB /* Debug */,
+				5F804D822F519E74001B81AB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		DEADBEEF000000000000000B /* Build configuration list for PBXNativeTarget "BetterLectioMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DEADBEEF000000000000000C /* Debug */,
+				DEADBEEF000000000000000D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		FEEDFACE000000000000000B /* Build configuration list for PBXNativeTarget "BetterLectioSafariExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FEEDFACE000000000000000C /* Debug */,
+				FEEDFACE000000000000000D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		5F0D2ECA2F316E6900D4C5F0 /* XCRemoteSwiftPackageReference "SwiftSoup" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/scinfu/SwiftSoup.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.11.3;
+			};
+		};
+		9A1B2C3D4E5F67890123456A /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+		A1B2C3D4E5F60718293A4B5E /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/PostHog/posthog-ios.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.69.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B1000000000000000000000D /* SwiftSoup */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5F0D2ECA2F316E6900D4C5F0 /* XCRemoteSwiftPackageReference "SwiftSoup" */;
+			productName = SwiftSoup;
+		};
+		5F0D2ECB2F316E6900D4C5F0 /* SwiftSoup */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5F0D2ECA2F316E6900D4C5F0 /* XCRemoteSwiftPackageReference "SwiftSoup" */;
+			productName = SwiftSoup;
+		};
+		9A1B2C3D4E5F678901234569 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9A1B2C3D4E5F67890123456A /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+		A1B2C3D4E5F60718293A4B5D /* PostHog */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D4E5F60718293A4B5E /* XCRemoteSwiftPackageReference "posthog-ios" */;
+			productName = PostHog;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 5F0D2E9A2F315B6A00D4C5F0 /* Project object */;
+}

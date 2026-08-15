@@ -1,0 +1,630 @@
+import { parseFormTokens, doPostBack } from './beskeder-parser';
+import { getCachedProfile } from './profile-cache';
+import { isFeatureEnabled } from './settings-storage';
+import { extractMessageEditAudit } from './message-edit-audit';
+
+// ── Types ──────────────────────────────────────────────────────────────
+
+export interface ThreadRecipient {
+  name: string;
+  contextCardId: string; // e.g. 'U72721772844'
+}
+
+export interface ThreadMessage {
+  senderName: string;
+  senderContextCardId: string;
+  timestamp: string;
+  date: Date | null;
+  title: string;
+  content: string; // HTML content (BBCode already rendered by Lectio)
+  editedAt: Date | null;
+  attachments: Array<{ name: string; url: string; sizeLabel?: string }>;
+  isOwnMessage: boolean;
+  /** Row-scoped postback target used to edit an owned reaction carrier. */
+  editPostbackTarget: string;
+}
+
+export interface ThreadReplyForm {
+  titleInputId: string;
+  bodyTextareaId: string;
+  sendPostbackTarget: string;
+  cancelPostbackTarget: string;
+  currentTitle: string;
+  /** Hidden input that holds the uploaded file's serializedId JSON */
+  attachDocumentIdInput: HTMLInputElement | null;
+  /** Postback target for the attachment chooser (e.g. "s$m$...AttachmentDocChooser") */
+  attachPostbackTarget: string;
+  notifyDropdownEl: HTMLSelectElement | null;
+  notifyFieldName: string;
+  notifyValue: string;
+}
+
+export interface BeskederThreadData {
+  recipients: ThreadRecipient[];
+  messages: ThreadMessage[];
+  replyForm: ThreadReplyForm | null;
+  formTokens: Record<string, string>;
+  formAction: string;
+  threadSubject: string;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────
+
+function parseDateTimestamp(text: string): Date | null {
+  // Typical format: "DD-MM-YYYY HH:MM[:SS]" (be tolerant on day/month digits and optional seconds)
+  const match = text.match(/(\d{1,2})-(\d{1,2})-(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (!match) return null;
+
+  return new Date(
+    parseInt(match[3], 10),
+    parseInt(match[2], 10) - 1,
+    parseInt(match[1], 10),
+    parseInt(match[4], 10),
+    parseInt(match[5], 10),
+    match[6] ? parseInt(match[6], 10) : 0,
+  );
+}
+
+function getLoggedInContextCardId(): string {
+  // From the page header: <div ... data-lectioContextCard="S72721772841">
+  // But messages use U-prefixed IDs (U72721772844)
+  // We match by name instead
+  return '';
+}
+
+function isOwnMessage(senderName: string): boolean {
+  const profile = getCachedProfile();
+  if (!profile) return false;
+
+  // profile.fullName is like "Jonathan Arthur Hojer Bangert"
+  // senderName is like "Jonathan Arthur Hojer Bangert(k) (1x 17)"
+  // Check if the sender name starts with the profile name
+  const profileName = profile.fullName || profile.name;
+  if (!profileName) return false;
+
+  return senderName.startsWith(profileName);
+}
+
+// ── Parsers ────────────────────────────────────────────────────────────
+
+function parseRecipients(doc: Document = document): ThreadRecipient[] {
+  const container = doc.getElementById(
+    's_m_Content_Content_MessageThreadCtrl_RecipientsReadMode',
+  );
+  if (!container) return [];
+
+  const recipients: ThreadRecipient[] = [];
+  const spans = container.querySelectorAll('span[data-lectioContextCard]');
+
+  for (const span of spans) {
+    const contextCardId = span.getAttribute('data-lectioContextCard') || '';
+    const name = (span.textContent || '').trim();
+    if (name) {
+      recipients.push({ name, contextCardId });
+    }
+  }
+
+  return recipients;
+}
+
+function parseMessages(doc: Document = document): ThreadMessage[] {
+  const table = doc.getElementById(
+    's_m_Content_Content_MessageThreadCtrl_MessagesGV',
+  ) as HTMLTableElement | null;
+  if (!table) return [];
+
+  const messages: ThreadMessage[] = [];
+  const rows = table.querySelectorAll('tr');
+
+  for (const row of rows) {
+    const gridRowMessage = row.querySelector('#GridRowMessage, [id="GridRowMessage"]');
+    if (!gridRowMessage) continue;
+
+    // Skip the reply form row (class="noprint")
+    const classAttr = gridRowMessage.getAttribute('class') || '';
+    if (classAttr.includes('noprint')) continue;
+
+    // Sender
+    const senderEl = gridRowMessage.querySelector('.message-thread-message-sender');
+    if (!senderEl) continue;
+
+    const senderSpan = senderEl.querySelector('span[data-lectioContextCard]');
+    const senderContextCardId = senderSpan?.getAttribute('data-lectioContextCard') || '';
+    const senderText = (senderEl.textContent || '').trim();
+
+    // Parse "Name, DD-MM-YYYY HH:MM[:SS]" with tolerant extraction
+    const timestampMatch = senderText.match(/(\d{1,2}-\d{1,2}-\d{4}\s+\d{1,2}:\d{2}(?::\d{2})?)/);
+    const timestampRaw = timestampMatch?.[1] || '';
+    const senderName = senderSpan?.textContent?.trim() || senderText.split(',')[0].trim();
+    const date = parseDateTimestamp(timestampRaw);
+
+    // Title
+    const headerEl = gridRowMessage.querySelector('.message-thread-message-header');
+    const title = (headerEl?.textContent || '').trim();
+
+    // Content (clone so we can strip inline attachment blocks before rendering)
+    const contentEl = gridRowMessage.querySelector('.message-thread-message-content');
+    const contentClone = contentEl?.cloneNode(true) as HTMLElement | null;
+
+    const toAbsoluteUrl = (href: string): string =>
+      new URL(href, window.location.origin).href;
+
+    const parseSizeNearLink = (link: Element): string | undefined => {
+      const parentText = (link.parentElement?.textContent || '').replace(/\s+/g, ' ').trim();
+      const siblingText = (link.nextSibling?.textContent || '').replace(/\s+/g, ' ').trim();
+      const combined = `${parentText} ${siblingText}`.trim();
+      const sizeMatch = combined.match(/\((\d+(?:[.,]\d+)?\s*(?:B|KB|MB|GB|TB))\)/i);
+      return sizeMatch?.[1]?.trim();
+    };
+
+    // Attachments
+    const attachments: Array<{ name: string; url: string; sizeLabel?: string }> = [];
+    const seen = new Set<string>();
+    const pushAttachment = (name: string, href: string, sizeLabel?: string) => {
+      if (!name || !href || href.startsWith('#') || href.startsWith('javascript:')) return;
+      const absoluteUrl = toAbsoluteUrl(href);
+      const key = `${name}::${absoluteUrl}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      attachments.push({ name, url: absoluteUrl, sizeLabel });
+    };
+
+    // 1) Native attachment row/actions container
+    const attachContainer = gridRowMessage.querySelector('.message-buttons-options-container');
+    if (attachContainer) {
+      const links = attachContainer.querySelectorAll('a[href]');
+      for (const link of links) {
+        const href = link.getAttribute('href');
+        const name = (link.textContent || '').trim();
+        if (!href || !name) continue;
+        pushAttachment(name, href, parseSizeNearLink(link));
+      }
+    }
+
+    // 2) Inline message attachment blocks (Lectio variants: "attachements"/"attachments")
+    if (contentClone) {
+      const inlineAttachmentSelectors = [
+        '.message-attachements a[href]',
+        '.message-attachments a[href]',
+      ];
+      for (const selector of inlineAttachmentSelectors) {
+        const inlineLinks = contentClone.querySelectorAll(selector);
+        for (const link of inlineLinks) {
+          const href = link.getAttribute('href');
+          const name = (link.textContent || '').trim();
+          if (!href || !name) continue;
+          pushAttachment(name, href, parseSizeNearLink(link));
+        }
+      }
+
+      // 3) Fallback: detect message-doc download links directly in content
+      const docLinks = contentClone.querySelectorAll(
+        'a[href*="dokumenthent.aspx"][href*="doctype=messagedoc"]',
+      );
+      for (const link of docLinks) {
+        const href = link.getAttribute('href');
+        const name = (link.textContent || '').trim();
+        if (!href || !name) continue;
+        pushAttachment(name, href, parseSizeNearLink(link));
+      }
+
+      // Remove inline attachment blocks/links so they don't render as plain links in body
+      contentClone.querySelectorAll('.message-attachements, .message-attachments').forEach((el) => el.remove());
+      contentClone
+        .querySelectorAll('a[href*="dokumenthent.aspx"][href*="doctype=messagedoc"]')
+        .forEach((el) => {
+          const parent = el.parentElement;
+          if (parent && parent.childElementCount === 1) parent.remove();
+          else el.remove();
+        });
+    }
+
+    const rawContent = contentClone?.innerHTML?.trim() || contentEl?.innerHTML?.trim() || '';
+    const editAudit = extractMessageEditAudit(rawContent);
+
+    const editLink = gridRowMessage.querySelector(
+      'a[id*="EditModeToggleBtn"]',
+    ) as HTMLAnchorElement | null;
+    const editScript = editLink?.getAttribute('onclick')
+      || editLink?.getAttribute('href')
+      || '';
+    const editMatch = editScript.match(/__doPostBack\('([^']+)'/);
+
+    messages.push({
+      senderName,
+      senderContextCardId,
+      timestamp: timestampRaw,
+      date,
+      title,
+      content: editAudit.html,
+      editedAt: editAudit.editedAt,
+      attachments,
+      isOwnMessage: isOwnMessage(senderName),
+      editPostbackTarget: editMatch?.[1] || '',
+    });
+  }
+
+  return messages;
+}
+
+function parseReplyForm(doc: Document = document): ThreadReplyForm | null {
+  const table = doc.getElementById(
+    's_m_Content_Content_MessageThreadCtrl_MessagesGV',
+  ) as HTMLTableElement | null;
+  if (!table) return null;
+
+  // Find the reply row (GridRowMessage with class noprint)
+  const rows = table.querySelectorAll('tr');
+  for (const row of rows) {
+    const gridRow = row.querySelector('#GridRowMessage, [id="GridRowMessage"]');
+    if (!gridRow) continue;
+
+    const classAttr = gridRow.getAttribute('class') || '';
+    if (!classAttr.includes('noprint')) continue;
+
+    // Title input
+    const titleInput = gridRow.querySelector(
+      'input[id*="EditModeHeaderTitleTB_tb"]',
+    ) as HTMLInputElement | null;
+
+    // Body textarea
+    const bodyTextarea = gridRow.querySelector(
+      'textarea[id*="EditModeContentBBTB_TbxNAME_tb"]',
+    ) as HTMLTextAreaElement | null;
+
+    // Send button: find the <a> inside .buttonfilled that has SendMessageBtn
+    const sendBtn = gridRow.querySelector(
+      'a[id*="SendMessageBtn"]',
+    ) as HTMLAnchorElement | null;
+    const sendOnclick = sendBtn?.getAttribute('onclick') || '';
+    const sendMatch = sendOnclick.match(/__doPostBack\('([^']+)'/);
+
+    // Cancel button
+    const cancelBtn = gridRow.querySelector(
+      'a[id*="BackMessageBtn"]',
+    ) as HTMLAnchorElement | null;
+    const cancelOnclick = cancelBtn?.getAttribute('onclick') || '';
+    const cancelMatch = cancelOnclick.match(/__doPostBack\('([^']+)'/);
+
+    // Attachment: hidden input for selectedDocumentId + postback target
+    const attachDocIdInput = gridRow.querySelector(
+      'input[id*="AttachmentDocChooser_selectedDocumentId"]',
+    ) as HTMLInputElement | null;
+
+    // Extract postback target from the chooser button's onclick or the panel's script
+    let attachPostbackTarget = '';
+    const chooserBtn = gridRow.querySelector(
+      'a[id*="AttachmentDocChooser_choosedocBtn"]',
+    ) as HTMLAnchorElement | null;
+    if (chooserBtn) {
+      // The postback target is the panel ID with dots: "s$m$...AttachmentDocChooser"
+      // Derive from the hidden input's name (which uses $ separators)
+      const hiddenName = attachDocIdInput?.getAttribute('name') || '';
+      // name is like "s$m$...$AttachmentDocChooser$selectedDocumentId" — strip last segment
+      attachPostbackTarget = hiddenName.replace(/\$selectedDocumentId$/, '');
+    }
+
+    // Notify options dropdown (e.g. "Notificer kun ...", "Notificer alle")
+    const notifyDropdown = gridRow.querySelector(
+      'select[id*="NotifyOptionsDD"]',
+    ) as HTMLSelectElement | null;
+
+    if (!titleInput || !bodyTextarea || !sendMatch) return null;
+
+    return {
+      titleInputId: titleInput.id,
+      bodyTextareaId: bodyTextarea.id,
+      sendPostbackTarget: sendMatch[1],
+      cancelPostbackTarget: cancelMatch ? cancelMatch[1] : '',
+      currentTitle: titleInput.value || '',
+      attachDocumentIdInput: attachDocIdInput,
+      attachPostbackTarget,
+      notifyDropdownEl: notifyDropdown,
+      notifyFieldName: notifyDropdown?.name || '',
+      notifyValue: notifyDropdown?.value || '',
+    };
+  }
+
+  return null;
+}
+
+function parseThreadSubject(messages: ThreadMessage[]): string {
+  // The thread subject is the first message's title (without "Re: " prefix)
+  if (messages.length === 0) return 'Besked';
+  const first = messages[0].title;
+  return first.replace(/^Re:\s*/i, '').trim() || 'Besked';
+}
+
+// ── Main Parser ────────────────────────────────────────────────────────
+
+export function parseThreadFromDOM(doc: Document = document): BeskederThreadData {
+  const recipients = parseRecipients(doc);
+  const messages = parseMessages(doc);
+  const replyForm = parseReplyForm(doc);
+  const { tokens: formTokens, action: formAction } = parseFormTokens(doc);
+  const threadSubject = parseThreadSubject(messages);
+
+  return {
+    recipients,
+    messages,
+    replyForm,
+    formTokens,
+    formAction,
+    threadSubject,
+  };
+}
+
+// ── State Detection ────────────────────────────────────────────────────
+
+export function isThreadViewState(doc: Document = document): boolean {
+  const threadHeader = doc.getElementById(
+    's_m_Content_Content_MessageThreadCtrl_messageThreadHeaderDiv',
+  );
+  if (!threadHeader) return false;
+
+  // Must have RecipientsReadMode (thread view has read-only recipients)
+  const readMode = doc.getElementById(
+    's_m_Content_Content_MessageThreadCtrl_RecipientsReadMode',
+  );
+  return !!readMode;
+}
+
+export function isComposeState(doc: Document = document): boolean {
+  const threadHeader = doc.getElementById(
+    's_m_Content_Content_MessageThreadCtrl_messageThreadHeaderDiv',
+  );
+  if (!threadHeader) return false;
+
+  // Compose has the recipient edit mode input
+  const addRecipientInput = doc.getElementById(
+    's_m_Content_Content_MessageThreadCtrl_addRecipientDD_inp',
+  );
+  // And no RecipientsReadMode
+  const readMode = doc.getElementById(
+    's_m_Content_Content_MessageThreadCtrl_RecipientsReadMode',
+  );
+  return !!addRecipientInput && !readMode;
+}
+
+// ── Compose Types ─────────────────────────────────────────────────────
+
+export interface ComposeRecipient {
+  name: string;
+  removePostbackTarget: string;
+}
+
+export interface ComposeFormData {
+  recipients: ComposeRecipient[];
+  addRecipientPostbackTarget: string;
+  addRecipientInputName: string;
+  addRecipientHiddenInputName: string;
+  noReplyCheckbox: HTMLInputElement | null;
+  nativeTitleInput: HTMLInputElement;
+  nativeBodyTextarea: HTMLTextAreaElement;
+  sendPostbackTarget: string;
+  cancelPostbackTarget: string;
+  attachPanelEl: HTMLElement | null;
+  /** Hidden input that holds the uploaded file's serializedId JSON */
+  attachDocumentIdInput: HTMLInputElement | null;
+  /** Postback target for the attachment chooser */
+  attachPostbackTarget: string;
+  currentTitle: string;
+  currentBody: string;
+}
+
+// ── Compose Parser ────────────────────────────────────────────────────
+
+export function parseComposeFromDOM(doc: Document = document): ComposeFormData | null {
+  // Autocomplete container (the searchbox with input + hidden AddRecipientBtn)
+  const autocompleteContainer = doc.querySelector(
+    '#s_m_Content_Content_MessageThreadCtrl_RecipientsEditMode .ls-searchbox-container-outlined',
+  ) as HTMLElement | null;
+  if (!autocompleteContainer) return null;
+
+  const addRecipientInput = autocompleteContainer.querySelector(
+    'input[id*="addRecipientDD_inp"]',
+  ) as HTMLInputElement | null;
+  const addRecipientHiddenInput = autocompleteContainer.querySelector(
+    'input[id*="addRecipientDD_inpid"]',
+  ) as HTMLInputElement | null;
+  const addRecipientBtn = autocompleteContainer.querySelector(
+    'a[id*="AddRecipientBtn"]',
+  ) as HTMLAnchorElement | null;
+  const addRecipientOnclick = addRecipientBtn?.getAttribute('onclick') || '';
+  const addRecipientMatch = addRecipientOnclick.match(/__doPostBack\('([^']+)'/);
+
+  if (!addRecipientInput || !addRecipientMatch) return null;
+
+  // Title input
+  const titleInput = doc.querySelector(
+    'input[id*="EditModeHeaderTitleTB_tb"]',
+  ) as HTMLInputElement | null;
+
+  // Body textarea
+  const bodyTextarea = doc.querySelector(
+    'textarea[id*="EditModeContentBBTB_TbxNAME_tb"]',
+  ) as HTMLTextAreaElement | null;
+
+  if (!titleInput || !bodyTextarea) return null;
+
+  // Send button postback target
+  const sendBtn = doc.querySelector(
+    'a[id*="SendMessageBtn"]',
+  ) as HTMLAnchorElement | null;
+  const sendOnclick = sendBtn?.getAttribute('onclick') || '';
+  const sendMatch = sendOnclick.match(/__doPostBack\('([^']+)'/);
+  if (!sendMatch) return null;
+
+  // Cancel button postback target
+  const cancelBtn = doc.querySelector(
+    'a[id*="BackMessageBtn"]',
+  ) as HTMLAnchorElement | null;
+  const cancelOnclick = cancelBtn?.getAttribute('onclick') || '';
+  const cancelMatch = cancelOnclick.match(/__doPostBack\('([^']+)'/);
+
+  // Recipients from ThreadRecipientsGV
+  // Each row: <td>Name</td><td>...<a onclick="javascript:__doPostBack('...GV','DEL$0'); return false;">...</a>...</td>
+  const recipients: ComposeRecipient[] = [];
+  const recipientTable = doc.getElementById(
+    's_m_Content_Content_MessageThreadCtrl_ThreadRecipientsGV',
+  ) as HTMLTableElement | null;
+  if (recipientTable) {
+    const rows = recipientTable.querySelectorAll('tr');
+    for (const row of rows) {
+      // Skip "no records" rows
+      if (row.querySelector('.noRecord')) continue;
+
+      const nameCell = row.querySelector('td:first-child');
+      if (!nameCell) continue;
+      const name = (nameCell.textContent || '').trim();
+      if (!name) continue;
+
+      const removeLink = (
+        row.querySelector('a[onclick*="__doPostBack"]')
+        ?? row.querySelector('a[href*="__doPostBack"]')
+      ) as HTMLAnchorElement | null;
+      const removeAttr = removeLink?.getAttribute('onclick')
+        || removeLink?.getAttribute('href') || '';
+      const removeMatch = removeAttr.match(/__doPostBack\(&#39;([^&]+)&#39;,&#39;([^&]+)&#39;\)/)
+        || removeAttr.match(/__doPostBack\('([^']+)','([^']+)'\)/);
+
+      if (removeMatch) {
+        // postback target = first arg, argument = second (e.g. 'DEL$0')
+        recipients.push({
+          name,
+          removePostbackTarget: `${removeMatch[1]}:${removeMatch[2]}`,
+        });
+      } else {
+        // Fallback: no remove button found, still show the recipient
+        recipients.push({ name, removePostbackTarget: '' });
+      }
+    }
+  }
+
+  // "Skal ikke kunne besvares" checkbox
+  const noReplyCheckbox = doc.getElementById(
+    's_m_Content_Content_MessageThreadCtrl_RepliesNotAllowedChkBox',
+  ) as HTMLInputElement | null;
+
+  // Attachment panel + hidden input + postback target
+  const attachPanel = doc.querySelector(
+    '[id*="AttachmentDocChooser_panel"]',
+  ) as HTMLElement | null;
+
+  const attachDocIdInput = doc.querySelector(
+    'input[id*="AttachmentDocChooser_selectedDocumentId"]',
+  ) as HTMLInputElement | null;
+
+  let attachPostbackTarget = '';
+  if (attachDocIdInput) {
+    const hiddenName = attachDocIdInput.getAttribute('name') || '';
+    attachPostbackTarget = hiddenName.replace(/\$selectedDocumentId$/, '');
+  }
+
+  return {
+    recipients,
+    addRecipientPostbackTarget: addRecipientMatch[1],
+    addRecipientInputName: addRecipientInput.getAttribute('name') || '',
+    addRecipientHiddenInputName: addRecipientHiddenInput?.getAttribute('name') || '',
+    noReplyCheckbox,
+    nativeTitleInput: titleInput,
+    nativeBodyTextarea: bodyTextarea,
+    sendPostbackTarget: sendMatch[1],
+    cancelPostbackTarget: cancelMatch ? cancelMatch[1] : '',
+    attachPanelEl: attachPanel,
+    attachDocumentIdInput: attachDocIdInput,
+    attachPostbackTarget,
+    currentTitle: titleInput.value || '',
+    currentBody: bodyTextarea.value || '',
+  };
+}
+
+// ── Actions ────────────────────────────────────────────────────────────
+
+const BETTERLECTIO_SIGNATURE =
+  '\n\n[url=https://betterlectio.dk/download]Sendt med BetterLectio[/url]';
+
+/**
+ * Returns true when the signature should be skipped — i.e. the only recipient
+ * is a single teacher (context card ID starts with "T").
+ */
+export function shouldSkipSignature(doc: Document = document, recipientContextIds?: string[]): boolean {
+  // User setting to always disable signature
+  if (isFeatureEnabled('behavior', 'disableSignature')) return true;
+
+  // If caller provides recipient context IDs directly (e.g. compose view), use those
+  if (recipientContextIds) {
+    return recipientContextIds.some((id) => id.startsWith('T'));
+  }
+
+  const profile = getCachedProfile();
+  const ownName = (profile?.fullName || profile?.name || '').trim().toLowerCase();
+
+  const isOwnRecipient = (name: string): boolean => {
+    if (!ownName) return false;
+    const normalized = name.replace(/\s*\([^)]*\)/g, '').trim().toLowerCase();
+    return normalized.startsWith(ownName);
+  };
+
+  // Thread view (read-only recipients)
+  const readMode = doc.getElementById(
+    's_m_Content_Content_MessageThreadCtrl_RecipientsReadMode',
+  );
+  if (readMode) {
+    const spans = Array.from(readMode.querySelectorAll('span[data-lectioContextCard]'));
+    const filtered = spans.filter((span) => !isOwnRecipient((span.textContent || '').trim()));
+    return filtered.some((span) => (span.getAttribute('data-lectioContextCard') || '').startsWith('T'));
+  }
+
+  // Compose view (editable recipients table)
+  const table = doc.getElementById(
+    's_m_Content_Content_MessageThreadCtrl_ThreadRecipientsGV',
+  ) as HTMLTableElement | null;
+  if (table && !table.querySelector('.noRecord')) {
+    const cards = Array.from(table.querySelectorAll('[data-lectioContextCard]'));
+    return cards.some((card) => (card.getAttribute('data-lectioContextCard') || '').startsWith('T'));
+  }
+
+  return false;
+}
+
+export function sendReply(replyForm: ThreadReplyForm, title: string, body: string): void {
+  const titleInput = document.getElementById(replyForm.titleInputId) as HTMLInputElement | null;
+  const bodyTextarea = document.getElementById(replyForm.bodyTextareaId) as HTMLTextAreaElement | null;
+
+  if (!titleInput || !bodyTextarea) return;
+
+  titleInput.value = title;
+  const sig = shouldSkipSignature() ? '' : BETTERLECTIO_SIGNATURE;
+  bodyTextarea.value = body + sig;
+
+  doPostBack(replyForm.sendPostbackTarget, '');
+}
+
+export function cancelReply(replyForm: ThreadReplyForm): void {
+  if (!replyForm.cancelPostbackTarget) return;
+  doPostBack(replyForm.cancelPostbackTarget, '');
+}
+
+// ── Signature Stripping ────────────────────────────────────────────────
+
+export function stripSignatures(html: string): string {
+  let result = html;
+
+  // Strip BetterLectio/Lectio+ signatures — any <a> link with matching text
+  result = result.replace(/<a[^>]*>Sendt (?:med|via|fra) BetterLectio<\/a>/gi, '');
+  result = result.replace(/<a[^>]*>Sendt (?:med|via|fra) Lectio\+<\/a>/gi, '');
+
+  // Strip BBCode/escaped variants
+  result = result.replace(/\[url=[^\]]*\]Sendt (?:med|via|fra) BetterLectio\[\/url\]/gi, '');
+  result = result.replace(/&lt;a[^&]*&gt;Sendt (?:med|via|fra) BetterLectio&lt;\/a&gt;/gi, '');
+  result = result.replace(/&lt;a[^&]*&gt;Sendt (?:med|via|fra) Lectio\+&lt;\/a&gt;/gi, '');
+  result = result.replace(/\[(?:Sent|Sendt)\s+med\s+BetterLectio\]\([^)]+\)/gi, '');
+  result = result.replace(/(?:^|<br\s*\/?>|\n)\s*Sendt (?:med|via|fra) (?:BetterLectio|Lectio\+)\s*(?=$|<br\s*\/?>|\n)/gi, '');
+
+  // Clean up trailing whitespace/newlines left by stripping
+  result = result.replace(/(\s*<br\s*\/?\s*>\s*)+$/i, '');
+  result = result.replace(/\s+$/, '');
+
+  return result;
+}

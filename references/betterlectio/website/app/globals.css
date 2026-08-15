@@ -1,0 +1,354 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+    --font-heading: var(--font-sans);
+    --font-sans: var(--font-sans);
+    --font-mono: var(--font-mono), "Geist Mono", ui-monospace, monospace;
+    /* Marketing-site brand palette (see the `.site` root below). Exposed as
+       Tailwind color utilities (bg-brand, text-ink, border-line, …). `inline`
+       keeps them as var() references so they resolve from the `.site` scope. */
+    --color-brand: var(--blue);
+    --color-brand-deep: var(--blue-deep);
+    --color-brand-soft: var(--brand-soft);
+    --color-ink: var(--ink);
+    --color-ink-muted: var(--ink-muted);
+    --color-volt: var(--volt);
+    --color-site-orange: var(--orange);
+    --color-grey: var(--grey);
+    --color-line: var(--line);
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0 0);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.145 0 0);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.145 0 0);
+    --primary: oklch(0.205 0 0);
+    --primary-foreground: oklch(0.985 0 0);
+    --secondary: oklch(0.97 0 0);
+    --secondary-foreground: oklch(0.205 0 0);
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.556 0 0);
+    --accent: oklch(0.97 0 0);
+    --accent-foreground: oklch(0.205 0 0);
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: oklch(0.922 0 0);
+    --input: oklch(0.922 0 0);
+    --ring: oklch(0.708 0 0);
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --radius: 0.625rem;
+    --sidebar: oklch(0.985 0 0);
+    --sidebar-foreground: oklch(0.145 0 0);
+    --sidebar-primary: oklch(0.205 0 0);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.97 0 0);
+    --sidebar-accent-foreground: oklch(0.205 0 0);
+    --sidebar-border: oklch(0.922 0 0);
+    --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --popover: oklch(0.205 0 0);
+    --popover-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.922 0 0);
+    --primary-foreground: oklch(0.205 0 0);
+    --secondary: oklch(0.269 0 0);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --accent: oklch(0.269 0 0);
+    --accent-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.556 0 0);
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --sidebar: oklch(0.205 0 0);
+    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-primary: oklch(0.488 0.243 264.376);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.269 0 0);
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    }
+  body {
+    @apply bg-background text-foreground;
+    }
+  button:not(:disabled), [role="button"]:not(:disabled) {
+    cursor: pointer;
+    }
+  html {
+    @apply font-sans;
+    }
+}
+
+/* =========================================================================
+   BetterLectio marketing site, monochrome design system
+   Black / grey / white foundation. Blue survives only as a restrained accent
+   for links and focus rings; the real colour on the page comes from product
+   screenshots. Brand tokens are defined here and surfaced to Tailwind via the
+   `@theme inline` block above (bg-brand, text-ink, border-line, …).
+
+   Marketing pages are always light, `.site` fixes its own palette so the
+   `next-themes` dark toggle (used elsewhere) never flips the landing page.
+   ========================================================================= */
+
+.site {
+  /* Neutral foundation, zero chroma across the greyscale. */
+  --ink: oklch(0.18 0 0);
+  --ink-muted: oklch(0.47 0 0);
+  --grey: oklch(0.967 0 0);
+  --line: oklch(0.9 0 0);
+
+  /* Restrained blue accent (links + focus rings only). Never a large fill. */
+  --blue: oklch(0.55 0.16 258);
+  --blue-deep: oklch(0.48 0.16 258);
+  --brand-soft: oklch(0.955 0.016 258);
+
+  /* Kept for the few niche surfaces that still opt in. Used sparingly. */
+  --orange: oklch(0.72 0.16 55);
+  --volt: oklch(0.68 0.13 150);
+
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: radial-gradient(1200px 640px at 50% -8%, #fff 0%, oklch(0.98 0 0) 60%, oklch(0.972 0 0) 100%);
+  color: var(--ink);
+  font-family: var(--font-sans), "Geist", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  overflow-x: clip;
+}
+
+.site ::selection { background: var(--ink); color: #fff; }
+
+/* --- soft top wash (replaces the old blue diagonal) --------------------- */
+.site-diagonal {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 88vh;
+  background: radial-gradient(900px 460px at 50% -10%, oklch(0.955 0 0) 0%, transparent 72%);
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* --- before / after comparison slider ----------------------------------- */
+.ba {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--grey);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.ba__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+/* Top layer = plain Lectio ("before"), revealed from the left up to --pos. */
+.ba__before { clip-path: inset(0 calc(100% - var(--pos, 50%)) 0 0); }
+.ba__tag {
+  position: absolute;
+  top: 14px;
+  z-index: 3;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.ba__tag--before { left: 14px; background: rgba(0, 0, 0, 0.62); color: #fff; }
+.ba__tag--after { right: 14px; background: rgba(255, 255, 255, 0.82); color: var(--ink); }
+.ba__handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--pos, 50%);
+  width: 2px;
+  margin-left: -1px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.14);
+  z-index: 4;
+  cursor: ew-resize;
+}
+.ba__grip {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 40px;
+  height: 40px;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 6px 20px -6px rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+}
+.ba__handle:focus-visible { outline: none; }
+.ba__handle:focus-visible .ba__grip { outline: 3px solid var(--blue); outline-offset: 3px; }
+
+/* --- subtle marquee (schools / proof strip) ----------------------------- */
+.marquee {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+}
+.marquee__track {
+  display: inline-flex;
+  white-space: nowrap;
+  will-change: transform;
+  animation: site-scroll 42s linear infinite;
+}
+@keyframes site-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+/* --- footer shell (near-black, flat) ------------------------------------ */
+.site-footer {
+  background: var(--ink);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+/* --- native <details> accordion (used on the privacy page) ---------------
+   The disclosure chevron and list bullets are ::after / ::before
+   pseudo-elements that don't translate cleanly to utility classes. */
+.site-details { margin-top: 22px; display: flex; flex-direction: column; gap: 12px; }
+.site-detail {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  overflow: hidden;
+}
+.site-detail summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 20px 24px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.site-detail summary::-webkit-details-marker { display: none; }
+.site-detail summary::after {
+  content: "";
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  border-right: 2px solid var(--ink-muted);
+  border-bottom: 2px solid var(--ink-muted);
+  transform: rotate(45deg);
+  transition: transform 0.25s ease;
+}
+.site-detail[open] summary::after { transform: rotate(-135deg); }
+.site-detail summary:focus-visible { outline: 3px solid var(--ink); outline-offset: -3px; border-radius: 18px; }
+.site-detail__body { padding: 0 24px 22px; font-size: 15px; line-height: 1.65; color: #3a3a3c; }
+.site-detail__body p { margin: 0 0 12px; }
+.site-detail__body ul { list-style: none; display: flex; flex-direction: column; gap: 10px; margin: 0; }
+.site-detail__body li { display: flex; align-items: flex-start; gap: 10px; }
+.site-detail__body li::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink);
+  flex-shrink: 0;
+  margin-top: 8px;
+}
+.site-detail__body strong { color: var(--ink); font-weight: 700; }
+.site-detail__body a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.site-detail__body code {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.9em;
+  background: var(--grey);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+/* --- reduced motion ------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  .marquee__track { animation: none; }
+  .site-detail summary::after { transition: none; }
+}

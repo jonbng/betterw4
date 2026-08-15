@@ -1,0 +1,29 @@
+{
+  "name": "lectio-cli",
+  "version": "1.0.0",
+  "description": "CLI tool for authenticated Lectio API access",
+  "type": "module",
+  "bin": {
+    "lectio": "./dist/index.js"
+  },
+  "scripts": {
+    "lectio": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target node --minify",
+    "dev": "bun run src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^7.10.1",
+    "chalk": "^5.6.2",
+    "commander": "^15.0.0",
+    "fuse.js": "^7.4.2",
+    "ora": "^9.4.0",
+    "puppeteer": "^25.1.0",
+    "tough-cookie": "^6.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.21",
+    "@types/tough-cookie": "^4.0.5",
+    "typescript": "^5.9.3"
+  }
+}

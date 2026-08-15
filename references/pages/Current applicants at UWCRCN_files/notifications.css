@@ -1,0 +1,119 @@
+div.notifications {
+    font-family: lato;
+    position: absolute;
+    top: 50px;
+    left: 0;
+}
+
+div.notifications .btn-group {
+    position: relative;
+}
+
+div.notifications .btn-group div.alert {
+    position: absolute;
+    left: 20px;
+    top: 0px;
+    display: block;
+    width: 15px;
+    height: 15px;
+    line-height: 15px;
+    border-radius: 8px;
+    background-color: red;
+    color:white;
+    font-size: 8pt;
+    font-weight: bold;
+    text-align: center;
+}
+
+div.notifications .btn-group div.normal {
+    font-weight: normal;
+    background-color: rgb(51,122,183);
+}
+
+div.notifications .btn-group div.overdue {
+    background-color: rgb(218,79,73);
+    font-weight: bold;
+}
+
+div.notifications .btn-group div.new {
+    background-color: rgb(150,200,82);
+    font-weight: bold;
+}
+
+div.notifications dl.email-list dt {
+    font-weight: bold;
+}
+
+div.notifications dl.email-list dd {
+    font-style: italic;
+}
+
+div.notifications dt.normal, div.notifications dd li.normal {
+    font-weight: normal;
+}
+
+div.notifications dt.new, div.notifications dd li.new {
+    font-weight: bold;
+    color: rgb(150,200,82);
+}
+
+div.notifications dt.overdue, div.notifications dd li.overdue {
+    font-weight: bold;
+    color: rgb(218,79,73);
+}
+
+div.notifications dt.overdue, div.notifications dd li.overdue a {
+    color: rgb(218,79,73);
+}
+
+div.notifications img {
+    cursor: pointer;
+}
+
+div.notifications .btn-group .dropdown-menu {
+    background: white;
+    margin: 5px 0;
+    overflow-y: scroll;
+    max-height: 300px;
+    white-space: normal;
+    min-width: 280px;
+    font-family: Arial;
+    font-size: 10pt;
+    font-weight: normal;
+    padding: 10px;
+    border: 1px solid dimgray;
+    color: black;
+    display: none;
+}
+
+div.notifications .btn-group .dropdown-menu li {
+    border-bottom: 1px solid #ccc;
+    margin-bottom: 5px;
+    padding: 3px;
+
+}
+
+div.notifications .btn-group.open .btn-primary.dropdown-toggle {
+    background-color: #96c852;
+}
+
+div.notifications span.icon {
+    margin-right: 5px;
+}
+
+div.notifications span.duration {
+    margin-left: 5px;
+    color: blue;
+    font-weight: bold;
+}
+
+div.notifications span.deadline {
+    margin-left: 5px;
+    color: red;
+    font-weight: bold;
+}
+
+div.notifications .btn-group .dropdown-menu li:nth-child(even){
+  background-color: #eee !important;
+}
+

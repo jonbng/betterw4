@@ -1,0 +1,18 @@
+# Copy to local.properties (gitignored). Android Studio also generates sdk.dir.
+#
+#   cp local.properties.example local.properties
+#
+# sdk.dir is required for command-line builds outside Studio.
+
+## Android SDK (adjust path for your machine)
+# sdk.dir=/home/YOU/Android/Sdk
+# sdk.dir=/Users/YOU/Library/Android/sdk
+
+## Optional: PostHog (analytics). Leave blank to disable capture.
+## Read by app/build.gradle.kts into BuildConfig (not via project.findProperty).
+# posthog.apiKey=phc_...
+# posthog.host=https://eu.i.posthog.com
+
+## Optional: override Supabase (defaults match iOS public project in build.gradle.kts)
+# SUPABASE_URL=https://….supabase.co
+# SUPABASE_ANON_KEY=sb_publishable_…

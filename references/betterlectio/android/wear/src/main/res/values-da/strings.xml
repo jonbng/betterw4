@@ -1,0 +1,23 @@
+<resources>
+    <string name="app_name">BetterLectio</string>
+    <string name="tile_label">Skema</string>
+    <string name="complication_label">Lektionsnedtælling</string>
+    <string name="schedule">Skema</string>
+    <string name="today">I dag</string>
+    <string name="ends_in">Slutter om %1$d min</string>
+    <string name="starts_in">Starter om %1$d min</string>
+    <string name="ends_now">Slutter nu</string>
+    <string name="starts_now">Starter nu</string>
+    <string name="no_more_classes">Ikke flere lektioner</string>
+    <string name="no_classes_today">Ingen lektioner i dag</string>
+    <string name="syncing">Synkroniserer…</string>
+    <string name="refresh">Opdater</string>
+    <string name="last_updated">Opdateret %1$s</string>
+    <string name="stale_schedule">Skemaet kan være forældet</string>
+    <string name="open_phone">Åbn BetterLectio på din telefon for at logge ind</string>
+    <string name="phone_unavailable">Telefonen er ikke tilgængelig. Viser gemt skema.</string>
+    <string name="previous_day">Forrige dag</string>
+    <string name="next_day">Næste dag</string>
+    <string name="cancelled">Aflyst</string>
+    <string name="changed">Ændret</string>
+</resources>

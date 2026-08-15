@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>dk.echolabs.betterlectio.app.refresh-live-activity</string>
+	</array>
+	<key>POSTHOG_HOST</key>
+	<string>https://eu.i.posthog.com</string>
+	<key>POSTHOG_PROJECT_TOKEN</key>
+	<string>phc_US8y681XoO08xFuAzDHOMtvDvZHcJsk275xpoLq7JoE</string>
+	<key>SUPABASE_URL</key>
+	<string>https://uyyqxwlojqvbpukxgxem.supabase.co</string>
+	<key>SUPABASE_PUBLISHABLE_KEY</key>
+	<string>sb_publishable_yGKR4-hB3Pp3Zr7QkU3UNg_5S3i-II3</string>
+</dict>
+</plist>

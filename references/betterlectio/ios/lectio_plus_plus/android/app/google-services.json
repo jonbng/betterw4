@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "711204938988",
+    "project_id": "lectiopp",
+    "storage_bucket": "lectiopp.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:711204938988:android:953b02086a14beaeb731c9",
+        "android_client_info": {
+          "package_name": "com.oscarspalk.lpp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC0xgPsQeqDco3lHztPPSMhoXWcxLwCSLc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

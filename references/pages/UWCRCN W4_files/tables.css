@@ -1,0 +1,80 @@
+@charset "utf-8";
+.data {
+	background: #EBF4FB;
+	width:99%;
+	padding: 10px;
+	border:1px solid #59B;
+	-moz-border-radius:10px;
+	-webkit-border-radius:10px;
+	margin-left:auto;
+	margin-right:auto;
+	margin-top: 20px;
+	margin-bottom: 20px;
+	/*white-space: nowrap;*/
+}
+
+.data td, .data th {
+	padding: 5px;
+}
+
+/* CSS Document */
+.table_1_bg {
+	background-color: #B4D9EC;
+}
+.table_1_bg:hover {
+	background-color: #F0D7C2;
+	color: #5599BB;
+}
+.table_2_bg {
+	background-color:#D0E6F3;
+}
+.table_2_bg:hover {
+	background-color:#F0D7C2;
+	color: #5599BB;
+}
+
+tr.prearranged_1 {
+	background-color: #83CF82;
+}
+
+tr.prearranged_2 {
+	background-color: #93E992;
+}
+
+tr.medical_1 {
+	background-color: #B8A9C6;
+}
+
+tr.medical_2 {
+	background-color: #D0B9D0;
+}
+
+.weekend
+{
+	color:#999;
+}
+.break
+{
+	color:#999;
+}
+.pbl, .special, .classes
+{
+	color:#666;
+}
+
+.pbl:hover, .special:hover, .classes:hover
+{
+	color:#59B;
+}
+
+td.active, td.inactive {
+	font-weight: bold;
+}
+
+td.active {
+	color: green;
+}
+
+td.inactive {
+	color: red;
+}

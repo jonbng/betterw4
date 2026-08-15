@@ -1,0 +1,286 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!-- saved from url=(0043)https://w4.uwcrcn.no/index.php?r=site/index -->
+<html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        
+        <link rel="stylesheet" type="text/css" href="./UWCRCN W4_files/homepage.css">
+<link rel="stylesheet" type="text/css" href="./UWCRCN W4_files/display_full_timetable.css">
+<link rel="stylesheet" type="text/css" href="./UWCRCN W4_files/jquery-ui.css">
+<link rel="stylesheet" type="text/css" href="./UWCRCN W4_files/notifications.css">
+<link rel="stylesheet" type="text/css" href="./UWCRCN W4_files/campusstatusdropdown.css">
+<link rel="stylesheet" type="text/css" href="./UWCRCN W4_files/helprenderer.css">
+<script type="text/javascript" src="./UWCRCN W4_files/jquery.min.js"></script>
+<script type="text/javascript" src="./UWCRCN W4_files/jquery-migrate-1.4.1.min.js"></script>
+<script type="text/javascript" src="./UWCRCN W4_files/timetable.js"></script>
+<script type="text/javascript" src="./UWCRCN W4_files/full_timetable.js"></script>
+<script type="text/javascript" src="./UWCRCN W4_files/init_ajax.js"></script>
+<script type="text/javascript" src="./UWCRCN W4_files/notifications.js"></script>
+<script type="text/javascript" src="./UWCRCN W4_files/campusstatusdropdown.js"></script>
+<script type="text/javascript" src="./UWCRCN W4_files/helprenderer.js"></script>
+<script type="text/javascript" src="./UWCRCN W4_files/center.js"></script>
+<script type="text/javascript">
+/*<![CDATA[*/
+var tt_start_hour = 7;
+var tt_end_hour = 22;
+var notification_urls = {'read':'\x2Findex.php\x3Fr\x3Dnotifications\x2Fread','readGroup':'\x2Findex.php\x3Fr\x3Dnotifications\x2Freadgroup','readAll':'\x2Findex.php\x3Fr\x3Dnotifications\x2Freadall','clear':'\x2Findex.php\x3Fr\x3Dnotifications\x2Fclear','clearGroup':'\x2Findex.php\x3Fr\x3Dnotifications\x2Fcleargroup','clearAll':'\x2Findex.php\x3Fr\x3Dnotifications\x2Fclearall','refresh':'\x2Findex.php\x3Fr\x3Dnotifications\x2Frefresh','readAllEmails':'\x2Findex.php\x3Fr\x3Dnotifications\x2Freadallemails'}
+var status_urls = {'set':'\x2Findex.php\x3Fr\x3Dsite\x2Fsetstatus'}
+/*]]>*/
+</script>
+<title>UWCRCN W4</title>
+        <link href="./UWCRCN W4_files/main.css" rel="stylesheet" type="text/css">
+        <link href="./UWCRCN W4_files/tables.css" rel="stylesheet" type="text/css">
+                <link rel="alternate" type="application/rss+xml" title="UWCRCN W4 Announcements" href="https://w4.uwcrcn.no/index.php?r=site/rss">
+            </head>
+    <body>
+        <div id="main">
+            <div id="header">
+                <div>UWCRCN W4</div>
+                <div id="version">W4 v. <a title="View release notes" href="https://w4.uwcrcn.no/index.php?r=site/relnotes">25.9.1</a></div>                <div class="notifications">
+</div>                <div class="status-dropdown">
+    <div class="status oncampus">
+        <div class="status-value">on campus</div>
+        <div class="location">
+                    </div>
+    </div>
+</div>
+<div class="selection-box">
+    <p>I am currently:</p>
+    <span id="location"><input value="oncampus" id="location_0" checked="checked" type="radio" name="location"> <label for="location_0">On campus</label><br><input value="On a walk" id="location_1" type="radio" name="location"> <label for="location_1">On a walk</label><br><input value="At Raudbua" id="location_2" type="radio" name="location"> <label for="location_2">At Raudbua</label><br><input value="On Jarstadheia" id="location_3" type="radio" name="location"> <label for="location_3">On Jarstadheia</label><br><input value="On the island" id="location_4" type="radio" name="location"> <label for="location_4">On the island</label><br><input value="In Flekke" id="location_5" type="radio" name="location"> <label for="location_5">In Flekke</label><br><input value="In Dale" id="location_6" type="radio" name="location"> <label for="location_6">In Dale</label><br><input value="In A building (after 10:30pm)" id="location_7" type="radio" name="location"> <label for="location_7">In A building (after 10:30pm)</label><br><input value="In K building (after 10:30pm)" id="location_8" type="radio" name="location"> <label for="location_8">In K building (after 10:30pm)</label><br><input value="In Library/Study room (after 10:30pm)" id="location_9" type="radio" name="location"> <label for="location_9">In Library/Study room (after 10:30pm)</label><br><input value="other" id="location_10" type="radio" name="location"> <label for="location_10">Other</label></span>    <input maxlength="20" type="text" value="" name="other" id="other" style="display: none;">    <div class="buttons">
+        <input id="submit-campus-status" name="yt0" type="button" value="Set status">    </div>
+</div>
+            </div>
+
+                        <div id="main_menu">
+                                <a class="active" href="https://w4.uwcrcn.no/index.php?r=site/index">Home</a> | <a href="https://w4.uwcrcn.no/index.php?r=academics">Academics</a> | <a href="https://w4.uwcrcn.no/index.php?r=extraacademics">Extra Academics</a> | <a href="https://w4.uwcrcn.no/index.php?r=people">School</a> | <a href="https://w4.uwcrcn.no/index.php?r=admissions/browse/admissions">Admissions</a> | <a href="https://w4.uwcrcn.no/index.php?r=documents">Documents</a>            </div>
+            <div id="user-panel">
+                                <div class="right">Welcome, Jonathan Bangert<br>
+                    <a href="https://w4.uwcrcn.no/index.php?r=site/logout">Logout</a>                    |
+                    <a href="https://w4.uwcrcn.no/index.php?r=site/profile">Profile</a>                    |<a href="https://w4.uwcrcn.no/index.php?r=site/password">Password</a>                </div>
+                            </div>
+            <div class="clear"></div>
+            <div id="content">
+                <!-- Hide this if HOME -->
+                <div id="breadcrumb">
+                    <div class="crumbs">
+<a href="https://w4.uwcrcn.no/">Home</a></div>
+    <div class="help-icon">
+                     &nbsp;
+                             &nbsp;
+            <script type="text/javascript">
+/*<![CDATA[*/
+ajax_help_url = '/index.php?r=help/index'
+/*]]>*/
+</script><a class="help" title="Help" id="help" href="https://w4.uwcrcn.no/index.php?r=site/index#"><img src="./UWCRCN W4_files/help_24.png" alt="Help icon"></a><div id="help_display" class="ui-draggable" style="position: relative;">
+	<div id="help_title_bar" class="ui-draggable-handle">UWCRCN W4 Help</div>
+	<div id="help_index"><a id="help_index_link" href="https://w4.uwcrcn.no/index.php?r=site/index#">Help index</a></div>
+	<iframe id="help_content" src="./UWCRCN W4_files/saved_resource.html">&nbsp;</iframe>
+	<div id="help_button"><input id="help_close_button" name="yt1" type="button" value="Close"></div>
+</div>            </div>
+                </div>
+                <div id="content_frame">
+                    <div id="content_main">
+                        <!-- End Headre for the Page Layout -->
+                        <!-- Start Main Countent -->
+                                                                        <div id="content_inner"> <div id="homepage_info">
+	<div id="top-row">
+		<div id="top1">
+			<div id="timetable">
+					<h3>August 2026, week 33</h3>
+	<div id="timetable-header">
+		<div class="header-row">
+			<div class="header-cell first">&nbsp;
+			</div>
+						<div class="header-cell">
+				<div class="day-name">Monday</div>
+				<div>10-Aug-2026</div>
+				<div class="rotation-day">Day 1</div>
+                <div>No EA</div>
+			</div>
+						<div class="header-cell">
+				<div class="day-name">Tuesday</div>
+				<div>11-Aug-2026</div>
+				<div class="rotation-day">Day 2</div>
+                <div>No EA</div>
+			</div>
+						<div class="header-cell">
+				<div class="day-name">Wednesday</div>
+				<div>12-Aug-2026</div>
+				<div class="rotation-day">Day 3</div>
+                <div>No EA</div>
+			</div>
+						<div class="header-cell">
+				<div class="day-name">Thursday</div>
+				<div>13-Aug-2026</div>
+				<div class="rotation-day">Day 4</div>
+                <div>No EA</div>
+			</div>
+						<div class="header-cell">
+				<div class="day-name">Friday</div>
+				<div>14-Aug-2026</div>
+				<div class="rotation-day">Day 5</div>
+                <div>No EA</div>
+			</div>
+						<div class="header-cell">
+				<div class="day-name">Saturday</div>
+				<div>15-Aug-2026</div>
+				<div class="rotation-day no-classes">Weekend</div>
+                <div>No EA</div>
+			</div>
+						<div class="header-cell">
+				<div class="day-name">Sunday</div>
+				<div>16-Aug-2026</div>
+				<div class="rotation-day no-classes">Weekend</div>
+                <div>No EA</div>
+			</div>
+						<div class="clear">
+			</div>
+		</div>
+	</div>
+	<div id="timetable">
+	<div class="column" style="height: 900px">
+			<div class="cell">7:00 — 8:00
+		</div>
+			<div class="cell">8:00 — 9:00
+		</div>
+			<div class="cell">9:00 — 10:00
+		</div>
+			<div class="cell">10:00 — 11:00
+		</div>
+			<div class="cell">11:00 — 12:00
+		</div>
+			<div class="cell">12:00 — 13:00
+		</div>
+			<div class="cell">13:00 — 14:00
+		</div>
+			<div class="cell">14:00 — 15:00
+		</div>
+			<div class="cell">15:00 — 16:00
+		</div>
+			<div class="cell">16:00 — 17:00
+		</div>
+			<div class="cell">17:00 — 18:00
+		</div>
+			<div class="cell">18:00 — 19:00
+		</div>
+			<div class="cell">19:00 — 20:00
+		</div>
+			<div class="cell">20:00 — 21:00
+		</div>
+			<div class="cell">21:00 — 22:00
+		</div>
+		</div>
+			<div class="column" style="height: 900px">
+				                	</div>
+			<div class="column" style="height: 900px">
+				                	</div>
+			<div class="column" style="height: 900px">
+				                	</div>
+			<div class="column" style="height: 900px">
+				                	</div>
+			<div class="column current" style="height: 900px">
+					<div id="current_time" style="opacity: 0.460236; display: block; top: 394px;">&nbsp;</div>
+				                	</div>
+			<div class="column" style="height: 900px">
+				                	</div>
+			<div class="column" style="height: 900px">
+				                	</div>
+		<div class="clear"></div>
+</div>
+<div class="clear"></div>
+			</div>
+		</div>
+		<div id="top2">
+			<div id="birthdays-announcements">
+				<div id="birthdays">
+                    <h3>
+                        Birthdays!
+                    </h3>
+					<div id="birthdays-today">
+                        <h4>Today</h4>
+						<div>
+							                            <ul>
+								                                <li><a href="https://w4.uwcrcn.no/index.php?r=people/staff/staff&amp;uwc_id=nc16jmac"><img class="photo" width="40" src="./UWCRCN W4_files/nc16jmac_thumb.jpg" alt="Photo of nc16jmac"></a></li>
+								                                <li><a href="https://w4.uwcrcn.no/index.php?r=people/staff/staff&amp;uwc_id=nc19ndem"><img class="photo" width="40" src="./UWCRCN W4_files/nc19ndem_thumb.jpg" alt="Photo of nc19ndem"></a></li>
+								                                <li><a href="https://w4.uwcrcn.no/index.php?r=people/students/student&amp;uwc_id=nc25wnas"><img class="photo" width="40" src="./UWCRCN W4_files/nc25wnas_thumb.jpg" alt="Photo of nc25wnas"></a></li>
+								                            </ul>
+													</div>
+					</div>
+                    <div id="birthdays-tomorrow">
+						<h4>
+							Tomorrow
+						</h4>
+						<div>
+							                            <ul>
+								                                <li><a href="https://w4.uwcrcn.no/index.php?r=people/students/student&amp;uwc_id=nc25eros"><img class="photo" width="40" src="./UWCRCN W4_files/nc25eros_thumb.jpg" alt="Photo of nc25eros"></a></li>
+								                            </ul>
+													</div>
+					</div>
+                    <div class="calendar">
+                        <a title="Birthdays calendar" href="https://w4.uwcrcn.no/index.php?r=people/birthdays"><img src="./UWCRCN W4_files/calendar.gif" alt="Birthdays calendar"></a>                    </div>
+				</div>
+				<div id="announcements">
+					<div id="announcements-content">
+						<h3>
+							College Announcements
+						</h3>
+                        <div class="rss">
+                            <a title="Subscribe announcements as RSS feed" rel="alternate" type="application/rss+xml" href="https://w4.uwcrcn.no/index.php?r=site/rss"><img src="./UWCRCN W4_files/rss_32.png" alt="RSS icon"></a>                        </div>
+                        <br class="clear">
+						    <p>No announcements...</p>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div id="top3">
+			<div id="hello-absences">
+				<div id="hello">
+					<p>Hello Jonathan Bangert</p>
+                                        <p>Go to your <a href="https://w4.uwcrcn.no/index.php?r=people/students/student&amp;uwc_id=nc26jban">W4 public profile</a></p>
+                    				</div>
+				<div id="absences">
+                                            <div id="academic-absences">
+                            <h3>Academics Attendance Meter</h3>
+                            <p>
+                                                                    You have 0 absences and 0 latenesses so far<br><a href="https://w4.uwcrcn.no/index.php?r=people/students/absences">View attendance</a>                                                            </p>
+                        </div>
+                        <div id="ea-absences">
+                            <h3>EA Attendance Meter</h3>
+                            <p>You have 0 absences and 0 latenesses so far<br><a href="https://w4.uwcrcn.no/index.php?r=people/students/eaabsences">View attendance</a></p>
+                        </div>
+                    				</div>
+			</div>
+		</div>
+	</div>
+	<div id="bottom-row">
+		<div id="bottom1">
+			<div id="calendar">
+                                <iframe width="100%" scrolling="no" height="620" frameborder="0" style="border-width: 0pt;" src="./UWCRCN W4_files/embed.html"></iframe>
+			</div>
+		</div>
+		<div id="bottom2">
+			<div id="alerts">
+                                                				<div id="links"><h3>Links</h3>
+                    <ul><li><a href="https://sites.google.com/uwcrcn.no/uwcrcnextraacademics/project-based-learning-pbl">UWCRCN Extra Academic Website</a></li><li><a href="https://drive.google.com/drive/folders/0AEYzPN1LUjG9Uk9PVA">RCN College Policies Drive</a></li><li><a href="https://w4.uwcrcn.no/index.php?r=academics/trips">Trip Form</a></li><li><a href="https://docs.google.com/forms/d/e/1FAIpQLSdG17n3fATv25X4keReN_fcC-V3MHzhElYuGo1uieBpITKAmg/viewform?usp=sharing&amp;ouid=118039235420655843035">Høegh Kitchen Booking Form</a></li><li><a href="https://uwcrcn.managebac.com/login">ManageBac</a></li><li><a href="https://w4.uwcrcn.no/index.php?r=documents/index&amp;page_id=870">Bakehus</a></li><li><a href="https://w4.uwcrcn.no/index.php?r=extraacademics/documents/index&amp;page_id=79">Haugland times</a></li><li><a href="https://w4.uwcrcn.no/index.php?r=documents/index&amp;page_id=871">Learning support</a></li><li><a href="https://sites.google.com/uwcrcn.no/6stiar?usp=sharing">6 Stiar (walks near campus)</a></li><li><a href="https://w4.uwcrcn.no/index.php?r=documents/index&amp;page_id=1004">Lavvo Booking and Information</a></li></ul>                </div>
+			</div>
+		</div>
+	</div>
+</div>
+ </div>
+                        <!-- End Main Countent -->
+                        <!-- Start Footer for the Page Layout -->
+                    </div>
+                </div>
+            </div>
+            <div id="footer">Copyright © 2009 - 2026 Red Cross Nordic United World College</div>
+        </div>
+    <script type="text/javascript" src="./UWCRCN W4_files/jquery-ui.min.js"></script>
+<script type="text/javascript">
+/*<![CDATA[*/
+jQuery(function($) {
+jQuery('div.period').tooltip({'fade':250,'track':true,'content':function () { return $(this).prop('title'); }});
+jQuery('#help_display').draggable([]);
+});
+/*]]>*/
+</script>
+
+
+</body></html>

@@ -1,0 +1,31 @@
+{
+    "device_frame_version": "latest",
+    "default": {
+      "title": {
+        "font": "../assets/roboto.ttf",
+        "font_size": 96,
+        "font_weight": 700,
+        "color": "#ffffff"
+      },
+      "background": "../assets/background.png",
+      "padding": 48,
+      "show_complete_frame": false,
+      "stack_title" : false,
+      "title_below_image": false,
+      "frame": "BLACK",
+      "use_platform": "IOS"
+    },
+  
+    "data": [
+      {
+        "filter": "01"
+      },
+      {
+        "filter": "02"
+      },
+      {
+        "filter": "Android",
+        "use_platform": "ANDROID"
+      }
+    ]
+  }
