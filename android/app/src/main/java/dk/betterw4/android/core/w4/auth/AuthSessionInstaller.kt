@@ -11,6 +11,7 @@ import dk.betterw4.android.core.w4.scrape.W4IdentityParser
 import dk.betterw4.android.core.w4.session.CredentialStore
 import dk.betterw4.android.core.w4.session.LastSchoolReason
 import dk.betterw4.android.core.w4.session.LastSchoolStore
+import dk.betterw4.android.core.w4.session.SavedLoginStore
 import dk.betterw4.android.core.w4.session.SessionController
 import dk.betterw4.android.core.w4.session.SessionExternalWiper
 import dk.betterw4.android.core.model.School
@@ -38,6 +39,7 @@ import javax.inject.Singleton
 class AuthSessionInstaller @Inject constructor(
     private val engine: W4HttpEngine,
     private val credentialStore: CredentialStore,
+    private val savedLoginStore: SavedLoginStore,
     private val sessionController: SessionController,
     private val sessionExternalWiper: SessionExternalWiper,
     private val lastSchoolStore: LastSchoolStore,
@@ -55,15 +57,38 @@ class AuthSessionInstaller @Inject constructor(
     }
 
     suspend fun loginWithPassword(username: String, password: String): AppResult<W4AuthResult> {
+        return loginWithPassword(username, password, wipeSavedOnInvalid = false)
+    }
+
+    /**
+     * Re-POST the encrypted username + password after a biometric / device-credential gate.
+     * A wrong saved password (user changed it on W4) wipes the store so we do not loop.
+     */
+    suspend fun loginWithSavedLogin(): AppResult<W4AuthResult> {
+        val saved = savedLoginStore.load() ?: return AppResult.Failure(AppError.InvalidLogin)
+        return loginWithPassword(saved.username, saved.password, wipeSavedOnInvalid = true)
+    }
+
+    private suspend fun loginWithPassword(
+        username: String,
+        password: String,
+        wipeSavedOnInvalid: Boolean,
+    ): AppResult<W4AuthResult> {
         return try {
             when (val step = w4LoginClient.submitPassword(username, password)) {
-                is W4LoginStep.Authenticated ->
+                is W4LoginStep.Authenticated -> {
+                    persistSavedLogin(username, password)
                     finishNativeLogin(step.credentials, step.html, username)
                         .map { W4AuthResult.LoggedIn(it) }
-                is W4LoginStep.NeedsOtp ->
+                }
+                is W4LoginStep.NeedsOtp -> {
+                    persistSavedLogin(username, password)
                     AppResult.Success(W4AuthResult.OtpRequired(step.challenge))
-                is W4LoginStep.Failed ->
+                }
+                is W4LoginStep.Failed -> {
+                    if (wipeSavedOnInvalid) savedLoginStore.clear()
                     AppResult.Failure(AppError.InvalidLogin)
+                }
             }
         } catch (e: W4Error) {
             Timber.w(e, "W4 password login failed")
@@ -175,9 +200,14 @@ class AuthSessionInstaller @Inject constructor(
         return AppResult.Success(student)
     }
 
+    private fun persistSavedLogin(username: String, password: String) {
+        savedLoginStore.save(username, password)
+    }
+
     private fun looksLikeLoginHtml(html: String): Boolean = W4Html.isLoginHtml(html)
 
     fun enterDemo(): Student {
+        savedLoginStore.clear()
         sessionController.installDemoSession()
         bgScope.launch {
             schedulePostLoginSync()
@@ -205,6 +235,7 @@ class AuthSessionInstaller @Inject constructor(
      * Clear UI session immediately, then wipe residual cookies.
      */
     fun logout() {
+        savedLoginStore.clear()
         val student = sessionController.currentStudent
         if (student == null || student.isDemo) {
             // Already signed out (e.g. session-lost handler) — still wipe residual jars.

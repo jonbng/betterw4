@@ -12,11 +12,15 @@ import dk.betterw4.android.core.w4.DefaultLectioClient
 import dk.betterw4.android.core.w4.DefaultW4Client
 import dk.betterw4.android.core.w4.LectioClient
 import dk.betterw4.android.core.w4.W4Client
+import dk.betterw4.android.core.w4.auth.AndroidDeviceAuthenticator
 import dk.betterw4.android.core.w4.auth.DefaultSessionExternalWiper
+import dk.betterw4.android.core.w4.auth.DeviceAuthenticator
 import dk.betterw4.android.core.w4.http.PriorityRequestLimiter
 import dk.betterw4.android.core.w4.session.CredentialStore
 import dk.betterw4.android.core.w4.session.EncryptedCredentialStore
+import dk.betterw4.android.core.w4.session.EncryptedSavedLoginStore
 import dk.betterw4.android.core.w4.session.LastSchoolStore
+import dk.betterw4.android.core.w4.session.SavedLoginStore
 import dk.betterw4.android.core.w4.session.SessionExternalWiper
 import dk.betterw4.android.core.w4.session.SharedPrefsLastSchoolStore
 import okhttp3.OkHttpClient
@@ -43,6 +47,10 @@ abstract class W4BindModule {
     @Binds
     @Singleton
     abstract fun bindLastSchoolStore(impl: SharedPrefsLastSchoolStore): LastSchoolStore
+
+    @Binds
+    @Singleton
+    abstract fun bindDeviceAuthenticator(impl: AndroidDeviceAuthenticator): DeviceAuthenticator
 }
 
 @Module
@@ -53,6 +61,11 @@ object W4Module {
     @Singleton
     fun provideCredentialStore(@ApplicationContext context: Context): CredentialStore =
         EncryptedCredentialStore(context)
+
+    @Provides
+    @Singleton
+    fun provideSavedLoginStore(@ApplicationContext context: Context): SavedLoginStore =
+        EncryptedSavedLoginStore(context)
 
     @Provides
     @Singleton

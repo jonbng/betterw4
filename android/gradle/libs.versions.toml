@@ -19,6 +19,7 @@ jsoup = "1.21.2"
 timber = "5.0.1"
 datastore = "1.2.1"
 securityCrypto = "1.1.0"
+biometric = "1.1.0"
 coil = "3.3.0"
 hilt = "2.60.1"
 ksp = "2.2.10-2.0.2"
@@ -76,6 +77,7 @@ timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "tim
 
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
+androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
 
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
 coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }

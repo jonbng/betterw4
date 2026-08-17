@@ -138,6 +138,7 @@ dependencies {
 
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.security.crypto)
+    implementation(libs.androidx.biometric)
 
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)

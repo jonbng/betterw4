@@ -1,0 +1,30 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>Additional verification required</title>
+</head>
+<body>
+<div id="content_inner">
+    <h2>Additional verification required</h2>
+    <div class="form" style="width: 700px">
+        <form class="main" id="otp-form" action="/index.php?r=site/verify2fa" method="post">
+            <input name="OtpModel[deviceId]" id="OtpModel_deviceId" type="hidden" />
+            <p>Enter verification code we have sent you via email</p>
+            <div class="row">
+                <label for="OtpModel_otp">Verification code</label>
+                <input size="30" maxlength="8" name="OtpModel[otp]" id="OtpModel_otp" type="text" />
+            </div>
+            <div class="row">
+                <input id="ytOtpModel_remember" type="hidden" value="0" name="OtpModel[remember]" />
+                <input name="OtpModel[remember]" id="OtpModel_remember" value="1" type="checkbox" />
+                <label style="display: inline" for="OtpModel_remember">Trust this device for 30 days</label>
+            </div>
+            <div class="center" style="width: 700px">
+                <input type="submit" name="yt0" value="Submit" />
+            </div>
+        </form>
+        <p>Did not receive the code? <a href="/index.php?r=site/otp">Send it again</a>.</p>
+    </div>
+</div>
+</body>
+</html>

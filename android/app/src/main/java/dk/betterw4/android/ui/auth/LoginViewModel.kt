@@ -7,10 +7,12 @@ import dk.betterw4.android.core.model.W4School
 import dk.betterw4.android.core.result.AppError
 import dk.betterw4.android.core.result.AppResult
 import dk.betterw4.android.core.w4.auth.AuthSessionInstaller
+import dk.betterw4.android.core.w4.auth.DeviceAuthenticator
 import dk.betterw4.android.core.w4.auth.W4OtpChallenge
 import dk.betterw4.android.core.w4.session.LastSchoolHint
 import dk.betterw4.android.core.w4.session.LastSchoolReason
 import dk.betterw4.android.core.w4.session.LastSchoolStore
+import dk.betterw4.android.core.w4.session.SavedLoginStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,12 +29,19 @@ data class LoginUiState(
     val loggingIn: Boolean = false,
     val error: AppError? = null,
     val lastSchool: LastSchoolHint? = null,
+    val hasSavedLogin: Boolean = false,
+    val canUnlock: Boolean = false,
+    val preferPasswordForm: Boolean = false,
 ) {
     val needsOtp: Boolean get() = otpChallenge != null
+    val showUnlock: Boolean
+        get() = hasSavedLogin && canUnlock && !preferPasswordForm && !needsOtp
     val canSubmitPassword: Boolean
         get() = username.isNotBlank() && password.isNotBlank() && !loggingIn
     val canSubmitOtp: Boolean
         get() = otp.isNotBlank() && otpChallenge != null && !loggingIn
+    val canSubmitUnlock: Boolean
+        get() = showUnlock && !loggingIn
     val sessionExpired: Boolean
         get() = lastSchool?.reason == LastSchoolReason.SESSION_EXPIRED
 }
@@ -41,13 +50,18 @@ data class LoginUiState(
 class LoginViewModel @Inject constructor(
     private val authSessionInstaller: AuthSessionInstaller,
     private val lastSchoolStore: LastSchoolStore,
+    private val savedLoginStore: SavedLoginStore,
+    private val deviceAuthenticator: DeviceAuthenticator,
 ) : ViewModel() {
 
     private val lastHint = lastSchoolStore.load()
+    private val savedLogin = savedLoginStore.load()
     private val _state = MutableStateFlow(
         LoginUiState(
             lastSchool = lastHint,
-            username = lastHint?.username.orEmpty(),
+            username = savedLogin?.username ?: lastHint?.username.orEmpty(),
+            hasSavedLogin = savedLogin != null,
+            canUnlock = savedLogin != null && deviceAuthenticator.canAuthenticate(),
         ),
     )
     val state: StateFlow<LoginUiState> = _state.asStateFlow()
@@ -78,34 +92,45 @@ class LoginViewModel @Inject constructor(
         }
     }
 
+    fun preferPasswordForm() {
+        _state.update {
+            it.copy(preferPasswordForm = true, error = null)
+        }
+    }
+
+    /** [LoginScreen] is activity-scoped; refresh after logout / first save in this process. */
+    fun refreshUnlockAvailability() {
+        val saved = savedLoginStore.load()
+        _state.update {
+            it.copy(
+                hasSavedLogin = saved != null,
+                canUnlock = saved != null && deviceAuthenticator.canAuthenticate(),
+                username = it.username.ifBlank { saved?.username.orEmpty() },
+                preferPasswordForm = if (saved == null) false else it.preferPasswordForm,
+            )
+        }
+    }
+
+    fun submitSavedLogin() {
+        val current = _state.value
+        if (!current.hasSavedLogin || current.loggingIn || current.needsOtp) return
+        if (!loginInFlight.compareAndSet(false, true)) return
+        viewModelScope.launch {
+            _state.update { it.copy(loggingIn = true, error = null) }
+            applyAuthResult(authSessionInstaller.loginWithSavedLogin(), fromSavedLogin = true)
+        }
+    }
+
     fun submitPassword() {
         val current = _state.value
         if (!current.canSubmitPassword) return
         if (!loginInFlight.compareAndSet(false, true)) return
         viewModelScope.launch {
             _state.update { it.copy(loggingIn = true, error = null) }
-            when (
-                val res = authSessionInstaller.loginWithPassword(current.username, current.password)
-            ) {
-                is AppResult.Success -> when (val outcome = res.data) {
-                    is AuthSessionInstaller.W4AuthResult.LoggedIn -> onLoggedIn()
-                    is AuthSessionInstaller.W4AuthResult.OtpRequired -> {
-                        loginInFlight.set(false)
-                        _state.update {
-                            it.copy(
-                                loggingIn = false,
-                                otp = "",
-                                otpChallenge = outcome.challenge,
-                                password = "",
-                            )
-                        }
-                    }
-                }
-                is AppResult.Failure -> {
-                    loginInFlight.set(false)
-                    _state.update { it.copy(loggingIn = false, error = res.error) }
-                }
-            }
+            applyAuthResult(
+                authSessionInstaller.loginWithPassword(current.username, current.password),
+                fromSavedLogin = false,
+            )
         }
     }
 
@@ -144,6 +169,43 @@ class LoginViewModel @Inject constructor(
         authSessionInstaller.enterDemo()
     }
 
+    private fun applyAuthResult(
+        res: AppResult<AuthSessionInstaller.W4AuthResult>,
+        fromSavedLogin: Boolean,
+    ) {
+        when (res) {
+            is AppResult.Success -> when (val outcome = res.data) {
+                is AuthSessionInstaller.W4AuthResult.LoggedIn -> onLoggedIn()
+                is AuthSessionInstaller.W4AuthResult.OtpRequired -> {
+                    loginInFlight.set(false)
+                    _state.update {
+                        it.copy(
+                            loggingIn = false,
+                            otp = "",
+                            otpChallenge = outcome.challenge,
+                            password = "",
+                            hasSavedLogin = true,
+                            error = null,
+                        )
+                    }
+                }
+            }
+            is AppResult.Failure -> {
+                loginInFlight.set(false)
+                val wiped = fromSavedLogin && res.error == AppError.InvalidLogin
+                _state.update {
+                    it.copy(
+                        loggingIn = false,
+                        error = res.error,
+                        hasSavedLogin = if (wiped) false else it.hasSavedLogin,
+                        canUnlock = if (wiped) false else it.canUnlock,
+                        preferPasswordForm = if (wiped) true else it.preferPasswordForm,
+                    )
+                }
+            }
+        }
+    }
+
     private fun onLoggedIn() {
         val username = _state.value.username.trim()
         LastSchoolHint.fromSchool(W4School.school, username = username)?.let { lastSchoolStore.save(it) }
@@ -154,6 +216,8 @@ class LoginViewModel @Inject constructor(
                 otp = "",
                 otpChallenge = null,
                 lastSchool = lastSchoolStore.load(),
+                hasSavedLogin = true,
+                canUnlock = deviceAuthenticator.canAuthenticate(),
             )
         }
     }

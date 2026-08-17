@@ -30,7 +30,14 @@
     <string name="login_resume_subtitle">Continue with your W4 login.</string>
     <string name="login_resume_session_expired_title">Your session has expired</string>
     <string name="login_resume_session_expired_subtitle">Sign in with your W4 username and password to continue.</string>
+    <string name="login_resume_session_expired_unlock_subtitle">Unlock to sign back in.</string>
     <string name="login_resume_cta">Sign in again, %1$s</string>
+    <string name="login_unlock">Unlock</string>
+    <string name="login_unlock_subtitle">Use fingerprint, face, or your device PIN.</string>
+    <string name="login_unlock_as">Sign in as %1$s</string>
+    <string name="login_use_password">Use password instead</string>
+    <string name="login_biometric_title">Sign in to BetterW4</string>
+    <string name="login_biometric_subtitle">Confirm it\'s you</string>
 
     <string name="placeholder_coming_soon">Coming soon. Under construction.</string>
     <string name="loading">Loading…</string>

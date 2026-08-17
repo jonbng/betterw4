@@ -30,7 +30,14 @@
     <string name="login_resume_subtitle">Fortsæt med dit W4-login.</string>
     <string name="login_resume_session_expired_title">Din session er udløbet</string>
     <string name="login_resume_session_expired_subtitle">Log ind med dit W4-brugernavn og kodeord for at fortsætte.</string>
+    <string name="login_resume_session_expired_unlock_subtitle">Lås op for at logge ind igen.</string>
     <string name="login_resume_cta">Log ind igen, %1$s</string>
+    <string name="login_unlock">Lås op</string>
+    <string name="login_unlock_subtitle">Brug fingeraftryk, ansigt eller telefonens PIN.</string>
+    <string name="login_unlock_as">Log ind som %1$s</string>
+    <string name="login_use_password">Brug kodeord i stedet</string>
+    <string name="login_biometric_title">Log ind på BetterW4</string>
+    <string name="login_biometric_subtitle">Bekræft at det er dig</string>
     <string name="placeholder_coming_soon">Kommer snart. Under opbygning.</string>
     <string name="loading">Indlæser…</string>
     <string name="error_generic">Noget gik galt</string>
