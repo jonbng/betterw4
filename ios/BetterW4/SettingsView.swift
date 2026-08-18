@@ -116,6 +116,18 @@ struct SettingsView: View {
                 settingsStore.saveUseSubjectColors(newValue)
             }
 
+            Toggle(isOn: $settingsStore.showSchoolCalendar) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("School calendar")
+                    Text("Show college events from the public school Google Calendar on the timetable.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .onChange(of: settingsStore.showSchoolCalendar) { _, newValue in
+                settingsStore.saveShowSchoolCalendar(newValue)
+            }
+
             NavigationLink {
                 SubjectSettingsView(student: student, eventTitles: subjectTitles)
             } label: {
@@ -388,7 +400,7 @@ struct PrivacyDetailView: View {
                 privacyRow(
                     icon: "network.slash",
                     title: "No third parties",
-                    detail: "The app talks to \(W4Routes.host) and nowhere else. Your data is never uploaded anywhere."
+                    detail: "The app talks to \(W4Routes.host). If you turn on the school calendar, it also fetches the public college calendar from Google. Your data is never uploaded anywhere."
                 )
             }
 

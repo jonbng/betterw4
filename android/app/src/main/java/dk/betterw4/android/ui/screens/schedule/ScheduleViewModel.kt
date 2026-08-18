@@ -56,6 +56,8 @@ data class ScheduleUiState(
     val selectedDate: LocalDate = LocalDate.now(),
     /** Merged events for any loaded day (multi-week cache for day swipe). */
     val eventsByDate: Map<LocalDate, List<ScheduleEvent>> = emptyMap(),
+    /** Rotation / no-classes metadata for any loaded day. */
+    val daysByDate: Map<LocalDate, ScheduleDay> = emptyMap(),
     /** Days known to have zero events (vs not loaded). */
     val knownEmptyDays: Set<LocalDate> = emptySet(),
     val selectedEvent: ScheduleEvent? = null,
@@ -102,6 +104,9 @@ class ScheduleViewModel @Inject constructor(
     val useSubjectColors: StateFlow<Boolean> = settings.useSubjectColors
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), settings.useSubjectColors.value)
 
+    val showSchoolCalendar: StateFlow<Boolean> = settings.showSchoolCalendar
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), settings.showSchoolCalendar.value)
+
     val subjectColors: StateFlow<Map<String, Long>> = settings.subjectColors
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), settings.subjectColors.value)
 
@@ -141,6 +146,24 @@ class ScheduleViewModel @Inject constructor(
                 _state.update { it.copy(notifications = snap) }
             }
         }
+        viewModelScope.launch {
+            var previous = settings.showSchoolCalendar.value
+            settings.showSchoolCalendar.collect { enabled ->
+                weekCache[weekKey(_state.value.year, _state.value.weekNum)]?.let {
+                    publishLiveAndWidget(it)
+                }
+                if (enabled && !previous) {
+                    val missing = weekCache.values.none { week ->
+                        week.days.any { day -> day.events.any(SchoolCalendar::isSchoolCalendarEvent) }
+                    }
+                    if (missing) {
+                        weekCache.clear()
+                        refresh(force = true)
+                    }
+                }
+                previous = enabled
+            }
+        }
     }
 
     fun setNotificationsOpen(open: Boolean) {
@@ -166,16 +189,17 @@ class ScheduleViewModel @Inject constructor(
 
     fun accentArgbFor(event: ScheduleEvent): Long = settings.accentArgbFor(event)
 
-    fun displayTitle(event: ScheduleEvent): String {
-        if (SchoolCalendar.isSchoolCalendarEvent(event)) return event.title
-        // Prefer team hold code (e.g. "1x MA") so canonical-key resolution works;
-        // fall back to title for private events / all-day without team.
-        val key = event.team.ifBlank { event.title }
-        return settings.displayNameForSubject(key, fallback = event.title.ifBlank { key })
-    }
+    fun displayTitle(event: ScheduleEvent): String = settings.displayTitleForEvent(event)
 
     fun eventsFor(date: LocalDate): List<ScheduleEvent> =
-        _state.value.eventsByDate[date].orEmpty()
+        visibleEvents(_state.value.eventsByDate[date].orEmpty())
+
+    fun visibleEvents(events: List<ScheduleEvent>): List<ScheduleEvent> =
+        SchoolCalendar.visibleEvents(events, showSchoolCalendar.value)
+
+    fun setShowSchoolCalendar(enabled: Boolean) {
+        settings.setShowSchoolCalendar(enabled)
+    }
 
     /**
      * Whether the day has lessons for the date-strip tint.
@@ -183,9 +207,9 @@ class ScheduleViewModel @Inject constructor(
      */
     fun hasEvents(date: LocalDate): Boolean {
         val s = _state.value
-        if (date in s.knownEmptyDays) return false
-        if (date in s.eventsByDate) return s.eventsByDate[date].orEmpty().isNotEmpty()
-        s.week?.days?.find { it.date == date }?.let { return it.events.isNotEmpty() }
+        if (date in s.knownEmptyDays && date !in s.eventsByDate) return false
+        if (date in s.eventsByDate) return visibleEvents(s.eventsByDate[date].orEmpty()).isNotEmpty()
+        s.week?.days?.find { it.date == date }?.let { return visibleEvents(it.events).isNotEmpty() }
         return false
     }
 
@@ -196,13 +220,6 @@ class ScheduleViewModel @Inject constructor(
         ensureWeekLoaded(date.plusWeeks(1), force = force)
         if (force) {
             viewModelScope.launch { campusStatus.refresh() }
-        }
-    }
-
-    fun setCampusLocation(option: String) {
-        viewModelScope.launch {
-            val onCampus = option.equals("On campus", ignoreCase = true)
-            campusStatus.set(onCampus, if (onCampus) null else option)
         }
     }
 
@@ -297,6 +314,7 @@ class ScheduleViewModel @Inject constructor(
     private fun mergeWeekIntoState(week: ScheduleWeek, setAsPrimary: Boolean) {
         _state.update { s ->
             val map = s.eventsByDate.toMutableMap()
+            val daysMap = s.daysByDate.toMutableMap()
             val empty = s.knownEmptyDays.toMutableSet()
             val eventsByDate = week.days.associate { it.date to it.events }
 
@@ -311,8 +329,12 @@ class ScheduleViewModel @Inject constructor(
                 week.days.find { it.date == date }
                     ?: ScheduleDay(date = date, events = events)
             }
+            fullDays.forEach { daysMap[it.date] = it }
 
             val normalizedWeek = week.copy(days = fullDays)
+            settings.noteObservedHolds(
+                week.days.flatMap { day -> day.events.flatMap { listOf(it.team, it.title) } },
+            )
             val selected = s.selectedDate
             val primary = if (setAsPrimary) {
                 normalizedWeek
@@ -329,6 +351,7 @@ class ScheduleViewModel @Inject constructor(
                 loading = if (setAsPrimary) false else s.loading,
                 week = primary,
                 eventsByDate = map,
+                daysByDate = daysMap,
                 knownEmptyDays = empty,
                 error = if (setAsPrimary) null else s.error,
             )
@@ -337,7 +360,7 @@ class ScheduleViewModel @Inject constructor(
 
     private fun publishLiveAndWidget(week: ScheduleWeek) {
         val today = LocalDate.now()
-        val todayEvents = week.days.find { it.date == today }?.events.orEmpty()
+        val todayEvents = visibleEvents(week.days.find { it.date == today }?.events.orEmpty())
         val now = LocalDateTime.now()
         liveLessonNotifier.update(todayEvents, now)
         liveLessonScheduler.scheduleBoundaries(todayEvents, now)

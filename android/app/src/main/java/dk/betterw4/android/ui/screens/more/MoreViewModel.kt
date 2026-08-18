@@ -50,6 +50,7 @@ import dk.betterw4.android.feature.teams.ModuleStatRepository
 import dk.betterw4.android.feature.terms.SchoolTerm
 import dk.betterw4.android.feature.terms.TermRepository
 import dk.betterw4.android.feature.trips.W4TripsRepository
+import dk.betterw4.android.feature.extraacademics.ExtraAcademicsPage
 import dk.betterw4.android.feature.updates.AppUpdateProbe
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -61,7 +62,8 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 enum class MoreDestination {
-    ROOT, GRADES, ABSENCE, DIRECTORY, ROOMS, STUDIEKORT, PLANS, MODULE_STATS, TERM, SETTINGS,
+    ROOT, HOME, NOTIFICATIONS, GRADES, ABSENCE, EXTRA_ACADEMICS, EA_PAGE,
+    DIRECTORY, MAIL, ROOMS, STUDIEKORT, PLANS, MODULE_STATS, TERM, SETTINGS, SETTINGS_PRIVACY,
     DOCUMENTS, TRIPS,
 }
 
@@ -114,6 +116,8 @@ data class MoreUiState(
     val documentsStack: List<DocumentNav> = emptyList(),
     val trips: List<dk.betterw4.android.feature.trips.W4Trip> = emptyList(),
     val letterUri: android.net.Uri? = null,
+    val eaPage: ExtraAcademicsPage? = null,
+    val documentsExtraAcademics: Boolean = false,
 )
 
 @HiltViewModel
@@ -166,6 +170,8 @@ class MoreViewModel @Inject constructor(
     val calendarStyle = settings.calendarStyle.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), settings.calendarStyle.value)
     val useSubjectColors = settings.useSubjectColors
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), settings.useSubjectColors.value)
+    val showSchoolCalendar = settings.showSchoolCalendar
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), settings.showSchoolCalendar.value)
     val notifEvents = settings.notifEvents
     val notifMessages = settings.notifMessages
     val notifAssignments = settings.notifAssignments
@@ -191,6 +197,8 @@ class MoreViewModel @Inject constructor(
                 roomEntity = null,
                 planDetail = null,
                 documentsStack = if (dest == MoreDestination.DOCUMENTS) emptyList() else it.documentsStack,
+                documentsExtraAcademics = false,
+                eaPage = if (dest == MoreDestination.EA_PAGE) it.eaPage else null,
             )
         }
         when (dest) {
@@ -217,8 +225,44 @@ class MoreViewModel @Inject constructor(
             }
             MoreDestination.DOCUMENTS -> loadDocuments()
             MoreDestination.TRIPS -> loadTrips()
+            MoreDestination.HOME,
+            MoreDestination.NOTIFICATIONS,
+            MoreDestination.MAIL,
+            MoreDestination.EXTRA_ACADEMICS,
+            MoreDestination.EA_PAGE,
+            MoreDestination.SETTINGS_PRIVACY,
             MoreDestination.ROOT -> Unit
         }
+    }
+
+    fun openEaPage(page: ExtraAcademicsPage) {
+        _state.update {
+            it.copy(destination = MoreDestination.EA_PAGE, eaPage = page, message = null)
+        }
+    }
+
+    fun openEaDocuments() {
+        _state.update {
+            it.copy(
+                destination = MoreDestination.DOCUMENTS,
+                documentsStack = emptyList(),
+                documentsExtraAcademics = true,
+                message = null,
+            )
+        }
+        loadDocuments()
+    }
+
+    fun openSchoolDocuments() {
+        _state.update {
+            it.copy(
+                destination = MoreDestination.DOCUMENTS,
+                documentsStack = emptyList(),
+                documentsExtraAcademics = false,
+                message = null,
+            )
+        }
+        loadDocuments()
     }
 
     fun back() {
@@ -243,7 +287,42 @@ class MoreViewModel @Inject constructor(
                 _state.update { it.copy(documentsStack = it.documentsStack.dropLast(1)) }
                 loadDocuments()
             }
+            s.destination == MoreDestination.DOCUMENTS && s.documentsExtraAcademics -> _state.update {
+                it.copy(
+                    destination = MoreDestination.EXTRA_ACADEMICS,
+                    documents = null,
+                    documentsStack = emptyList(),
+                    documentsExtraAcademics = false,
+                )
+            }
+            s.destination == MoreDestination.EA_PAGE -> _state.update {
+                it.copy(destination = MoreDestination.EXTRA_ACADEMICS, eaPage = null)
+            }
+            s.destination == MoreDestination.SETTINGS_PRIVACY -> _state.update {
+                it.copy(destination = MoreDestination.SETTINGS)
+            }
             else -> _state.update { it.copy(destination = MoreDestination.ROOT) }
+        }
+    }
+
+    /**
+     * Walk one step toward [root] instead of the More menu. Used by the Students tab so
+     * backing out of a profile lands on the directory, not the More root.
+     */
+    fun backTo(root: MoreDestination) {
+        val s = _state.value
+        val atRoot = s.destination == root &&
+            s.gradeDetail == null &&
+            s.planDetail == null &&
+            s.personEntity == null &&
+            s.personSchedule == null &&
+            s.roomEntity == null &&
+            s.roomSchedule == null &&
+            s.directoryParent == null
+        if (atRoot) return
+        back()
+        if (_state.value.destination == MoreDestination.ROOT && root != MoreDestination.ROOT) {
+            _state.update { it.copy(destination = root) }
         }
     }
 
@@ -265,7 +344,27 @@ class MoreViewModel @Inject constructor(
                 planDetail = null,
                 documents = null,
                 documentsStack = emptyList(),
+                documentsExtraAcademics = false,
                 trips = emptyList(),
+                eaPage = null,
+            )
+        }
+    }
+
+    /** Students tab reselect: drop profile/members and stay on the directory list. */
+    fun popToDirectory() {
+        _state.update {
+            it.copy(
+                destination = MoreDestination.DIRECTORY,
+                message = null,
+                directoryMembers = emptyList(),
+                directoryParent = null,
+                selectedPerson = null,
+                personEntity = null,
+                personSchedule = null,
+                studentProfile = null,
+                roomSchedule = null,
+                roomEntity = null,
             )
         }
     }
@@ -530,15 +629,12 @@ class MoreViewModel @Inject constructor(
         }
     }
 
-    fun displayTitleForEvent(event: ScheduleEvent): String {
-        val key = event.team.ifBlank { event.title }
-        return settings.displayNameForSubject(key, fallback = event.title.ifBlank { key })
-    }
+    fun displayTitleForEvent(event: ScheduleEvent): String = settings.displayTitleForEvent(event)
 
     fun accentArgbForEvent(event: ScheduleEvent): Long = settings.accentArgbFor(event)
 
     /**
-     * Queue compose recipient and dismiss sheet. Caller navigates to the Messages tab.
+     * Queue compose recipient and dismiss sheet. Caller opens the mailer.
      */
     fun composeToPerson(entity: DirectoryEntity) {
         pendingCompose.offer(
@@ -779,6 +875,7 @@ class MoreViewModel @Inject constructor(
             val res = documentsRepo.load(
                 folderId = nav?.folderId,
                 pageId = nav?.pageId,
+                extraAcademics = _state.value.documentsExtraAcademics,
                 force = true,
             )
         ) {
@@ -801,7 +898,7 @@ class MoreViewModel @Inject constructor(
     private fun loadTrips() = viewModelScope.launch {
         _state.update { it.copy(loading = true) }
         when (val res = tripsRepo.load(force = true)) {
-            is AppResult.Success -> _state.update { it.copy(loading = false, trips = res.data) }
+            is AppResult.Success -> _state.update { it.copy(loading = false, trips = res.data.trips) }
             is AppResult.Failure -> _state.update {
                 it.copy(loading = false, message = res.error.toUiText())
             }
@@ -817,6 +914,7 @@ class MoreViewModel @Inject constructor(
     fun setLanguage(language: AppLanguage) = settings.setLanguage(language)
     fun setCalendarStyle(style: CalendarStyle) = settings.setCalendarStyle(style)
     fun setUseSubjectColors(v: Boolean) = settings.setUseSubjectColors(v)
+    fun setShowSchoolCalendar(v: Boolean) = settings.setShowSchoolCalendar(v)
     fun setNotifEvents(v: Boolean) = settings.setNotifEvents(v)
     fun setNotifMessages(v: Boolean) = settings.setNotifMessages(v)
     fun setNotifAssignments(v: Boolean) = settings.setNotifAssignments(v)

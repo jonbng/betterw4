@@ -2,7 +2,7 @@
 //  MessageListPrefetcher.swift
 //  BetterW4
 //
-//  Warms the W4 inbox in the background so the Messages tab opens on content, and keeps the tab
+//  Warms the W4 inbox in the background so More ▸ Mail opens on content, and keeps the
 //  badge honest (plan Wave 5 item 5.3).
 //
 //  Two rules, and they are the whole point of this file:

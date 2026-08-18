@@ -54,8 +54,18 @@ final class ScreenRenderSmokeTests: XCTestCase {
         assertRenders("ScheduleView", NavigationStack { ScheduleView(student: student) })
     }
 
-    func testMailTabRenders() {
-        assertRenders("MessagesView", NavigationStack { MessagesView(student: student) })
+    func testStudentsTabRenders() {
+        let path = Binding.constant(NavigationPath())
+        assertRenders(
+            "StudentSearchView",
+            NavigationStack {
+                StudentSearchView(
+                    student: student,
+                    authViewModel: AuthenticationViewModel(),
+                    navigationPath: path
+                )
+            }
+        )
     }
 
     func testAssessmentsTabRenders() {
@@ -103,9 +113,12 @@ final class ScreenRenderSmokeTests: XCTestCase {
         assertRenders("GradesView", NavigationStack { GradesView(student: student) })
     }
 
+    func testMailRenders() {
+        assertRenders("MessagesView", NavigationStack { MessagesView(student: student) })
+    }
+
     func testDirectorySearchRenders() {
-        // Still takes the auth view model and the More tab's navigation path, because it pushes
-        // onto that stack rather than owning one.
+        // Teachers still open this from More with a shared path; the Students tab owns its own.
         let path = Binding.constant(NavigationPath())
         assertRenders(
             "StudentSearchView",
@@ -136,7 +149,13 @@ final class ScreenRenderSmokeTests: XCTestCase {
     func testTabsRenderInDarkMode() {
         let screens: [(String, AnyView)] = [
             ("ScheduleView", AnyView(NavigationStack { ScheduleView(student: student) })),
-            ("MessagesView", AnyView(NavigationStack { MessagesView(student: student) })),
+            ("StudentSearchView", AnyView(NavigationStack {
+                StudentSearchView(
+                    student: student,
+                    authViewModel: AuthenticationViewModel(),
+                    navigationPath: Binding.constant(NavigationPath())
+                )
+            })),
             ("AssessmentsView", AnyView(NavigationStack { AssessmentsView(student: student) })),
             ("HomeView", AnyView(NavigationStack { HomeView(student: student) }))
         ]

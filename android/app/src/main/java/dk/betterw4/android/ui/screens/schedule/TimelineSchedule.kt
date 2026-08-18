@@ -48,6 +48,7 @@ import dk.betterw4.android.feature.directory.DirectoryEntityKind
 import dk.betterw4.android.feature.schedule.EventStatus
 import dk.betterw4.android.feature.schedule.ScheduleEvent
 import dk.betterw4.android.feature.schedule.ScheduleMultiDay
+import dk.betterw4.android.feature.schedule.SchoolCalendar
 import dk.betterw4.android.feature.schedule.timeLabelText
 import dk.betterw4.android.ui.components.PersonAvatar
 import java.time.LocalDate
@@ -56,7 +57,8 @@ import kotlin.math.max
 
 // iOS professional timeline: ~1dp per minute, day starts 08:00
 private const val REFERENCE_HOUR = 8
-private val MinCardHeight = 30.dp
+/** Isolated shorts may grow this many minutes; adjacent blocks keep their real duration. */
+private const val MIN_VISUAL_MINUTES = 30
 private val TimeGutter = 52.dp
 
 internal data class EventLayout(
@@ -96,7 +98,8 @@ fun TimelineDayView(
     val layouts = remember(timed, date, dayStartHour) {
         calculateOverlapLayouts(timed, date, dayStartHour)
     }
-    val latestEnd = layouts.maxOfOrNull { it.endMin } ?: ((dayEndHour - dayStartHour) * 60)
+    val latestEnd = layouts.maxOfOrNull { visualEndMin(it, layouts) }
+        ?: ((dayEndHour - dayStartHour) * 60)
     val spanMinutes = max((dayEndHour - dayStartHour) * 60, latestEnd + 40)
     val totalHeight = minuteHeight * spanMinutes
     val scroll = rememberScrollState()
@@ -175,8 +178,9 @@ fun TimelineDayView(
                     painted.forEach { layout ->
                         val event = layout.event
                         val top = minuteHeight * layout.startMin
-                        val h = (minuteHeight * (layout.endMin - layout.startMin))
-                            .coerceAtLeast(MinCardHeight)
+                        val visualMinutes = (visualEndMin(layout, layouts) - layout.startMin)
+                            .coerceAtLeast(1)
+                        val h = minuteHeight * visualMinutes
                         val placement = overlapPlacement(layout, layouts)
                         val cancelled = event.status == EventStatus.CANCELLED
                         ModernScheduleCard(
@@ -188,7 +192,8 @@ fun TimelineDayView(
                             accent = accentFor(event),
                             neutralBlend = neutralBlend,
                             dark = dark,
-                            showTeacherAvatar = true,
+                            compact = h < 28.dp,
+                            showTeacherAvatar = h >= 28.dp,
                             onClick = { onEventClick(event) },
                             modifier = Modifier
                                 .zIndex(if (cancelled) 1f else 2f)
@@ -304,6 +309,7 @@ private fun ModernScheduleCard(
     neutralBlend: Color,
     dark: Boolean,
     onClick: () -> Unit,
+    compact: Boolean = false,
     showTeacherAvatar: Boolean = false,
     teacherId: String? = null,
     modifier: Modifier = Modifier,
@@ -313,7 +319,7 @@ private fun ModernScheduleCard(
         EventStatus.CANCELLED -> if (dark) Color(0xFF3A3A3C) else Color(0xFFF2F2F7)
         else -> accent.blend(neutralBlend, if (dark) 0.52f else 0.82f)
     }
-    val shape = RoundedCornerShape(15.dp)
+    val shape = RoundedCornerShape(if (compact) 10.dp else 15.dp)
 
     Box(
         modifier
@@ -324,8 +330,13 @@ private fun ModernScheduleCard(
         Column(
             Modifier
                 .fillMaxSize()
-                .padding(start = 14.dp, end = 12.dp, top = 12.dp, bottom = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+                .padding(
+                    start = if (compact) 10.dp else 14.dp,
+                    end = if (compact) 8.dp else 12.dp,
+                    top = if (compact) 2.dp else 12.dp,
+                    bottom = if (compact) 2.dp else 4.dp,
+                ),
+            verticalArrangement = Arrangement.spacedBy(if (compact) 0.dp else 4.dp),
         ) {
             Row(
                 Modifier.fillMaxWidth(),
@@ -334,7 +345,11 @@ private fun ModernScheduleCard(
                 Text(
                     title,
                     modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = if (compact) {
+                        MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp)
+                    } else {
+                        MaterialTheme.typography.bodyMedium
+                    },
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface.copy(
                         alpha = if (cancelled) 0.5f else 0.92f,
@@ -352,18 +367,20 @@ private fun ModernScheduleCard(
                     )
                     Spacer(Modifier.width(6.dp))
                 }
-                Icon(
-                    subjectIcon(title),
-                    contentDescription = null,
-                    modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                )
+                if (!compact) {
+                    Icon(
+                        subjectIcon(title),
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                    )
+                }
             }
             val meta = buildList {
                 room?.takeIf { it.isNotBlank() }?.let(::add)
                 teacher?.takeIf { it.isNotBlank() }?.let { add("· $it") }
             }.joinToString(" ")
-            if (meta.isNotBlank()) {
+            if (!compact && meta.isNotBlank()) {
                 Text(
                     meta,
                     style = MaterialTheme.typography.labelMedium,
@@ -376,10 +393,12 @@ private fun ModernScheduleCard(
                     textDecoration = if (cancelled) TextDecoration.LineThrough else null,
                 )
             }
-            Spacer(Modifier.weight(1f, fill = true))
+            if (!compact) {
+                Spacer(Modifier.weight(1f, fill = true))
+            }
         }
 
-        if (status != EventStatus.NORMAL) {
+        if (!compact && status != EventStatus.NORMAL) {
             Icon(
                 imageVector = if (status == EventStatus.CANCELLED) {
                     Icons.Default.Cancel
@@ -430,29 +449,33 @@ internal fun calculateOverlapLayouts(
     date: LocalDate,
     dayStartHour: Int,
 ): List<EventLayout> {
-    val minDuration = 29
     // Clamp multi-day ranges to this day's segment so overnight / multi-day
     // events get correct height (not clock-only math across dates).
+    //
+    // Use the real clock range for columns. A 15-minute break that only
+    // *touches* the next lesson is not an overlap — stretching it to a
+    // min-height here is what used to shove it into a side lane.
     val ranges = timed.mapNotNull { event ->
         val segment = ScheduleMultiDay.segmentMinutesOnDay(
             event = event,
             date = date,
             dayStartHour = dayStartHour,
-            minDurationMinutes = minDuration,
+            minDurationMinutes = 0,
         )
         if (segment != null) {
-            Triple(event, segment.first, segment.second)
+            val end = max(segment.first + 1, segment.second)
+            Triple(event, segment.first, end)
         } else {
-            // Timed event missing start/end — fall back to a one-hour stub at day start.
+            // Timed event missing start/end — fall back to a one-minute stub at day start.
             val start = event.start
             val end = event.end
             if (start == null || end == null) {
-                Triple(event, 0, minDuration)
+                Triple(event, 0, 1)
             } else {
                 null
             }
         }
-    }.sortedBy { it.second }
+    }.sortedWith(compareBy({ it.second }, { it.first.id }))
 
     val columnEndTimes = mutableMapOf<Int, Int>()
     val assignments = mutableListOf<EventLayout>()
@@ -473,6 +496,28 @@ internal fun calculateOverlapLayouts(
 }
 
 /**
+ * Minutes from the day origin at which this card should stop painting.
+ *
+ * Isolated shorts grow to [MIN_VISUAL_MINUTES] so a lone 10-minute block is
+ * still tappable. If another event starts at or after this one's real end,
+ * the card is clipped there — otherwise a 15-minute break between two
+ * lessons would paint over the next module.
+ */
+internal fun visualEndMin(
+    layout: EventLayout,
+    layouts: List<EventLayout>,
+    minVisualMinutes: Int = MIN_VISUAL_MINUTES,
+): Int {
+    val grown = max(layout.endMin, layout.startMin + minVisualMinutes)
+    val nextStart = layouts
+        .asSequence()
+        .filter { it.event.id != layout.event.id && it.startMin >= layout.endMin }
+        .minOfOrNull { it.startMin }
+    val capped = if (nextStart != null) minOf(grown, nextStart) else grown
+    return max(layout.startMin + 1, capped)
+}
+
+/**
  * Place overlapping cards. When a cancelled leftover shares a slot with a
  * live/changed lesson, keep the leftover visible as a narrow trailing strip
  * instead of a 50/50 split that mutes the real module.
@@ -485,21 +530,33 @@ internal fun overlapPlacement(
         other.startMin < layout.endMin && layout.startMin < other.endMin
     }
     val live = cluster
-        .filter { it.event.status != EventStatus.CANCELLED }
+        .filter {
+            it.event.status != EventStatus.CANCELLED &&
+                !SchoolCalendar.isSchoolCalendarEvent(it.event)
+        }
         .sortedWith(compareBy<EventLayout> { it.column }.thenBy { it.event.id })
-    val cancelled = cluster
-        .filter { it.event.status == EventStatus.CANCELLED }
-        .sortedWith(compareBy<EventLayout> { it.column }.thenBy { it.event.id })
+    val leftover = cluster
+        .filter {
+            it.event.status == EventStatus.CANCELLED ||
+                SchoolCalendar.isSchoolCalendarEvent(it.event)
+        }
+        .sortedWith(
+            compareBy<EventLayout> { SchoolCalendar.isSchoolCalendarEvent(it.event) }
+                .thenBy { it.column }
+                .thenBy { it.event.id },
+        )
 
-    if (live.isNotEmpty() && cancelled.isNotEmpty()) {
+    if (live.isNotEmpty() && leftover.isNotEmpty()) {
         val liveShare = 0.70f
-        val cancelledShare = 0.30f
-        if (layout.event.status == EventStatus.CANCELLED) {
-            val index = cancelled.indexOfFirst { it.event.id == layout.event.id }.coerceAtLeast(0)
-            val count = cancelled.size
+        val leftoverShare = 0.30f
+        if (layout.event.status == EventStatus.CANCELLED ||
+            SchoolCalendar.isSchoolCalendarEvent(layout.event)
+        ) {
+            val index = leftover.indexOfFirst { it.event.id == layout.event.id }.coerceAtLeast(0)
+            val count = leftover.size
             return CardPlacement(
-                xFraction = liveShare + cancelledShare * index / count,
-                widthFraction = cancelledShare / count,
+                xFraction = liveShare + leftoverShare * index / count,
+                widthFraction = leftoverShare / count,
             )
         }
         val index = live.indexOfFirst { it.event.id == layout.event.id }.coerceAtLeast(0)

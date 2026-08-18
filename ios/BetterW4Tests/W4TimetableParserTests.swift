@@ -156,7 +156,7 @@ final class W4TimetableParserTests: XCTestCase {
         let event = try XCTUnwrap(week.days.first?.events.first)
         XCTAssertEqual(event.title, "Biology HL", "datetime/room chrome must not leak into the title")
         XCTAssertEqual(event.room, "Lab 2")
-        XCTAssertEqual(event.rawTooltip, "Biology HL — room Lab 2", "bug B3: title attr captured raw")
+        XCTAssertEqual(event.rawTooltip, "Biology HL — room Lab 2")
         XCTAssertEqual(event.startMinutesFromMidnight, 8 * 60)
         XCTAssertEqual(event.endMinutesFromMidnight, 9 * 60 + 30)
         XCTAssertFalse(event.isAllDay)
@@ -218,6 +218,101 @@ final class W4TimetableParserTests: XCTestCase {
         XCTAssertEqual(events.count, 2)
         XCTAssertEqual(events.map(\.title), ["Biology HL", "Kayaking"], "sorted by start time")
         XCTAssertEqual(events.map(\.source), [.academics, .extraAcademics])
+    }
+
+    func testConsecutiveSameClassBlocksMergeIntoOne() throws {
+        let week = W4TimetableParser.parseWeek(
+            html: Self.syntheticGrid(periodHTML: """
+                <div class="period" style="top: 75px; height: 50px;">
+                  <div class="inner">
+                    <a href="index.php?r=academics/classes/class&amp;class_id=1EA16CECOX">1EA16CECOX</a>
+                    <div class="datetime">8:15 — 9:05</div>
+                  </div>
+                </div>
+                <div class="period" style="top: 125px; height: 50px;">
+                  <div class="inner">
+                    <a href="index.php?r=academics/classes/class&amp;class_id=1EA16CECOX">1EA16CECOX</a>
+                    <div class="datetime">9:05 — 9:55</div>
+                  </div>
+                </div>
+                """),
+            source: .academics
+        )
+
+        let events = try XCTUnwrap(week.days.first?.events)
+        XCTAssertEqual(events.count, 1, "a double must become one block")
+        XCTAssertEqual(events[0].id, "ac-w4-1EA16CECOX")
+        XCTAssertEqual(events[0].startMinutesFromMidnight, 8 * 60 + 15)
+        XCTAssertEqual(events[0].endMinutesFromMidnight, 9 * 60 + 55)
+    }
+
+    func testSameClassLaterInTheDayStaysSeparate() throws {
+        let monday = try osloDate(2026, 8, 10)
+        let morning = TimetableEvent(
+            id: "ac-w4-1EA16CECOX",
+            title: "Economics",
+            source: .academics,
+            start: W4Dates.date(onDayOf: monday, minutesFromMidnight: 8 * 60 + 15),
+            end: W4Dates.date(onDayOf: monday, minutesFromMidnight: 9 * 60 + 5),
+            date: monday,
+            href: "index.php?r=academics/classes/class&class_id=1EA16CECOX"
+        )
+        let afternoon = TimetableEvent(
+            id: "ac-w4-1EA16CECOX",
+            title: "Economics",
+            source: .academics,
+            start: W4Dates.date(onDayOf: monday, minutesFromMidnight: 14 * 60),
+            end: W4Dates.date(onDayOf: monday, minutesFromMidnight: 14 * 60 + 50),
+            date: monday,
+            href: "index.php?r=academics/classes/class&class_id=1EA16CECOX"
+        )
+
+        let merged = W4TimetableParser.mergeConsecutiveSameClass([morning, afternoon])
+        XCTAssertEqual(merged.count, 2)
+        XCTAssertEqual(merged[0].id, "ac-w4-1EA16CECOX")
+        XCTAssertEqual(merged[1].id, "ac-w4-1EA16CECOX-1400")
+    }
+
+    func testLiveTooltipUsesSubjectNameAndDropsHtmlNotes() throws {
+        let week = W4TimetableParser.parseWeek(
+            html: Self.syntheticGrid(periodHTML: """
+                <div title="Monday 08:15 - 09:05&lt;br /&gt; Class: &lt;b&gt;Economics&lt;/b&gt;&lt;br /&gt;Teacher: &lt;b&gt;István Poór&lt;/b&gt;&lt;br /&gt;Room: &lt;b&gt;A 1.6&lt;/b&gt;"
+                     class="period" style="top: 75px; height: 50px;">
+                  <div class="inner">
+                    <div class="datetime">08:15 - 09:05</div>
+                    <div class="title">
+                      <a href="/index.php?r=academics/classes/class&amp;class_id=1EA16CECOX">1EA16CECOX</a>
+                    </div>
+                    <div class="room">Room A 1.6</div>
+                  </div>
+                </div>
+                """),
+            source: .academics
+        )
+        let event = try XCTUnwrap(week.days.first?.events.first)
+        XCTAssertEqual(event.title, "Economics")
+        XCTAssertEqual(event.teacher, "István Poór")
+        XCTAssertEqual(event.room, "A 1.6")
+        XCTAssertNil(event.notes)
+        XCTAssertNil(event.detailText)
+    }
+
+    func testTooltipLeftoverNotesArePlainText() {
+        let tip = PeriodTooltip.parse(
+            "Monday 08:15 - 09:05<br /> Class: <b>Economics</b><br />Teacher: <b>István Poór</b>" +
+            "<br />Room: <b>A 1.6</b><br />Bring calculator<br/>Sit in A 1.2"
+        )
+        XCTAssertEqual(tip.className, "Economics")
+        XCTAssertEqual(tip.teacher, "István Poór")
+        XCTAssertEqual(tip.room, "A 1.6")
+        XCTAssertEqual(tip.extraNotes, "Bring calculator\nSit in A 1.2")
+
+        let encoded = PeriodTooltip.parse(
+            "Monday 08:15 - 09:05&lt;br /&gt; Class: &lt;b&gt;Economics&lt;/b&gt;&lt;br /&gt;Moved to A 1.2"
+        )
+        XCTAssertEqual(encoded.className, "Economics")
+        XCTAssertEqual(encoded.extraNotes, "Moved to A 1.2")
+        XCTAssertFalse(encoded.extraNotes?.contains("<") ?? true)
     }
 
     // MARK: - Malformed input

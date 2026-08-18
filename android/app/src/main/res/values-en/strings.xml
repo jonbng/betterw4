@@ -3,6 +3,7 @@
     <string name="app_name">BetterW4</string>
 
     <string name="tab_schedule">Timetable</string>
+    <string name="tab_students">Students</string>
     <string name="tab_messages">Mail</string>
     <string name="tab_homework">Assessments</string>
     <string name="tab_assignments">Assignments</string>
@@ -16,11 +17,14 @@
     <string name="login_password_show">Show password</string>
     <string name="login_password_hide">Hide password</string>
     <string name="login_submit">Log in</string>
+    <string name="login_signing_in">Signing in…</string>
+    <string name="login_verifying">Verifying…</string>
     <string name="login_otp_title">Verify with a code</string>
     <string name="login_otp_subtitle">Enter the verification code from W4.</string>
     <string name="login_otp">One-time code</string>
     <string name="login_otp_submit">Verify</string>
     <string name="login_error_invalid">Incorrect username, password, or code.</string>
+    <string name="login_password_destination">Your password is sent only to w4.uwcrcn.no</string>
     <string name="login_mitid">Log in with MitID</string>
     <string name="login_mitid_cancel">Cancel</string>
     <string name="login_mitid_app_chooser">Choose app</string>
@@ -35,7 +39,9 @@
     <string name="login_unlock">Unlock</string>
     <string name="login_unlock_subtitle">Use fingerprint, face, or your device PIN.</string>
     <string name="login_unlock_as">Sign in as %1$s</string>
+    <string name="login_welcome_back">Welcome back</string>
     <string name="login_use_password">Use password instead</string>
+    <string name="login_unlock_lockout">Too many attempts. Wait a moment, or use your password.</string>
     <string name="login_biometric_title">Sign in to BetterW4</string>
     <string name="login_biometric_subtitle">Confirm it\'s you</string>
 
@@ -66,6 +72,15 @@
     <string name="empty_homework_hint">When W4 has assessments, they appear here. Pull down to refresh.</string>
     <string name="empty_homework_all_clear">All clear!</string>
     <string name="empty_homework_all_clear_hint">You have no homework for the next 14 days.</string>
+    <string name="assessments_view_month">Month</string>
+    <string name="assessments_view_list">List</string>
+    <string name="assessments_prev_month">Previous month</string>
+    <string name="assessments_next_month">Next month</string>
+    <string name="assessments_clear_day_filter">Clear day filter</string>
+    <string name="assessments_empty_month">No assessments this month</string>
+    <string name="assessments_empty_month_hint">Nothing is due in %1$s.</string>
+    <string name="assessments_empty_day">Nothing due on this day</string>
+    <string name="assessments_empty_day_hint">Pick another day, or clear the filter to see the whole month.</string>
     <string name="homework_swipe_done">Done</string>
     <string name="homework_swipe_undo">Undo</string>
     <string name="grades_average_label">Average %1$s</string>
@@ -110,6 +125,9 @@
     <string name="absence_meter_ea">EA</string>
     <string name="absence_meter_absences">Absences</string>
     <string name="absence_meter_lateness">Lateness</string>
+    <string name="absence_register">Register absences</string>
+    <string name="absence_register_hint">Opens W4. Registering an absence from the app is not supported yet.</string>
+    <string name="absence_register_demo">Not available in demo mode.</string>
     <string name="more_catalog">Catalog</string>
     <string name="catalog_students">Students</string>
     <string name="catalog_teachers">Teachers</string>
@@ -169,6 +187,7 @@
     <string name="empty_directory_hint">Try another search or category.</string>
     <string name="schedule_week_badge">Week %1$d</string>
     <string name="schedule_go_to_today">Today</string>
+    <string name="schedule_no_classes">No classes</string>
     <string name="empty_assignments">No assignments</string>
     <string name="empty_assignments_hint">No assignments match this filter. Try another, or pull down to refresh.</string>
     <string name="empty_assignments_all_hint">When Lectio has submissions, they appear here.</string>
@@ -267,7 +286,7 @@
     <string name="more_directory_search">Search people…</string>
     <string name="more_studiekort">Student ID</string>
     <string name="more_studiekort_qr">QR code</string>
-    <string name="more_letter_attendance">Letter of Attendance (PDF)</string>
+    <string name="more_letter_attendance">Letter of attendance</string>
     <string name="more_plans">Study plan</string>
     <string name="more_module_stats">Module stats</string>
     <string name="more_term">Change year</string>
@@ -303,6 +322,8 @@
     <string name="settings_calendar_list_hint">Flat rows for the day\'s lessons</string>
     <string name="settings_use_subject_colors">Subject colors</string>
     <string name="settings_use_subject_colors_hint">Show unique colors for each subject. When off, blue for normal, green for changed, and red for cancelled lessons</string>
+    <string name="settings_show_school_calendar">School calendar</string>
+    <string name="settings_show_school_calendar_hint">Show college events from the public school Google Calendar on the timetable</string>
     <string name="settings_subject_colors">Subjects</string>
     <string name="settings_subject_colors_hint">Tap a subject to change its name and color.</string>
     <string name="settings_subject_color">Color</string>
@@ -321,6 +342,22 @@
     <string name="settings_notif_history_empty">No events yet.</string>
     <string name="settings_notif_history_clear">Clear history</string>
     <string name="settings_privacy">Privacy policy</string>
+    <string name="settings_privacy_stores">What BetterW4 stores</string>
+    <string name="settings_privacy_stores_hint">Session cookie, cached pages, and settings on this device.</string>
+    <string name="settings_privacy_intro">BetterW4 has no servers and no account of its own. Everything it knows lives on this device.</string>
+    <string name="settings_privacy_on_device">On this device</string>
+    <string name="settings_privacy_session_title">Your W4 session</string>
+    <string name="settings_privacy_session_detail">The W4 session cookie and a device identifier are stored on this device. Your password is never saved.</string>
+    <string name="settings_privacy_cache_title">Cached W4 pages</string>
+    <string name="settings_privacy_cache_detail">Timetable, mail, assessments, attendance and directory pages are cached so the app works offline. Clear cache removes all of it.</string>
+    <string name="settings_privacy_settings_title">Your settings</string>
+    <string name="settings_privacy_settings_detail">Theme, calendar style, subject names and colours, and notification choices.</string>
+    <string name="settings_privacy_never">Never</string>
+    <string name="settings_privacy_analytics_title">No analytics</string>
+    <string name="settings_privacy_analytics_detail">No tracking, no crash reporting to a third party, no advertising identifiers.</string>
+    <string name="settings_privacy_third_parties_title">No third parties</string>
+    <string name="settings_privacy_third_parties_detail">The app talks to w4.uwcrcn.no. If you turn on the school calendar, it also fetches the public college calendar from Google. Your data is never uploaded anywhere.</string>
+    <string name="settings_privacy_logout_note">Logging out removes the session and every cached page for that account, so the next person to use this device cannot read them.</string>
     <string name="settings_clear_cache">Clear cache</string>
 
     <string name="private_event_add">New private event</string>
@@ -493,4 +530,48 @@
     <string name="onboarding_back">Back</string>
     <string name="onboarding_next">Next</string>
     <string name="onboarding_start">Get started</string>
+
+    <string name="more_home">Home</string>
+    <string name="more_notifications">Notifications</string>
+    <string name="more_extra_academics">Extra Academics</string>
+    <string name="more_students">Students</string>
+    <string name="more_teachers">Teachers</string>
+    <string name="more_id_card">ID card</string>
+    <string name="more_section_academics">Academics</string>
+    <string name="more_section_people">People</string>
+    <string name="more_section_boarding">Boarding</string>
+    <string name="more_trips_and_travel">Trips and travel</string>
+    <string name="ea_my_activities">My activities</string>
+    <string name="ea_diary">My EA diary</string>
+    <string name="ea_portfolio">My portfolio</string>
+    <string name="ea_interviews">My CAS interviews</string>
+    <string name="ea_safetynet">My SafetyNet</string>
+    <string name="ea_documents">Extra Academics documents</string>
+    <string name="ea_section_activities">Activities</string>
+    <string name="ea_section_reviews">Reviews</string>
+    <string name="ea_safetynet_footer">SafetyNet is your weekly wellness report. It stays on this device only as page content.</string>
+    <string name="trips_my_trips">My trips</string>
+    <string name="trips_travel_forms">My travel forms</string>
+    <string name="trips_plan_new">Plan new trip</string>
+    <string name="trips_more_pages">W4 has more trips than this page shows. Open the trip page to see them all.</string>
+    <string name="trips_no_travel">No travel forms.</string>
+    <string name="open_in_w4">Open in W4</string>
+    <string name="webview_demo_unavailable">Not available in the demo</string>
+    <string name="campus_other_hint">Where are you?</string>
+    <string name="campus_set_status">Set status</string>
+    <string name="campus_refresh">Refresh status</string>
+    <string name="home_attendance">Attendance</string>
+    <string name="home_birthdays_today">Birthdays today</string>
+    <string name="home_birthdays_tomorrow">Birthdays tomorrow</string>
+    <string name="home_announcements">Announcements</string>
+    <string name="home_links">Links</string>
+    <string name="home_empty">Nothing on Home</string>
+    <string name="id_card_school">UWC Red Cross Nordic</string>
+    <string name="id_card_uwc_id">UWC ID</string>
+    <string name="id_card_year">Year</string>
+    <string name="id_card_house">House</string>
+    <string name="id_card_country">Country</string>
+    <string name="id_card_email">Email</string>
+    <string name="id_card_email_copied">Email (copied)</string>
+    <string name="id_card_letter_hint">Opens the W4 Letter of Attendance in an authenticated page.</string>
 </resources>

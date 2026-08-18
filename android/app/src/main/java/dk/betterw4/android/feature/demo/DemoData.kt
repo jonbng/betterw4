@@ -50,22 +50,22 @@ object DemoData {
                 listOf(
                     ScheduleEvent(
                         id = "demo1-$offset",
-                        title = "Matematik A",
-                        team = "Ma A",
+                        title = "Mathematics Analysis and Approaches",
+                        team = "1DA13HMTAA",
                         teacher = "Jens Jensen",
-                        room = "201",
+                        room = "A 1.3",
                         status = EventStatus.NORMAL,
                         start = LocalDateTime.of(date, LocalTime.of(8, 15)),
                         end = LocalDateTime.of(date, LocalTime.of(9, 15)),
                         date = date,
-                        homework = "Opg. 12–15",
+                        homework = "Ex. 12–15",
                     ),
                     ScheduleEvent(
                         id = "demo2-$offset",
-                        title = "Dansk A",
-                        team = "Da A",
+                        title = "Economics",
+                        team = "1EA16CECOX",
                         teacher = "Anne Andersen",
-                        room = "105",
+                        room = "A 1.6",
                         status = if (offset == 1) EventStatus.CHANGED else EventStatus.NORMAL,
                         start = LocalDateTime.of(date, LocalTime.of(9, 25)),
                         end = LocalDateTime.of(date, LocalTime.of(10, 25)),
@@ -73,10 +73,10 @@ object DemoData {
                     ),
                     ScheduleEvent(
                         id = "demo3-$offset",
-                        title = "Fysik B",
-                        team = "Fy B",
+                        title = "Physics",
+                        team = "1BE12CPHYX",
                         teacher = "Peter Petersen",
-                        room = "Lab 1",
+                        room = "E 1.2",
                         status = if (offset == 2) EventStatus.CANCELLED else EventStatus.NORMAL,
                         start = LocalDateTime.of(date, LocalTime.of(10, 45)),
                         end = LocalDateTime.of(date, LocalTime.of(11, 45)),
@@ -87,10 +87,10 @@ object DemoData {
                 listOf(
                     ScheduleEvent(
                         id = "demo-x-$offset",
-                        title = "Historie B",
-                        team = "Hi B",
+                        title = "History",
+                        team = "1DK11CHIST",
                         teacher = "Mette Madsen",
-                        room = "312",
+                        room = "K 1.1",
                         start = LocalDateTime.of(date, LocalTime.of(8, 15)),
                         end = LocalDateTime.of(date, LocalTime.of(9, 15)),
                         date = date,
@@ -298,6 +298,18 @@ object DemoData {
             "T1", "Jens Jensen", DirectoryEntityKind.TEACHER, "Matematik",
             avatarUrl = "https://www.gravatar.com/avatar/22222222222222222222222222222222?d=identicon&s=128",
         ),
+        DirectoryEntity(
+            "T2", "Anne Andersen", DirectoryEntityKind.TEACHER, "Economics",
+            avatarUrl = "https://www.gravatar.com/avatar/44444444444444444444444444444444?d=identicon&s=128",
+        ),
+        DirectoryEntity(
+            "T3", "Peter Petersen", DirectoryEntityKind.TEACHER, "Physics",
+            avatarUrl = "https://www.gravatar.com/avatar/55555555555555555555555555555555?d=identicon&s=128",
+        ),
+        DirectoryEntity(
+            "T4", "Mette Madsen", DirectoryEntityKind.TEACHER, "History",
+            avatarUrl = "https://www.gravatar.com/avatar/66666666666666666666666666666666?d=identicon&s=128",
+        ),
         DirectoryEntity("SC1", "3x", DirectoryEntityKind.CLASS, null),
         DirectoryEntity("RO1", "201", DirectoryEntityKind.ROOM, "Bygning A"),
         DirectoryEntity(
@@ -370,4 +382,38 @@ object DemoData {
         ),
     )
 
+    fun homePage(): dk.betterw4.android.feature.home.HomePage =
+        dk.betterw4.android.feature.home.HomePage(
+            greetingText = "Hello Demo Student",
+            greetingName = "Demo Student",
+            uwcId = "nc00demo",
+            birthdaysToday = listOf(
+                dk.betterw4.android.feature.home.HomeBirthday("nc16demo", isStaff = true),
+                dk.betterw4.android.feature.home.HomeBirthday("nc25demo", isStaff = false),
+            ),
+            announcementsEmptyText = "No announcements...",
+            links = listOf(
+                dk.betterw4.android.feature.home.HomeLink(
+                    title = "ManageBac",
+                    url = "https://uwcrcn.managebac.com/",
+                ),
+                dk.betterw4.android.feature.home.HomeLink(
+                    title = "Trip Form",
+                    url = "https://w4.uwcrcn.no/index.php?r=academics/trips",
+                    route = "academics/trips",
+                ),
+            ),
+            serverVersion = "25.9.1",
+        )
+
+    fun extraAcademicsHtml(page: String): String = when (page) {
+        "diary" -> "<h2>My EA diary</h2><p>No diary entries this week.</p>"
+        "portfolio" -> "<h2>My portfolio</h2><p>Nothing in your portfolio yet.</p>"
+        "interviews" -> "<h2>My CAS interviews</h2><p>Interview 1 of 3 completed.</p>"
+        "safetynet" -> "<h2>My SafetyNet</h2><p>Average wellness 4.2 · Sleep 7h · Exercise 3.</p>"
+        else -> "<div id=\"content_inner\"><h2>My activities</h2><p>Badminton — Tuesday 16:00 — running.</p></div>"
+    }.let { html ->
+        if (html.contains("content_inner")) html
+        else "<div id=\"content_inner\">$html</div>"
+    }
 }

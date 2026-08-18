@@ -137,7 +137,15 @@ enum SubjectIcons {
             group: .languageAndLiterature,
             hue: 336,
             symbolName: "text.book.closed.fill",
-            aliases: ["norwegian a", "norwegian"]
+            aliases: ["norwegian a", "norwegian", "norwegian literature", "noli"]
+        ),
+        IBSubjectDefinition(
+            canonicalKey: "danish-a",
+            displayName: "Danish Literature",
+            group: .languageAndLiterature,
+            hue: 340,
+            symbolName: "text.book.closed.fill",
+            aliases: ["danish a", "danish", "danish literature", "dali"]
         ),
         IBSubjectDefinition(
             canonicalKey: "literature-and-performance",
@@ -146,6 +154,22 @@ enum SubjectIcons {
             hue: 342,
             symbolName: "theatermasks.fill",
             aliases: ["literature and performance"]
+        ),
+        IBSubjectDefinition(
+            canonicalKey: "spanish-a",
+            displayName: "Spanish Literature",
+            group: .languageAndLiterature,
+            hue: 344,
+            symbolName: "text.book.closed.fill",
+            aliases: ["spanish a", "spanish literature", "spli"]
+        ),
+        IBSubjectDefinition(
+            canonicalKey: "world-literature",
+            displayName: "World Literature",
+            group: .languageAndLiterature,
+            hue: 348,
+            symbolName: "text.book.closed.fill",
+            aliases: ["world literature", "wolx"]
         ),
         IBSubjectDefinition(
             canonicalKey: "english-a",
@@ -160,7 +184,9 @@ enum SubjectIcons {
                 "english a language and literature",
                 "english language and literature",
                 "english literature",
-                "language and literature"
+                "language and literature",
+                "lali",
+                "enli"
             ]
         ),
         IBSubjectDefinition(
@@ -187,7 +213,7 @@ enum SubjectIcons {
             group: .languageAcquisition,
             hue: 10,
             symbolName: "globe.americas.fill",
-            aliases: ["spanish", "spanish b"]
+            aliases: ["spanish", "spanish b", "spanish ab initio", "spab", "spbb"]
         ),
         IBSubjectDefinition(
             canonicalKey: "french",
@@ -195,7 +221,7 @@ enum SubjectIcons {
             group: .languageAcquisition,
             hue: 14,
             symbolName: "globe.europe.africa.fill",
-            aliases: ["french", "french b"]
+            aliases: ["french", "french b", "french ab initio", "frab"]
         ),
         IBSubjectDefinition(
             canonicalKey: "german",
@@ -243,7 +269,7 @@ enum SubjectIcons {
             group: .languageAcquisition,
             hue: 40,
             symbolName: "character.bubble.fill",
-            aliases: ["english b"]
+            aliases: ["english b", "engb"]
         )
     ]
 
@@ -256,7 +282,7 @@ enum SubjectIcons {
             group: .individualsAndSocieties,
             hue: 46,
             symbolName: "building.columns.fill",
-            aliases: ["history"]
+            aliases: ["history", "hist"]
         ),
         IBSubjectDefinition(
             canonicalKey: "geography",
@@ -272,7 +298,7 @@ enum SubjectIcons {
             group: .individualsAndSocieties,
             hue: 54,
             symbolName: "chart.line.uptrend.xyaxis",
-            aliases: ["economics", "econ"]
+            aliases: ["economics", "econ", "ecox"]
         ),
         IBSubjectDefinition(
             canonicalKey: "psychology",
@@ -280,7 +306,7 @@ enum SubjectIcons {
             group: .individualsAndSocieties,
             hue: 58,
             symbolName: "brain.head.profile",
-            aliases: ["psychology", "psych"]
+            aliases: ["psychology", "psych", "psyc"]
         ),
         IBSubjectDefinition(
             canonicalKey: "global-politics",
@@ -288,7 +314,7 @@ enum SubjectIcons {
             group: .individualsAndSocieties,
             hue: 62,
             symbolName: "flag.fill",
-            aliases: ["global politics", "politics"]
+            aliases: ["global politics", "politics", "glop"]
         ),
         IBSubjectDefinition(
             canonicalKey: "philosophy",
@@ -296,7 +322,7 @@ enum SubjectIcons {
             group: .individualsAndSocieties,
             hue: 66,
             symbolName: "bubble.left.and.bubble.right.fill",
-            aliases: ["philosophy"]
+            aliases: ["philosophy", "phix"]
         ),
         IBSubjectDefinition(
             canonicalKey: "social-and-cultural-anthropology",
@@ -348,7 +374,8 @@ enum SubjectIcons {
             aliases: [
                 "environmental systems and societies",
                 "environmental systems",
-                "ess"
+                "ess",
+                "enss"
             ]
         ),
         IBSubjectDefinition(
@@ -357,7 +384,7 @@ enum SubjectIcons {
             group: .sciences,
             hue: 108,
             symbolName: "leaf.fill",
-            aliases: ["biology", "bio"]
+            aliases: ["biology", "bio", "biox"]
         ),
         IBSubjectDefinition(
             canonicalKey: "chemistry",
@@ -365,7 +392,7 @@ enum SubjectIcons {
             group: .sciences,
             hue: 116,
             symbolName: "flask.fill",
-            aliases: ["chemistry", "chem"]
+            aliases: ["chemistry", "chem", "chex"]
         ),
         IBSubjectDefinition(
             canonicalKey: "physics",
@@ -373,7 +400,7 @@ enum SubjectIcons {
             group: .sciences,
             hue: 124,
             symbolName: "atom",
-            aliases: ["physics"]
+            aliases: ["physics", "phyx"]
         ),
         IBSubjectDefinition(
             canonicalKey: "computer-science",
@@ -426,7 +453,9 @@ enum SubjectIcons {
                 "analysis and approaches",
                 "applications and interpretation",
                 "further mathematics",
-                "mathematical studies"
+                "mathematical studies",
+                "mtaa",
+                "mtai"
             ]
         )
     ]
@@ -448,7 +477,7 @@ enum SubjectIcons {
             group: .arts,
             hue: 302,
             symbolName: "paintpalette.fill",
-            aliases: ["visual arts", "visual art", "art"]
+            aliases: ["visual arts", "visual art", "art", "vart"]
         ),
         IBSubjectDefinition(
             canonicalKey: "music",
@@ -464,7 +493,7 @@ enum SubjectIcons {
             group: .arts,
             hue: 318,
             symbolName: "theatermasks.fill",
-            aliases: ["theatre", "theater"]
+            aliases: ["theatre", "theater", "theatre arts", "thex"]
         ),
         IBSubjectDefinition(
             canonicalKey: "film",
@@ -485,7 +514,7 @@ enum SubjectIcons {
             group: .core,
             hue: 266,
             symbolName: "lightbulb.fill",
-            aliases: ["tok", "theory of knowledge"]
+            aliases: ["tok", "theory of knowledge", "thok"]
         ),
         IBSubjectDefinition(
             canonicalKey: "extended-essay",
@@ -502,6 +531,14 @@ enum SubjectIcons {
             hue: 282,
             symbolName: "heart.circle.fill",
             aliases: ["cas", "creativity activity service", "creativity action service"]
+        ),
+        IBSubjectDefinition(
+            canonicalKey: "core-meetings",
+            displayName: "Core meetings",
+            group: .core,
+            hue: 270,
+            symbolName: "person.3.fill",
+            aliases: ["core meetings", "core", "corex"]
         )
     ]
 
@@ -538,6 +575,14 @@ enum SubjectIcons {
             hue: 196,
             symbolName: "figure.hiking",
             aliases: ["extra academics", "ea"]
+        ),
+        IBSubjectDefinition(
+            canonicalKey: "advisor-group",
+            displayName: "Advisor group",
+            group: .schoolProgramme,
+            hue: 182,
+            symbolName: "person.3.fill",
+            aliases: ["advisor group", "advisory", "advisor"]
         )
     ]
 

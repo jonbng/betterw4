@@ -200,6 +200,10 @@ struct ScheduleView: View {
         .onChange(of: viewModel.weeks) { _, _ in pagerHeight = computePagerHeight() }
         .onChange(of: dateRange) { _, _ in pagerHeight = computePagerHeight() }
         .onChange(of: settingsStore.calendarStyle) { _, _ in pagerHeight = computePagerHeight() }
+        .onChange(of: settingsStore.showSchoolCalendar) { _, _ in
+            Task { await viewModel.applySchoolCalendarPreference() }
+            pagerHeight = computePagerHeight()
+        }
         .overlay(alignment: .top) {
             if let message = viewModel.errorMessage {
                 errorBanner(message)
@@ -243,22 +247,27 @@ struct ScheduleView: View {
 
     @ViewBuilder
     private var calendarStripHeader: some View {
-        CalendarStripView(
-            selectedDate: selectedDate,
-            weekNavigationEnabled: viewModel.weekNavigationAvailable,
-            hasEvents: { date in !viewModel.events(on: date).isEmpty },
-            onDateSelected: { date in
-                selectDate(date, animated: true)
-                Task { await viewModel.select(date: date) }
-            },
-            onWeekChanged: { date in
-                selectDate(date, animated: false)
-                Task { await viewModel.select(date: date) }
-            }
-        )
-        .frame(height: 72)
+        VStack(spacing: 0) {
+            CalendarStripView(
+                selectedDate: selectedDate,
+                weekNavigationEnabled: viewModel.weekNavigationAvailable,
+                hasEvents: { date in !viewModel.events(on: date).isEmpty },
+                onDateSelected: { date in
+                    selectDate(date, animated: true)
+                    Task { await viewModel.select(date: date) }
+                },
+                onWeekChanged: { date in
+                    selectDate(date, animated: false)
+                    Task { await viewModel.select(date: date) }
+                }
+            )
+            .frame(height: 72)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 12)
+
+            schoolCalendarToggle
+        }
         .frame(maxWidth: .infinity)
-        .padding(.top, 12)
         .background(Color(uiColor: .systemBackground))
         .clipShape(RoundedCorner(radius: 24, corners: [.topLeft, .topRight]))
         .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: -4)
@@ -407,6 +416,33 @@ struct ScheduleView: View {
     }
 
     // MARK: - Banners
+
+    private var schoolCalendarToggle: some View {
+        HStack {
+            Button {
+                settingsStore.saveShowSchoolCalendar(!settingsStore.showSchoolCalendar)
+            } label: {
+                Label("School calendar", systemImage: "calendar")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule().fill(
+                            settingsStore.showSchoolCalendar
+                                ? Color.accentColor.opacity(0.16)
+                                : Color(uiColor: .secondarySystemBackground)
+                        )
+                    )
+                    .foregroundStyle(settingsStore.showSchoolCalendar ? Color.accentColor : .secondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(settingsStore.showSchoolCalendar ? [.isSelected] : [])
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+        .padding(.bottom, 8)
+    }
 
     @ViewBuilder
     private var freshnessBanner: some View {

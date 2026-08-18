@@ -8,18 +8,18 @@ class SubjectColorResolverTest {
 
     @Test
     fun custom_map_wins() {
-        val custom = mapOf("ma" to 0xFF112233L)
-        val color = SubjectColorResolver.resolve("1x MA", custom)
+        val custom = mapOf("mathematics" to 0xFF112233L)
+        val color = SubjectColorResolver.resolve("1DA13HMTAA", custom)
         assertEquals(0xFF112233L, color)
     }
 
     @Test
     fun known_subjects_get_stable_hues() {
-        val a = SubjectColorResolver.resolve("Matematik", emptyMap())
-        val b = SubjectColorResolver.resolve("Dansk", emptyMap())
+        val a = SubjectColorResolver.resolve("Mathematics", emptyMap())
+        val b = SubjectColorResolver.resolve("Economics", emptyMap())
         assertNotEquals(a, b)
-        assertEquals(a, SubjectColorResolver.resolve("1x MA", emptyMap()))
-        assertEquals(b, SubjectColorResolver.resolve("da", emptyMap()))
+        assertEquals(a, SubjectColorResolver.resolve("1DA13HMTAA", emptyMap()))
+        assertEquals(b, SubjectColorResolver.resolve("ECOX", emptyMap()))
     }
 
     @Test

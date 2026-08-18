@@ -10,6 +10,7 @@ import dk.betterw4.android.core.w4.model.FetchPriority
 import dk.betterw4.android.core.w4.session.SessionController
 import dk.betterw4.android.feature.campus.CampusStatusRepository
 import dk.betterw4.android.feature.demo.DemoData
+import dk.betterw4.android.feature.settings.SettingsStore
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import javax.inject.Inject
@@ -22,6 +23,7 @@ class ScheduleRepository @Inject constructor(
     private val session: SessionController,
     private val campusStatus: CampusStatusRepository,
     private val schoolCalendar: SchoolCalendarRepository,
+    private val settings: SettingsStore,
 ) {
     /** Demo/local private events created this session (also used when Lectio POST is unavailable). */
     internal val localPrivate = LocalPrivateEvents()
@@ -63,7 +65,7 @@ class ScheduleRepository @Inject constructor(
                     priority = FetchPriority.Opportunistic,
                 )
             }
-            val gcal = async { schoolCalendar.eventsForWeek(year, week, forceRefresh) }
+            val gcal = async { schoolCalendarEvents(year, week, forceRefresh) }
             Triple(ac.await(), ea.await(), gcal.await())
         }
 
@@ -99,8 +101,17 @@ class ScheduleRepository @Inject constructor(
         weekNum: Int,
         forceRefresh: Boolean,
     ): ScheduleWeek {
-        val extra = schoolCalendar.eventsForWeek(year, weekNum, forceRefresh)
+        val extra = schoolCalendarEvents(year, weekNum, forceRefresh)
         return SchoolCalendar.mergeIntoWeek(week, extra)
+    }
+
+    private suspend fun schoolCalendarEvents(
+        year: Int,
+        week: Int,
+        forceRefresh: Boolean,
+    ): List<ScheduleEvent> {
+        if (!settings.showSchoolCalendar.value) return emptyList()
+        return schoolCalendar.eventsForWeek(year, week, forceRefresh)
     }
 
     suspend fun loadLessonDetail(event: ScheduleEvent): AppResult<LessonDetail> {

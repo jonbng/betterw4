@@ -53,7 +53,7 @@ enum DirectoryPresentation: Hashable {
 
     var title: String {
         switch self {
-        case .full: return "People"
+        case .full: return "Students"
         case .classmates: return "Classmates"
         case .teachers: return "Teachers"
         case .firstYear: return "First year"

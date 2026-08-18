@@ -38,7 +38,7 @@ struct TimelineListView: View {
                         ))
 
                     ForEach(layouts) { layout in
-                        row(for: layout, origin: origin)
+                        row(for: layout, in: layouts, origin: origin)
                     }
 
                     // "Now" line — only on the day it is actually now.
@@ -54,15 +54,17 @@ struct TimelineListView: View {
     }
 
     @ViewBuilder
-    private func row(for layout: EventLayoutInfo, origin: Int) -> some View {
+    private func row(for layout: EventLayoutInfo, in layouts: [EventLayoutInfo], origin: Int) -> some View {
         let event = layout.event
         let offsetFromTop = CGFloat(layout.startMinutes - origin) * ScheduleTimelineGeometry.pointsPerMinute
-        let height = max(
-            ScheduleTimelineGeometry.minimumBlockHeight,
-            CGFloat(layout.endMinutes - layout.startMinutes) * ScheduleTimelineGeometry.pointsPerMinute
-        )
-        let widthFraction = 1.0 / CGFloat(layout.totalColumns)
-        let horizontalOffset = CGFloat(layout.column) / CGFloat(layout.totalColumns)
+        let height = ScheduleTimelineGeometry.visualHeight(of: layout, among: layouts)
+        let widthFraction = layout.widthFraction
+        let horizontalOffset = layout.xFraction
+        let cardStyle: CardLayoutStyle = {
+            if height < 22 { return .micro }
+            if height < 80 { return .compact }
+            return .iconTopLeft
+        }()
 
         TimelineRow(
             startTime: event.start.map(W4Dates.formatTime) ?? "",
@@ -76,7 +78,7 @@ struct TimelineListView: View {
                 subtitle: event.subtitleLine ?? "",
                 iconName: event.iconName,
                 themeColor: event.accentColor(useSubjectColors: settingsStore.useSubjectColors),
-                layoutStyle: height < 80 ? .compact : .iconTopLeft,
+                layoutStyle: cardStyle,
                 status: event.status,
                 teacherInitials: Self.initials(from: event.teacher)
             )
@@ -210,6 +212,8 @@ enum CardLayoutStyle {
     case iconTopLeft
     /// Horizontal layout for short lessons.
     case compact
+    /// Title-only strip for 15-minute breaks that must keep their real height.
+    case micro
 }
 
 struct ScheduleCard: View {
@@ -227,12 +231,45 @@ struct ScheduleCard: View {
 
     var body: some View {
         Group {
-            if layoutStyle == .compact {
+            switch layoutStyle {
+            case .micro:
+                microBody
+            case .compact:
                 compactBody
-            } else {
+            case .standard, .iconTopLeft:
                 tallBody
             }
         }
+    }
+
+    private var microBody: some View {
+        HStack(alignment: .center, spacing: 6) {
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(isCancelled ? .secondary : themeColor.opacity(themeTitleOpacity))
+                .strikethrough(isCancelled)
+                .minimumScaleFactor(0.75)
+                .lineLimit(1)
+
+            Spacer(minLength: 2)
+
+            if !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(isCancelled ? .secondary : themeColor.opacity(themeSubtitleOpacity))
+                    .minimumScaleFactor(0.75)
+                    .lineLimit(1)
+            }
+        }
+        .frame(maxHeight: .infinity)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 1)
+        .background(backgroundColorForStatus)
+        .cornerRadius(8, antialiased: true)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(borderColorForStatus, lineWidth: status == .changed ? 1.5 : 0.5)
+        )
     }
 
     private var compactBody: some View {

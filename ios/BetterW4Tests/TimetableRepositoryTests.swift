@@ -615,11 +615,43 @@ final class TimetableRepositoryTests: XCTestCase {
         W4PageCache(root: cacheRoot)
     }
 
+    func testSchoolCalendarOverlayIsLaidOverAFetchedWeek() async throws {
+        let loader = StubTimetableLoader(responses: [
+            W4Routes.R.myTimetable: .success(response(academicsWeekHTML())),
+            W4Routes.R.eaTimetable: .success(response(extraAcademicsWeekHTML()))
+        ])
+        let monday = startOfCurrentWeek()
+        let overlayEvent = TimetableEvent(
+            id: "gcal-assembly",
+            title: "College assembly",
+            source: .schoolCalendar,
+            start: W4Dates.date(onDayOf: monday, minutesFromMidnight: 8 * 60),
+            end: W4Dates.date(onDayOf: monday, minutesFromMidnight: 9 * 60),
+            date: monday,
+            isAllDay: false
+        )
+        let overlayWeek = ScheduleWeek(
+            year: W4Dates.isoWeek(of: monday).year,
+            week: W4Dates.isoWeek(of: monday).week,
+            source: .schoolCalendar,
+            days: [ScheduleDay(date: monday, events: [overlayEvent])]
+        )
+        let repository = makeRepository(
+            loader: loader,
+            schoolCalendarOverlay: { _, _ in overlayWeek }
+        )
+
+        let loaded = try await repository.week(containing: now, policy: .alwaysRefresh)
+        XCTAssertTrue(loaded.value.allEvents.contains(where: { $0.id == "gcal-assembly" }))
+        XCTAssertTrue(loaded.value.allEvents.contains(where: { $0.id == "ac-w4-42" }))
+    }
+
     private func makeRepository(
         loader: StubTimetableLoader,
         cache: W4PageCache? = nil,
         store: TimetableStoreBridge = .disabled,
-        isDemo: Bool = false
+        isDemo: Bool = false,
+        schoolCalendarOverlay: (@Sendable (_ year: Int, _ week: Int) async -> ScheduleWeek?)? = nil
     ) -> TimetableRepository {
         let student = Student(
             studentId: isDemo ? Student.demoStudentId : uwcId,
@@ -637,7 +669,8 @@ final class TimetableRepositoryTests: XCTestCase {
             cache: cache ?? makeCache(),
             store: store,
             context: { context },
-            clock: { fixedNow }
+            clock: { fixedNow },
+            schoolCalendarOverlay: schoolCalendarOverlay
         )
     }
 

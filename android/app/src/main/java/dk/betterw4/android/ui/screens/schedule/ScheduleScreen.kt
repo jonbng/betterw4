@@ -13,18 +13,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -33,6 +31,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -61,6 +60,7 @@ import dk.betterw4.android.feature.live.LiveLessonBoundary
 import dk.betterw4.android.feature.directory.DirectoryEntityKind
 import dk.betterw4.android.feature.schedule.EventStatus
 import dk.betterw4.android.feature.schedule.LessonParticipant
+import dk.betterw4.android.feature.schedule.ScheduleDay
 import dk.betterw4.android.feature.schedule.ScheduleEvent
 import dk.betterw4.android.feature.schedule.SchoolCalendar
 import dk.betterw4.android.feature.schedule.statusLabelText
@@ -77,9 +77,9 @@ import dk.betterw4.android.ui.components.DetailSheetPadding
 import dk.betterw4.android.ui.components.ErrorBox
 import dk.betterw4.android.ui.components.LessonContentBlocks
 import dk.betterw4.android.ui.components.LoadingBox
-import dk.betterw4.android.ui.components.NotificationsBell
 import dk.betterw4.android.ui.components.PersonAvatar
 import dk.betterw4.android.ui.components.StatusChip
+import dk.betterw4.android.ui.components.W4ChromeActions
 import dk.betterw4.android.ui.theme.BetterW4ThemeExtras
 import kotlinx.coroutines.delay
 import java.time.LocalDate
@@ -97,6 +97,7 @@ fun ScheduleScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val calendarStyle by viewModel.calendarStyle.collectAsStateWithLifecycle()
+    val showSchoolCalendar by viewModel.showSchoolCalendar.collectAsStateWithLifecycle()
     // Subscribe so bricks recompose when lesson mappings / color mode change.
     @Suppress("UNUSED_VARIABLE")
     val lessonMappings by viewModel.lessonMappings.collectAsStateWithLifecycle()
@@ -129,12 +130,14 @@ fun ScheduleScreen(
         }
     }
     val now = remember(nowEpochMinute) { LocalDateTime.now() }
-    val liveHeader = remember(state.eventsByDate, nowEpochMinute) {
+    val liveHeader = remember(state.eventsByDate, nowEpochMinute, showSchoolCalendar) {
         computeLiveHeader(
-            events = state.eventsByDate[LocalDate.now()].orEmpty()
-                .ifEmpty {
-                    state.week?.days?.find { it.date == LocalDate.now() }?.events.orEmpty()
-                },
+            events = viewModel.visibleEvents(
+                state.eventsByDate[LocalDate.now()].orEmpty()
+                    .ifEmpty {
+                        state.week?.days?.find { it.date == LocalDate.now() }?.events.orEmpty()
+                    },
+            ),
             now = now,
             displayTitle = viewModel::displayTitle,
         )
@@ -161,44 +164,16 @@ fun ScheduleScreen(
                     }
                 },
                 actions = {
-                    NotificationsBell(
-                        snapshot = state.notifications,
-                        onOpenChanged = viewModel::setNotificationsOpen,
-                        onMarkRead = viewModel::markNotificationRead,
-                        onMarkAllRead = viewModel::markAllNotificationsRead,
-                        onMarkEmailsRead = viewModel::markAllNotificationEmailsRead,
+                    W4ChromeActions(
+                        onNotificationHref = { href ->
+                            when {
+                                href.isNullOrBlank() -> Unit
+                                href.contains("mailer", ignoreCase = true) -> onOpenMail()
+                                href.contains("deadline", ignoreCase = true) ||
+                                    href.contains("assessment", ignoreCase = true) -> onOpenAssessments()
+                            }
+                        },
                     )
-                    val campus = state.campus
-                    var campusMenu by remember { mutableStateOf(false) }
-                    Box {
-                        FilterChip(
-                            selected = campus?.onCampus == true,
-                            onClick = { campusMenu = true },
-                            label = {
-                                Text(
-                                    campus?.label ?: stringResource(R.string.campus_status),
-                                    maxLines = 1,
-                                )
-                            },
-                        )
-                        DropdownMenu(
-                            expanded = campusMenu,
-                            onDismissRequest = { campusMenu = false },
-                        ) {
-                            val options = campus?.options.orEmpty().ifEmpty {
-                                dk.betterw4.android.feature.campus.CampusStatus.defaultOptions
-                            }
-                            options.forEach { option ->
-                                DropdownMenuItem(
-                                    text = { Text(option) },
-                                    onClick = {
-                                        campusMenu = false
-                                        viewModel.setCampusLocation(option)
-                                    },
-                                )
-                            }
-                        }
-                    }
                     // Week is already in the subtitle — keep "today" up here so the strip stays short.
                     AnimatedVisibility(
                         visible = isAwayFromToday,
@@ -217,15 +192,6 @@ fun ScheduleScreen(
                     containerColor = MaterialTheme.colorScheme.surface,
                 ),
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = viewModel::openPrivateEventSheet,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            ) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.private_event_add))
-            }
         },
     ) { padding ->
         PullToRefreshBox(
@@ -265,24 +231,28 @@ fun ScheduleScreen(
                                 days = weekDays.map { day ->
                                     DateStripDay(
                                         date = day.date,
-                                        hasEvents = day.events.isNotEmpty(),
+                                        hasEvents = viewModel.visibleEvents(day.events).isNotEmpty(),
                                     )
                                 },
                                 selected = state.selectedDate,
                                 onSelect = viewModel::selectDate,
                                 onWeekChanged = viewModel::selectDate,
                                 hasEvents = { date ->
-                                    when {
-                                        date in knownEmptyDays -> false
-                                        date in eventsByDate ->
-                                            eventsByDate[date].orEmpty().isNotEmpty()
-                                        else ->
-                                            weekDays.find { it.date == date }
-                                                ?.events
-                                                ?.isNotEmpty() == true
+                                    val events = when {
+                                        date in eventsByDate -> eventsByDate[date].orEmpty()
+                                        else -> weekDays.find { it.date == date }?.events.orEmpty()
+                                    }
+                                    if (events.isEmpty() && date in knownEmptyDays) {
+                                        false
+                                    } else {
+                                        viewModel.visibleEvents(events).isNotEmpty()
                                     }
                                 },
                                 modifier = Modifier.fillMaxWidth(),
+                            )
+                            SchoolCalendarToggleChip(
+                                selected = showSchoolCalendar,
+                                onClick = { viewModel.setShowSchoolCalendar(!showSchoolCalendar) },
                             )
                         }
 
@@ -304,7 +274,9 @@ fun ScheduleScreen(
 
                             DayPageContent(
                                 date = date,
-                                events = events,
+                                events = viewModel.visibleEvents(events),
+                                day = state.daysByDate[date]
+                                    ?: state.week?.days?.find { it.date == date },
                                 calendarStyle = calendarStyle,
                                 viewModel = viewModel,
                             )
@@ -529,29 +501,106 @@ fun ScheduleScreen(
 }
 
 @Composable
+private fun SchoolCalendarToggleChip(
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        FilterChip(
+            selected = selected,
+            onClick = onClick,
+            label = { Text(stringResource(R.string.school_calendar_team)) },
+            leadingIcon = {
+                Icon(
+                    Icons.Default.CalendarMonth,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+            },
+        )
+    }
+}
+
+@Composable
 private fun DayPageContent(
     date: LocalDate,
     events: List<ScheduleEvent>,
+    day: ScheduleDay?,
     calendarStyle: CalendarStyle,
     viewModel: ScheduleViewModel,
 ) {
-    if (calendarStyle == CalendarStyle.PROFESSIONAL) {
-        TimelineDayView(
-            date = date,
-            events = events,
-            displayTitle = { viewModel.displayTitle(it) },
-            accentFor = { Color(viewModel.accentArgbFor(it)) },
-            onEventClick = { viewModel.selectEvent(it) },
-            modifier = Modifier.fillMaxSize(),
-        )
-    } else {
-        StandardDayList(
-            events = events,
-            displayTitle = { viewModel.displayTitle(it) },
-            accentFor = { Color(viewModel.accentArgbFor(it)) },
-            onEventClick = { viewModel.selectEvent(it) },
-            modifier = Modifier.fillMaxSize(),
-        )
+    Column(Modifier.fillMaxSize()) {
+        DayContextRow(day)
+        if (calendarStyle == CalendarStyle.PROFESSIONAL) {
+            TimelineDayView(
+                date = date,
+                events = events,
+                displayTitle = { viewModel.displayTitle(it) },
+                accentFor = { Color(viewModel.accentArgbFor(it)) },
+                onEventClick = { viewModel.selectEvent(it) },
+                modifier = Modifier.weight(1f),
+            )
+        } else {
+            StandardDayList(
+                events = events,
+                displayTitle = { viewModel.displayTitle(it) },
+                accentFor = { Color(viewModel.accentArgbFor(it)) },
+                onEventClick = { viewModel.selectEvent(it) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DayContextRow(day: ScheduleDay?) {
+    if (day == null) return
+    val rotation = day.rotationDay?.takeIf { it.isNotBlank() }
+    val eaNote = day.eaNote?.takeIf { it.isNotBlank() }
+    if (rotation == null && eaNote == null && !day.isNoClasses) return
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .padding(top = 10.dp, bottom = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (rotation != null) {
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+            ) {
+                Text(
+                    rotation,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                )
+            }
+        }
+        if (day.isNoClasses) {
+            Text(
+                stringResource(R.string.schedule_no_classes),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFFEA580C),
+            )
+        }
+        if (eaNote != null) {
+            Text(
+                eaNote,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+        }
     }
 }
 

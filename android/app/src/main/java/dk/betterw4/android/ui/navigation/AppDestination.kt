@@ -4,12 +4,12 @@ import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.Mail
 import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.People
 import androidx.compose.ui.graphics.vector.ImageVector
 import dk.betterw4.android.R
 
@@ -28,11 +28,11 @@ enum class AppDestination(
         selectedIcon = Icons.Filled.CalendarMonth,
         unselectedIcon = Icons.Outlined.CalendarMonth,
     ),
-    Messages(
-        route = "messages",
-        labelRes = R.string.tab_messages,
-        selectedIcon = Icons.Filled.Mail,
-        unselectedIcon = Icons.Outlined.Mail,
+    Students(
+        route = "students",
+        labelRes = R.string.tab_students,
+        selectedIcon = Icons.Filled.People,
+        unselectedIcon = Icons.Outlined.People,
     ),
     Homework(
         route = "homework",

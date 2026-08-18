@@ -44,7 +44,7 @@ object W4GradeParser {
         val columns = gradeCols.map { it.second }
 
         val rows = bodyRows(table).mapNotNull { tr ->
-            if (tr.selectFirst("td.empty") != null) return@mapNotNull null
+            if (dk.betterw4.android.core.w4.W4Yii.isEmptyRow(tr)) return@mapNotNull null
             val cells = tr.select("td").map { it.text().trim() }
             if (cells.isEmpty() || cells.all { it.isBlank() }) return@mapNotNull null
             val subject = cells.getOrNull(subjectIdx).orEmpty()

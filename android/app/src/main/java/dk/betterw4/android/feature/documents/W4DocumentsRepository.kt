@@ -18,13 +18,14 @@ class W4DocumentsRepository @Inject constructor(
     suspend fun load(
         folderId: String? = null,
         pageId: String? = null,
+        extraAcademics: Boolean = false,
         force: Boolean = false,
     ): AppResult<W4DocumentListing> {
         val student = session.currentStudent ?: return AppResult.Failure(AppError.Unauthorized)
         if (student.isDemo) {
             return AppResult.Success(
                 W4DocumentListing(
-                    title = "Documents",
+                    title = if (extraAcademics) "Extra Academics documents" else "Documents",
                     items = listOf(
                         W4DocumentNode("27", "Internal Information", W4DocumentKind.FOLDER, ""),
                         W4DocumentNode("34", "Outdoor Department", W4DocumentKind.FOLDER, ""),
@@ -36,11 +37,12 @@ class W4DocumentsRepository @Inject constructor(
             folderId?.let { put("folder_id", it) }
             pageId?.let { put("page_id", it) }
         }
-        val key = "docs_${student.studentId}_${folderId.orEmpty()}_${pageId.orEmpty()}"
+        val route = if (extraAcademics) W4Urls.Routes.EA_DOCUMENTS else W4Urls.Routes.DOCUMENTS
+        val key = "docs_${student.studentId}_${if (extraAcademics) "ea" else "sch"}_${folderId.orEmpty()}_${pageId.orEmpty()}"
         if (!force) {
             cache.get(key)?.let { return AppResult.Success(W4DocumentsParser.parse(it)) }
         }
-        return when (val res = client.get(W4Urls.Routes.DOCUMENTS, query = query)) {
+        return when (val res = client.get(route, query = query)) {
             is AppResult.Success -> {
                 cache.put(key, res.data.body)
                 AppResult.Success(W4DocumentsParser.parse(res.data.body))

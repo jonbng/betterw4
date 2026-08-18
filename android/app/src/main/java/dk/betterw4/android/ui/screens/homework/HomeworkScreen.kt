@@ -2,6 +2,7 @@ package dk.betterw4.android.ui.screens.homework
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,22 +18,31 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -44,10 +54,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -58,19 +70,22 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import dk.betterw4.android.R
+import dk.betterw4.android.feature.homework.AssessmentCalendarDay
+import dk.betterw4.android.feature.homework.AssessmentDisplayMode
 import dk.betterw4.android.feature.homework.HomeworkDetailLoader
 import dk.betterw4.android.feature.homework.HomeworkItem
+import java.time.LocalDate
 import dk.betterw4.android.ui.components.AppListDivider
 import dk.betterw4.android.ui.components.AppListMeta
 import dk.betterw4.android.ui.components.AppListRow
 import dk.betterw4.android.ui.components.AppListSecondary
 import dk.betterw4.android.ui.components.AttachmentRow
 import dk.betterw4.android.ui.components.DetailSection
-import dk.betterw4.android.ui.components.EmptyBox
 import dk.betterw4.android.ui.components.ErrorBox
 import dk.betterw4.android.ui.components.HtmlBody
 import dk.betterw4.android.ui.components.ListSkeleton
 import dk.betterw4.android.ui.components.SectionHeader
+import dk.betterw4.android.ui.components.W4ChromeActions
 import dk.betterw4.android.ui.components.isDueUrgent
 import dk.betterw4.android.ui.components.relativeDaySectionLabel
 import dk.betterw4.android.ui.components.relativeDueLabel
@@ -158,44 +173,260 @@ private fun HomeworkListPane(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.tab_homework)) },
+                actions = {
+                    if (!state.isShowingCurrentMonth) {
+                        TextButton(onClick = viewModel::showCurrentMonth) {
+                            Text(
+                                stringResource(R.string.schedule_go_to_today),
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                    }
+                    W4ChromeActions()
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                 ),
             )
         },
     ) { padding ->
-        PullToRefreshBox(
-            isRefreshing = state.loading && state.items.isNotEmpty(),
-            onRefresh = { viewModel.refresh(true) },
-            modifier = Modifier
+        Column(
+            Modifier
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            when {
-                state.loading && state.items.isEmpty() -> ListSkeleton()
-                state.error != null && state.items.isEmpty() ->
-                    ErrorBox(state.error, onRetry = { viewModel.refresh(true) })
-                state.items.isEmpty() -> EmptyBox(
-                    text = stringResource(R.string.empty_homework_all_clear),
-                    description = stringResource(R.string.empty_homework_all_clear_hint),
-                    icon = Icons.Default.CheckCircle,
-                )
-                else -> LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                    state.groups.forEach { group ->
-                        item(key = "header-${group.date ?: "none"}-${group.label}") {
-                            SectionHeader(relativeDaySectionLabel(group.date))
+            AssessmentsMonthHeader(
+                title = state.monthTitle,
+                displayMode = state.displayMode,
+                onPrev = { viewModel.shiftMonth(-1) },
+                onNext = { viewModel.shiftMonth(1) },
+                onDisplayMode = viewModel::setDisplayMode,
+            )
+            PullToRefreshBox(
+                isRefreshing = state.loading && state.items.isNotEmpty(),
+                onRefresh = { viewModel.refresh(true) },
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                when {
+                    state.loading && state.items.isEmpty() && state.error == null -> ListSkeleton()
+                    state.error != null && state.items.isEmpty() ->
+                        ErrorBox(state.error, onRetry = { viewModel.refresh(true) })
+                    else -> LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                        if (state.displayMode == AssessmentDisplayMode.MONTH) {
+                            item(key = "calendar") {
+                                AssessmentsCalendarGrid(
+                                    days = state.calendarDays,
+                                    selectedDay = state.selectedDay,
+                                    onSelect = { day ->
+                                        viewModel.selectDay(day)
+                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    },
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                )
+                            }
                         }
-                        items(group.items, key = { it.id }) { item ->
-                            SwipeableHomeworkRow(
-                                item = item,
-                                displayTeam = viewModel::displayTeam,
-                                onOpen = { onOpen(item) },
-                                onToggleDone = {
-                                    viewModel.toggleDone(item.id)
-                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                },
+                        state.selectedDay?.let { day ->
+                            item(key = "day-filter-$day") {
+                                FilterChip(
+                                    selected = true,
+                                    onClick = { viewModel.selectDay(null) },
+                                    label = { Text(relativeDaySectionLabel(day)) },
+                                    trailingIcon = {
+                                        Icon(
+                                            Icons.Default.Close,
+                                            contentDescription = stringResource(R.string.assessments_clear_day_filter),
+                                            modifier = Modifier.size(16.dp),
+                                        )
+                                    },
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                                )
+                            }
+                        }
+                        if (state.groups.isEmpty()) {
+                            item(key = "empty") {
+                                Column(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 32.dp, vertical = 36.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                ) {
+                                    Text(
+                                        if (state.selectedDay != null) {
+                                            stringResource(R.string.assessments_empty_day)
+                                        } else {
+                                            stringResource(R.string.assessments_empty_month)
+                                        },
+                                        style = MaterialTheme.typography.titleMedium,
+                                        textAlign = TextAlign.Center,
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        if (state.selectedDay != null) {
+                                            stringResource(R.string.assessments_empty_day_hint)
+                                        } else {
+                                            stringResource(R.string.assessments_empty_month_hint, state.monthTitle)
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center,
+                                    )
+                                }
+                            }
+                        } else {
+                            state.groups.forEach { group ->
+                                item(key = "header-${group.date ?: "none"}-${group.label}") {
+                                    SectionHeader(relativeDaySectionLabel(group.date))
+                                }
+                                items(group.items, key = { it.id }) { item ->
+                                    SwipeableHomeworkRow(
+                                        item = item,
+                                        displayTeam = viewModel::displayTeam,
+                                        onOpen = { onOpen(item) },
+                                        onToggleDone = {
+                                            viewModel.toggleDone(item.id)
+                                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        },
+                                    )
+                                    AppListDivider()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AssessmentsMonthHeader(
+    title: String,
+    displayMode: AssessmentDisplayMode,
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
+    onDisplayMode: (AssessmentDisplayMode) -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onPrev) {
+                Icon(
+                    Icons.Default.ChevronLeft,
+                    contentDescription = stringResource(R.string.assessments_prev_month),
+                )
+            }
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
+                textAlign = TextAlign.Center,
+            )
+            IconButton(onClick = onNext) {
+                Icon(
+                    Icons.Default.ChevronRight,
+                    contentDescription = stringResource(R.string.assessments_next_month),
+                )
+            }
+        }
+        val modes = AssessmentDisplayMode.entries
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            modes.forEachIndexed { index, mode ->
+                SegmentedButton(
+                    selected = displayMode == mode,
+                    onClick = { onDisplayMode(mode) },
+                    shape = SegmentedButtonDefaults.itemShape(index, modes.size),
+                    label = {
+                        Text(
+                            if (mode == AssessmentDisplayMode.MONTH) {
+                                stringResource(R.string.assessments_view_month)
+                            } else {
+                                stringResource(R.string.assessments_view_list)
+                            },
+                        )
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AssessmentsCalendarGrid(
+    days: List<AssessmentCalendarDay>,
+    selectedDay: LocalDate?,
+    onSelect: (LocalDate) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val weekdays = listOf("M", "T", "W", "T", "F", "S", "S")
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth()) {
+                weekdays.forEach { label ->
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+            days.chunked(7).forEach { week ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    week.forEach { day ->
+                        val selected = selectedDay == day.date
+                        val bg = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
+                        val fg = when {
+                            selected -> MaterialTheme.colorScheme.onPrimary
+                            day.isInMonth -> MaterialTheme.colorScheme.onSurface
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                        val dot = when {
+                            !day.hasItems -> Color.Transparent
+                            selected -> MaterialTheme.colorScheme.onPrimary
+                            day.overdue > 0 -> MaterialTheme.colorScheme.error
+                            day.pending > 0 -> MaterialTheme.colorScheme.primary
+                            else -> Color(0xFF16A34A)
+                        }
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(40.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(bg)
+                                .then(
+                                    if (day.isInMonth) {
+                                        Modifier.clickable { onSelect(day.date) }
+                                    } else {
+                                        Modifier
+                                    },
+                                ),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            Text(
+                                day.dayNumber.toString(),
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = if (day.isToday) FontWeight.Bold else FontWeight.Normal,
+                                color = fg.copy(alpha = if (day.isInMonth) 1f else 0.28f),
                             )
-                            AppListDivider()
+                            Box(
+                                Modifier
+                                    .padding(top = 2.dp)
+                                    .size(5.dp)
+                                    .clip(CircleShape)
+                                    .background(dot),
+                            )
                         }
                     }
                 }

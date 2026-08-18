@@ -38,7 +38,6 @@ class DirectorySyncService @Inject constructor(
                     cache.put(cacheKey(student.studentId, route), res.data.body)
                     for (entity in W4PeopleParser.parse(res.data.body)) {
                         merged[entity.id] = DirectoryParser.mergeEntity(merged[entity.id], entity)
-                        entity.avatarUrl?.let { avatars.remember(entity.id, it) }
                     }
                 }
             }
@@ -46,8 +45,10 @@ class DirectorySyncService @Inject constructor(
         if (merged.isEmpty()) {
             return lastFailure ?: AppResult.Success(Unit)
         }
-        offline.replaceAll(student.studentId, merged.values.toList())
-        Timber.i("Directory catalog synced: %d people", merged.size)
+        val people = merged.values.toList()
+        offline.replaceAll(student.studentId, people)
+        avatars.ingest(people)
+        Timber.i("Directory catalog synced: %d people", people.size)
         return AppResult.Success(Unit)
     }
 

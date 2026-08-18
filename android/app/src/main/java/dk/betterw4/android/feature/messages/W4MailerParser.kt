@@ -1,6 +1,7 @@
 package dk.betterw4.android.feature.messages
 
 import dk.betterw4.android.core.w4.W4Dates
+import dk.betterw4.android.core.w4.W4Yii
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import java.time.LocalDateTime
@@ -26,7 +27,7 @@ object W4MailerParser {
             ?: (if (fromIdx != null) fromIdx + 1 else 1)
 
         return table.select("tbody tr").mapNotNull { row ->
-            if (row.selectFirst("td.empty") != null) return@mapNotNull null
+            if (W4Yii.isEmptyRow(row)) return@mapNotNull null
             val cells = row.select("td")
             if (cells.size < 2) return@mapNotNull null
             val subjectCell = cells.getOrNull(subjectIdx) ?: cells.lastOrNull() ?: return@mapNotNull null

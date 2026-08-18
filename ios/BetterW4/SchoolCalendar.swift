@@ -72,6 +72,15 @@ enum SchoolCalendar {
         return event.id.lowercased().hasPrefix(idPrefix.lowercased())
     }
 
+    /// Drops college-calendar overlay events when the student has hidden them.
+    static func visibleEvents(
+        _ events: [TimetableEvent],
+        showSchoolCalendar: Bool
+    ) -> [TimetableEvent] {
+        guard !showSchoolCalendar else { return events }
+        return events.filter { !isSchoolCalendarEvent($0) }
+    }
+
     /// Every occurrence inside ISO week `week` of `week-year`, Monday to Sunday.
     ///
     /// The week is anchored in Europe/Oslo because W4's own week numbering is

@@ -2,7 +2,7 @@
 //  MessagesView.swift
 //  BetterW4
 //
-//  The Mail tab (plan Wave 6 item 6.2, `docs/spec/ui.md` §4.2).
+//  The W4 mailer, reached from More (plan Wave 6 item 6.2, `docs/spec/ui.md` §4.2).
 //
 //  Two W4 grids — Inbox (`mailer/inbox`) and Sent (`mailer/archive`) — behind a leading folder
 //  menu, `.searchable`, pull-to-refresh, and a row per message showing Received / From / Subject.

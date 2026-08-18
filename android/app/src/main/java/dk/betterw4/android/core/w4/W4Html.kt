@@ -51,15 +51,25 @@ object W4Html {
             ?.takeIf { it.isNotEmpty() }
     }
 
-    /** Prefer the signed-in student's public profile link, then any `uwc_id`. */
+    /**
+     * Prefer the signed-in student's own profile link.
+     *
+     * Bug B17: a document-wide `nc\\d{2}[a-z]+` sweep on Home hits a birthday
+     * classmate first. `#hello` (and then `#user-panel`) is the only honest source.
+     */
     fun uwcId(html: String): String? {
         val doc = Jsoup.parse(html)
-        val profile = doc.select("a[href*=people/students/student][href*=uwc_id]")
-            .firstOrNull { it.text().contains("profile", ignoreCase = true) }
-            ?: doc.selectFirst("a[href*=people/students/student][href*=uwc_id]")
+        val hello = doc.getElementById("hello")
+        hello?.select("a[href*=uwc_id]")?.firstOrNull()?.attr("href")
+            ?.let { UWC_ID.find(it)?.groupValues?.get(1)?.lowercase() }
+            ?.let { return it }
+        val profile = doc.select("#hello a[href*=uwc_id], #user-panel a[href*=uwc_id]")
+            .firstOrNull()
+            ?: doc.select("a[href*=people/students/student][href*=uwc_id]")
+                .firstOrNull { it.text().contains("profile", ignoreCase = true) }
         val href = profile?.attr("href").orEmpty()
         UWC_ID.find(href)?.groupValues?.get(1)?.lowercase()?.let { return it }
-        return UWC_ID.find(html)?.groupValues?.get(1)?.lowercase()
+        return null
     }
 
     fun contentInner(html: String): String? =

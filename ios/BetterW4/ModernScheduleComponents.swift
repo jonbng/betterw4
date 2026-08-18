@@ -61,7 +61,7 @@ struct ModernTimelineListView: View {
                     gridBackground(origin: origin, contentHeight: contentHeight)
 
                     ForEach(layouts) { layout in
-                        block(for: layout, origin: origin)
+                        block(for: layout, in: layouts, origin: origin)
                     }
 
                     TimelineView(.periodic(from: TimeProvider.now, by: 60)) { context in
@@ -97,14 +97,11 @@ struct ModernTimelineListView: View {
     // MARK: Blocks
 
     @ViewBuilder
-    private func block(for layout: EventLayoutInfo, origin: Int) -> some View {
+    private func block(for layout: EventLayoutInfo, in layouts: [EventLayoutInfo], origin: Int) -> some View {
         let offsetFromTop = CGFloat(layout.startMinutes - origin) * ScheduleTimelineGeometry.pointsPerMinute
-        let height = max(
-            ScheduleTimelineGeometry.minimumBlockHeight,
-            CGFloat(layout.endMinutes - layout.startMinutes) * ScheduleTimelineGeometry.pointsPerMinute
-        )
-        let widthFraction = 1.0 / CGFloat(layout.totalColumns)
-        let horizontalOffset = CGFloat(layout.column) / CGFloat(layout.totalColumns)
+        let height = ScheduleTimelineGeometry.visualHeight(of: layout, among: layouts)
+        let widthFraction = layout.widthFraction
+        let horizontalOffset = layout.xFraction
 
         HStack(alignment: .top, spacing: 0) {
             Color.clear.frame(width: gutterWidth)
@@ -113,7 +110,7 @@ struct ModernTimelineListView: View {
                 let contentWidth = geometry.size.width * widthFraction
                 let offsetX = geometry.size.width * horizontalOffset
 
-                ModernScheduleCard(event: layout.event)
+                ModernScheduleCard(event: layout.event, compact: height < 28)
                     .frame(width: max(0, contentWidth - 4), height: height)
                     .offset(x: offsetX + 2)
                     .contentShape(Rectangle())
@@ -180,6 +177,7 @@ struct HourGridLine: View {
 
 struct ModernScheduleCard: View {
     let event: TimetableEvent
+    var compact: Bool = false
 
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var settingsStore = SettingsStore.shared
@@ -201,39 +199,44 @@ struct ModernScheduleCard: View {
 
     var body: some View {
         ZStack(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 15, style: .continuous)
+            RoundedRectangle(cornerRadius: compact ? 8 : 15, style: .continuous)
                 .fill(cardBackgroundColor)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: compact ? 0 : 4) {
                 HStack(alignment: .center, spacing: 6) {
                     Text(event.displayTitle)
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.system(size: compact ? 12 : 15, weight: .medium))
                         .foregroundColor(.primary.opacity(0.6))
                         .lineLimit(1)
+                        .minimumScaleFactor(compact ? 0.75 : 1)
                         .strikethrough(isCancelled)
 
                     Spacer(minLength: 4)
 
-                    Image(systemName: event.iconName)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.primary.opacity(0.4))
+                    if !compact {
+                        Image(systemName: event.iconName)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.primary.opacity(0.4))
+                    }
                 }
 
-                if let detail = event.locationLine {
+                if !compact, let detail = event.locationLine {
                     Text(detail)
                         .font(.system(size: 13, weight: .light))
                         .foregroundColor(.primary.opacity(0.5))
                         .lineLimit(1)
                 }
 
-                Spacer(minLength: 0)
+                if !compact {
+                    Spacer(minLength: 0)
+                }
             }
-            .padding(.top, 12)
-            .padding(.bottom, 4)
-            .padding(.leading, 14)
-            .padding(.trailing, 12)
+            .padding(.top, compact ? 1 : 12)
+            .padding(.bottom, compact ? 1 : 4)
+            .padding(.leading, compact ? 10 : 14)
+            .padding(.trailing, compact ? 8 : 12)
 
-            if event.status != .normal {
+            if !compact, event.status != .normal {
                 VStack {
                     HStack {
                         Spacer()

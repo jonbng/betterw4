@@ -817,7 +817,7 @@ private fun StudentPortrait(
                     displayName,
                 ),
                 contentScale = ContentScale.Crop,
-                alignment = Alignment.TopCenter,
+                alignment = Alignment.Center,
                 modifier = Modifier
                     .fillMaxSize()
                     .clip(shape),

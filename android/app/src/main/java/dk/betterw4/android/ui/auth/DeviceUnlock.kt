@@ -11,7 +11,11 @@ import kotlin.coroutines.resume
 
 sealed class DeviceAuthResult {
     data object Success : DeviceAuthResult()
-    data object Canceled : DeviceAuthResult()
+    /** User dismissed the sheet. Do not auto-prompt again this visit. */
+    data object UserCanceled : DeviceAuthResult()
+    /** Activity paused / prompt not ready. Safe to retry on the next resume. */
+    data object SystemCanceled : DeviceAuthResult()
+    data object Lockout : DeviceAuthResult()
     data object Unavailable : DeviceAuthResult()
 }
 
@@ -47,17 +51,30 @@ suspend fun FragmentActivity.promptDeviceCredential(
         .setTitle(title)
         .apply { if (!subtitle.isNullOrBlank()) setSubtitle(subtitle) }
         .setAllowedAuthenticators(DeviceAuthenticator.ALLOWED_AUTHENTICATORS)
+        // Face unlock should not require an extra "Confirm" tap after a match.
+        .setConfirmationRequired(false)
         .build()
-    prompt.authenticate(info)
+    try {
+        prompt.authenticate(info)
+    } catch (_: Exception) {
+        if (cont.isActive) cont.resume(DeviceAuthResult.SystemCanceled)
+        return@suspendCancellableCoroutine
+    }
     cont.invokeOnCancellation { prompt.cancelAuthentication() }
 }
 
-private fun Int.toDeviceAuthResult(): DeviceAuthResult = when (this) {
+internal fun Int.toDeviceAuthResult(): DeviceAuthResult = when (this) {
     BiometricPrompt.ERROR_HW_UNAVAILABLE,
     BiometricPrompt.ERROR_HW_NOT_PRESENT,
     BiometricPrompt.ERROR_NO_BIOMETRICS,
     BiometricPrompt.ERROR_NO_DEVICE_CREDENTIAL,
     BiometricPrompt.ERROR_SECURITY_UPDATE_REQUIRED,
     -> DeviceAuthResult.Unavailable
-    else -> DeviceAuthResult.Canceled
+    BiometricPrompt.ERROR_LOCKOUT,
+    BiometricPrompt.ERROR_LOCKOUT_PERMANENT,
+    -> DeviceAuthResult.Lockout
+    BiometricPrompt.ERROR_USER_CANCELED,
+    BiometricPrompt.ERROR_NEGATIVE_BUTTON,
+    -> DeviceAuthResult.UserCanceled
+    else -> DeviceAuthResult.SystemCanceled
 }

@@ -43,13 +43,17 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EventBusy
 import androidx.compose.material.icons.filled.FlightTakeoff
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Grade
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.filled.MeetingRoom
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PushPin
@@ -112,6 +116,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import dk.betterw4.android.R
 import dk.betterw4.android.core.i18n.asString
+import dk.betterw4.android.core.w4.W4Urls
 import dk.betterw4.android.feature.absence.AbsenceChartSeries
 import dk.betterw4.android.feature.absence.AbsenceOverview
 import dk.betterw4.android.feature.absence.AbsencePresentation
@@ -128,7 +133,6 @@ import dk.betterw4.android.feature.grades.GradeRow
 import dk.betterw4.android.feature.grades.GradeSubjectDetail
 import dk.betterw4.android.feature.messages.MessageRecipient
 import dk.betterw4.android.feature.schedule.timeLabelText
-import dk.betterw4.android.feature.settings.AppLanguage
 import dk.betterw4.android.feature.settings.AppearanceMode
 import dk.betterw4.android.feature.settings.CalendarStyle
 import dk.betterw4.android.feature.studiekort.StudentCard
@@ -149,9 +153,14 @@ import dk.betterw4.android.ui.components.RemoteImagePreviewDialog
 import dk.betterw4.android.ui.components.PersonAvatar
 import dk.betterw4.android.ui.components.LoadingBox
 import dk.betterw4.android.ui.components.SectionHeader
+import dk.betterw4.android.ui.components.W4ChromeActions
+import dk.betterw4.android.ui.components.W4WebSheet
+import dk.betterw4.android.ui.components.W4WebTarget
+import dk.betterw4.android.ui.screens.messages.MessagesScreen
 import dk.betterw4.android.feature.documents.W4DocumentKind
 import dk.betterw4.android.feature.documents.W4DocumentListing
 import dk.betterw4.android.feature.documents.W4DocumentNode
+import dk.betterw4.android.feature.extraacademics.ExtraAcademicsPage
 import dk.betterw4.android.feature.trips.W4Trip
 import dagger.hilt.android.EntryPointAccessors
 import java.time.format.TextStyle
@@ -163,12 +172,15 @@ fun MoreScreen(
     viewModel: MoreViewModel = hiltViewModel(),
     scrollToTopToken: Int = 0,
     onComposeToPerson: ((MessageRecipient) -> Unit)? = null,
+    isStudentsTab: Boolean = false,
+    openMailToken: Int = 0,
+    onOpenMail: (() -> Unit)? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
-    val language by viewModel.language.collectAsStateWithLifecycle()
     val calendarStyle by viewModel.calendarStyle.collectAsStateWithLifecycle()
     val useSubjectColors by viewModel.useSubjectColors.collectAsStateWithLifecycle()
+    val showSchoolCalendar by viewModel.showSchoolCalendar.collectAsStateWithLifecycle()
     val notifEvents by viewModel.notifEvents.collectAsStateWithLifecycle()
     val notifMessages by viewModel.notifMessages.collectAsStateWithLifecycle()
     val notifAssignments by viewModel.notifAssignments.collectAsStateWithLifecycle()
@@ -212,23 +224,42 @@ fun MoreScreen(
             }
         }
     }
-    val showBack = state.destination != MoreDestination.ROOT ||
-        state.gradeDetail != null ||
-        state.directoryParent != null ||
-        state.personEntity != null ||
-        state.planDetail != null ||
-        state.roomEntity != null
+    val atStudentsRoot = isStudentsTab &&
+        state.destination == MoreDestination.DIRECTORY &&
+        state.directoryParent == null &&
+        state.personEntity == null &&
+        state.roomEntity == null
+    val showBack = !atStudentsRoot && (
+        state.destination != MoreDestination.ROOT ||
+            state.gradeDetail != null ||
+            state.directoryParent != null ||
+            state.personEntity != null ||
+            state.planDetail != null ||
+            state.roomEntity != null
+        )
 
     // System back / gesture: walk up More hierarchy instead of leaving the tab.
     BackHandler(enabled = showBack) {
-        viewModel.back()
+        if (isStudentsTab) viewModel.backTo(MoreDestination.DIRECTORY) else viewModel.back()
+    }
+
+    LaunchedEffect(isStudentsTab) {
+        if (isStudentsTab && state.destination == MoreDestination.ROOT) {
+            viewModel.openDirectoryKind(DirectoryEntityKind.STUDENT)
+        }
+    }
+    LaunchedEffect(openMailToken) {
+        if (!isStudentsTab && openMailToken > 0) {
+            viewModel.navigate(MoreDestination.MAIL)
+        }
     }
 
     // Reselecting the More tab (or switching back to it after a sub-page visit)
     // always returns to the top-level menu and scrolls it into view.
+    // The Students tab pops back to the directory list instead.
     LaunchedEffect(scrollToTopToken) {
         if (scrollToTopToken > 0) {
-            viewModel.popToRoot()
+            if (isStudentsTab) viewModel.popToDirectory() else viewModel.popToRoot()
             listState.animateScrollToItem(0)
         }
     }
@@ -240,6 +271,27 @@ fun MoreScreen(
         }
         runCatching { context.startActivity(intent) }
         viewModel.consumeLetterUri()
+    }
+
+    fun openCompose(person: DirectoryEntity) {
+        viewModel.composeToPerson(person)
+        if (isStudentsTab) {
+            onComposeToPerson?.invoke(
+                MessageRecipient(
+                    id = person.id,
+                    name = state.studentProfile?.displayName(person.name) ?: person.name,
+                    kind = person.kind.name,
+                ),
+            )
+        } else {
+            viewModel.navigate(MoreDestination.MAIL)
+        }
+    }
+
+    if (state.destination == MoreDestination.MAIL) {
+        BackHandler { viewModel.back() }
+        MessagesScreen(onBackToMore = viewModel::back)
+        return
     }
 
     Scaffold(
@@ -258,20 +310,39 @@ fun MoreScreen(
                             }
                             state.roomEntity != null -> state.roomEntity!!.name
                             state.directoryParent != null -> state.directoryParent!!.name
+                            state.destination == MoreDestination.ROOT && isStudentsTab ->
+                                stringResource(R.string.more_students)
                             state.destination == MoreDestination.ROOT -> stringResource(R.string.tab_more)
                             state.destination == MoreDestination.GRADES -> stringResource(R.string.more_grades)
                             state.destination == MoreDestination.ABSENCE -> stringResource(R.string.more_absence)
+                            state.destination == MoreDestination.DIRECTORY && isStudentsTab ->
+                                stringResource(R.string.more_students)
                             state.destination == MoreDestination.DIRECTORY -> stringResource(R.string.more_directory)
+                            state.destination == MoreDestination.MAIL -> stringResource(R.string.tab_messages)
                             state.destination == MoreDestination.ROOMS -> stringResource(R.string.more_rooms)
-                            state.destination == MoreDestination.STUDIEKORT -> stringResource(R.string.more_studiekort)
+                            state.destination == MoreDestination.STUDIEKORT -> stringResource(R.string.more_id_card)
                             state.destination == MoreDestination.PLANS -> stringResource(R.string.more_plans)
                             state.destination == MoreDestination.MODULE_STATS -> stringResource(R.string.more_module_stats)
                             state.destination == MoreDestination.TERM -> stringResource(R.string.more_term)
                             state.destination == MoreDestination.SETTINGS -> stringResource(R.string.more_settings)
+                            state.destination == MoreDestination.SETTINGS_PRIVACY ->
+                                stringResource(R.string.settings_privacy_stores)
                             state.destination == MoreDestination.DOCUMENTS ->
                                 state.documents?.title?.takeIf { it.isNotBlank() }
-                                    ?: stringResource(R.string.more_documents)
-                            state.destination == MoreDestination.TRIPS -> stringResource(R.string.more_trips)
+                                    ?: if (state.documentsExtraAcademics) {
+                                        stringResource(R.string.ea_documents)
+                                    } else {
+                                        stringResource(R.string.more_documents)
+                                    }
+                            state.destination == MoreDestination.TRIPS ->
+                                stringResource(R.string.more_trips_and_travel)
+                            state.destination == MoreDestination.HOME -> stringResource(R.string.more_home)
+                            state.destination == MoreDestination.NOTIFICATIONS ->
+                                stringResource(R.string.more_notifications)
+                            state.destination == MoreDestination.EXTRA_ACADEMICS ->
+                                stringResource(R.string.more_extra_academics)
+                            state.destination == MoreDestination.EA_PAGE ->
+                                state.eaPage?.displayName ?: stringResource(R.string.more_extra_academics)
                             else -> stringResource(R.string.tab_more)
                         },
                     )
@@ -286,19 +357,38 @@ fun MoreScreen(
                         }
                     }
                 },
+                actions = {
+                    W4ChromeActions(
+                        onNotificationHref = { href ->
+                            when {
+                                href.isNullOrBlank() -> Unit
+                                href.contains("mailer", ignoreCase = true) -> {
+                                    if (isStudentsTab) onOpenMail?.invoke()
+                                    else viewModel.navigate(MoreDestination.MAIL)
+                                }
+                            }
+                        },
+                    )
+                },
             )
         },
     ) { padding ->
         when (state.destination) {
-            MoreDestination.ROOT -> MoreRoot(
-                padding = padding,
-                listState = listState,
-                studentName = state.student?.name ?: state.student?.studentId.orEmpty(),
-                classLabel = state.student?.classLabel,
-                photoUrl = state.profilePhotoUrl,
-                onNavigate = viewModel::navigate,
-                onLogout = viewModel::logout,
-            )
+            MoreDestination.ROOT -> if (isStudentsTab) {
+                LoadingBox(Modifier.padding(padding))
+            } else {
+                MoreRoot(
+                    padding = padding,
+                    listState = listState,
+                    studentName = state.student?.name ?: state.student?.studentId.orEmpty(),
+                    classLabel = state.student?.classLabel,
+                    photoUrl = state.profilePhotoUrl,
+                    onNavigate = viewModel::navigate,
+                    onOpenTeachers = { viewModel.openDirectoryKind(DirectoryEntityKind.TEACHER) },
+                    onLogout = viewModel::logout,
+                )
+            }
+            MoreDestination.MAIL -> Unit
             MoreDestination.GRADES -> {
                 if (state.loading) LoadingBox(Modifier.padding(padding))
                 else if (state.gradeDetail != null) {
@@ -324,6 +414,7 @@ fun MoreScreen(
                     overview = state.absence,
                     causes = viewModel.absenceCauses,
                     onSaveCause = viewModel::updateAbsenceCause,
+                    isDemo = state.student?.isDemo == true,
                     modifier = Modifier.padding(padding),
                 )
             }
@@ -343,18 +434,7 @@ fun MoreScreen(
                                 defaultCalendarStyle = calendarStyle,
                                 displayTitle = viewModel::displayTitleForEvent,
                                 accentFor = { Color(viewModel.accentArgbForEvent(it)) },
-                                onWriteMessage = {
-                                    viewModel.composeToPerson(person)
-                                    onComposeToPerson?.invoke(
-                                        MessageRecipient(
-                                            id = person.id,
-                                            name = state.studentProfile
-                                                ?.displayName(person.name)
-                                                ?: person.name,
-                                            kind = person.kind.name,
-                                        ),
-                                    )
-                                },
+                                onWriteMessage = { openCompose(person) },
                                 onTogglePin = { viewModel.togglePin(person) },
                                 onViewClass = {
                                     val classEntity = person.copy(
@@ -652,31 +732,7 @@ fun MoreScreen(
                 if (card == null) {
                     LoadingBox(Modifier.padding(padding))
                 } else {
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .padding(padding)
-                            .padding(horizontal = 24.dp, vertical = 12.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
-                        ) {
-                            FlipStudiekortCard(card = card)
-                            Button(onClick = viewModel::openLetterOfAttendance) {
-                                Text(stringResource(R.string.more_letter_attendance))
-                            }
-                            state.message?.let {
-                                Text(
-                                    it.asString(),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    textAlign = TextAlign.Center,
-                                )
-                            }
-                        }
-                    }
+                    IdCardSurface(card = card, padding = padding)
                 }
             }
             MoreDestination.PLANS -> {
@@ -817,30 +873,6 @@ fun MoreScreen(
                     AppListDivider()
                 }
 
-                item { SectionHeader(stringResource(R.string.settings_language)) }
-                items(AppLanguage.entries.toList(), key = { "language-${it.name}" }) { lang ->
-                    val label = when (lang) {
-                        AppLanguage.SYSTEM -> stringResource(R.string.settings_language_system)
-                        AppLanguage.DANISH -> stringResource(R.string.settings_language_danish)
-                        AppLanguage.ENGLISH -> stringResource(R.string.settings_language_english)
-                    }
-                    AppListRow(
-                        onClick = { viewModel.setLanguage(lang) },
-                        trailing = {
-                            if (language == lang) {
-                                Icon(
-                                    Icons.Default.Check,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-                        },
-                    ) {
-                        AppListPrimary(label, emphasized = language == lang)
-                    }
-                    AppListDivider()
-                }
-
                 item { SectionHeader(stringResource(R.string.settings_calendar)) }
                 items(CalendarStyle.entries.toList(), key = { "calendar-${it.name}" }) { style ->
                     val title = if (style == CalendarStyle.PROFESSIONAL) {
@@ -889,6 +921,23 @@ fun MoreScreen(
                 }
 
                 item {
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.settings_show_school_calendar)) },
+                        supportingContent = {
+                            Text(stringResource(R.string.settings_show_school_calendar_hint))
+                        },
+                        trailingContent = {
+                            Switch(
+                                checked = showSchoolCalendar,
+                                onCheckedChange = viewModel::setShowSchoolCalendar,
+                            )
+                        },
+                        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
+                    )
+                    AppListDivider()
+                }
+
+                item {
                     SectionHeader(stringResource(R.string.settings_subject_colors))
                     Text(
                         stringResource(R.string.settings_subject_colors_hint),
@@ -904,8 +953,7 @@ fun MoreScreen(
                 items(subjects, key = { it.code }) { subject ->
                     val accent = Color(viewModel.colorForSubject(subject.code))
                     val customized = viewModel.hasSubjectOverride(subject.code)
-                    val canEdit = subject.mappingId != null ||
-                        lessonMappings.containsKey(subject.code)
+                    val canEdit = true
                     AppListRow(
                         onClick = if (canEdit) {
                             { viewModel.openSubjectEditor(subject.code) }
@@ -1040,6 +1088,13 @@ fun MoreScreen(
                 item { SectionHeader(stringResource(R.string.settings_section_data)) }
                 item {
                     AppListRow(
+                        onClick = { viewModel.navigate(MoreDestination.SETTINGS_PRIVACY) },
+                    ) {
+                        AppListPrimary(stringResource(R.string.settings_privacy_stores), emphasized = true)
+                        AppListSecondary(stringResource(R.string.settings_privacy_stores_hint), maxLines = 2)
+                    }
+                    AppListDivider()
+                    AppListRow(
                         onClick = {
                             context.startActivity(
                                 Intent(Intent.ACTION_VIEW, Uri.parse(viewModel.privacyPolicyUrl)),
@@ -1096,11 +1151,19 @@ fun MoreScreen(
                 loading = state.loading,
                 onOpen = viewModel::openDocument,
             )
-            MoreDestination.TRIPS -> TripsContent(
+            MoreDestination.TRIPS -> TripsTravelSurface(padding = padding)
+            MoreDestination.HOME -> HomeSurface(padding = padding)
+            MoreDestination.NOTIFICATIONS -> NotificationsSurface(padding = padding)
+            MoreDestination.EXTRA_ACADEMICS -> ExtraAcademicsMenu(
                 padding = padding,
-                trips = state.trips,
-                loading = state.loading,
+                onOpenPage = viewModel::openEaPage,
+                onOpenDocuments = viewModel::openEaDocuments,
             )
+            MoreDestination.EA_PAGE -> ExtraAcademicsPageSurface(
+                page = state.eaPage ?: ExtraAcademicsPage.MY_ACTIVITIES,
+                padding = padding,
+            )
+            MoreDestination.SETTINGS_PRIVACY -> PrivacyStoresSurface(padding = padding)
         }
     }
 
@@ -1130,16 +1193,7 @@ fun MoreScreen(
                     viewModel.openPersonSchedule(person)
                 }
             },
-            onWriteMessage = {
-                viewModel.composeToPerson(person)
-                onComposeToPerson?.invoke(
-                    MessageRecipient(
-                        id = person.id,
-                        name = person.name,
-                        kind = person.kind.name,
-                    ),
-                )
-            },
+            onWriteMessage = { openCompose(person) },
             onViewClass = { viewModel.openPersonClass(person) },
             onTogglePin = { viewModel.togglePin(person) },
         )
@@ -1971,8 +2025,7 @@ private fun StudiekortFront(
                         model = card.photoUrl,
                         contentDescription = displayName,
                         contentScale = ContentScale.Crop,
-                        // Prefer the top of the portrait so faces aren't cropped out.
-                        alignment = Alignment.TopCenter,
+                        alignment = Alignment.Center,
                         modifier = Modifier
                             .fillMaxSize()
                             .clip(photoInnerShape),
@@ -2204,6 +2257,7 @@ private fun MoreRoot(
     classLabel: String?,
     photoUrl: String?,
     onNavigate: (MoreDestination) -> Unit,
+    onOpenTeachers: () -> Unit,
     onLogout: () -> Unit,
 ) {
     LazyColumn(
@@ -2252,6 +2306,28 @@ private fun MoreRoot(
         item { SectionHeader(stringResource(R.string.more_section_school)) }
         item {
             MoreLink(
+                icon = Icons.Default.Home,
+                title = stringResource(R.string.more_home),
+                onClick = { onNavigate(MoreDestination.HOME) },
+            )
+        }
+        item {
+            MoreLink(
+                icon = Icons.Default.Notifications,
+                title = stringResource(R.string.more_notifications),
+                onClick = { onNavigate(MoreDestination.NOTIFICATIONS) },
+            )
+        }
+        item {
+            MoreLink(
+                icon = Icons.Default.Mail,
+                title = stringResource(R.string.tab_messages),
+                onClick = { onNavigate(MoreDestination.MAIL) },
+            )
+        }
+        item { SectionHeader(stringResource(R.string.more_section_academics)) }
+        item {
+            MoreLink(
                 icon = Icons.Default.Grade,
                 title = stringResource(R.string.more_grades),
                 onClick = { onNavigate(MoreDestination.GRADES) },
@@ -2266,9 +2342,25 @@ private fun MoreRoot(
         }
         item {
             MoreLink(
-                icon = Icons.Default.People,
-                title = stringResource(R.string.more_directory),
-                onClick = { onNavigate(MoreDestination.DIRECTORY) },
+                icon = Icons.Default.DirectionsBike,
+                title = stringResource(R.string.more_extra_academics),
+                onClick = { onNavigate(MoreDestination.EXTRA_ACADEMICS) },
+            )
+        }
+        item { SectionHeader(stringResource(R.string.more_section_people)) }
+        item {
+            MoreLink(
+                icon = Icons.Default.Badge,
+                title = stringResource(R.string.more_teachers),
+                onClick = onOpenTeachers,
+            )
+        }
+        item { SectionHeader(stringResource(R.string.more_section_boarding)) }
+        item {
+            MoreLink(
+                icon = Icons.Default.FlightTakeoff,
+                title = stringResource(R.string.more_trips_and_travel),
+                onClick = { onNavigate(MoreDestination.TRIPS) },
             )
         }
         item {
@@ -2278,14 +2370,14 @@ private fun MoreRoot(
                 onClick = { onNavigate(MoreDestination.DOCUMENTS) },
             )
         }
+        item { SectionHeader(stringResource(R.string.more_section_app)) }
         item {
             MoreLink(
-                icon = Icons.Default.FlightTakeoff,
-                title = stringResource(R.string.more_trips),
-                onClick = { onNavigate(MoreDestination.TRIPS) },
+                icon = Icons.Default.Badge,
+                title = stringResource(R.string.more_id_card),
+                onClick = { onNavigate(MoreDestination.STUDIEKORT) },
             )
         }
-        item { SectionHeader(stringResource(R.string.more_section_app)) }
         item {
             MoreLink(
                 icon = Icons.Default.Settings,
@@ -2313,10 +2405,20 @@ private fun AbsenceScreenContent(
     overview: AbsenceOverview?,
     causes: List<String>,
     onSaveCause: (id: String, cause: String, note: String) -> Unit,
+    isDemo: Boolean,
     modifier: Modifier = Modifier,
 ) {
     if (loading && overview == null) {
         LoadingBox(modifier)
+        return
+    }
+
+    if (overview?.isW4 == true) {
+        W4AbsenceScreen(
+            overview = overview,
+            isDemo = isDemo,
+            modifier = modifier,
+        )
         return
     }
 
@@ -2367,6 +2469,107 @@ private fun AbsenceScreenContent(
             },
         )
     }
+}
+
+@Composable
+private fun W4AbsenceScreen(
+    overview: AbsenceOverview,
+    isDemo: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    var ledger by remember { mutableIntStateOf(0) }
+    var webTarget by remember { mutableStateOf<W4WebTarget?>(null) }
+    val registerTitle = stringResource(R.string.absence_register)
+    val filled = AbsencePresentation.sortNewestFirst(overview.registrations)
+    val ac = filled.filter { it.lessonTitle.equals("Academics", ignoreCase = true) }
+    val ea = filled.filter { it.lessonTitle.equals("EA", ignoreCase = true) }
+    val shown = if (ledger == 0) ac else ea
+    val acMeter = overview.academicMeter ?: W4AbsenceMeter()
+    val eaMeter = overview.eaMeter ?: W4AbsenceMeter()
+    Column(modifier.fillMaxSize()) {
+        SectionHeader(stringResource(R.string.absence_overview))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            AbsenceStatCard(
+                header = stringResource(R.string.absence_meter_academics),
+                rows = listOf(
+                    stringResource(R.string.absence_meter_absences) to acMeter.absences.toString(),
+                    stringResource(R.string.absence_meter_lateness) to acMeter.latenesses.toString(),
+                ),
+                modifier = Modifier.weight(1f),
+            )
+            AbsenceStatCard(
+                header = stringResource(R.string.absence_meter_ea),
+                rows = listOf(
+                    stringResource(R.string.absence_meter_absences) to eaMeter.absences.toString(),
+                    stringResource(R.string.absence_meter_lateness) to eaMeter.latenesses.toString(),
+                ),
+                modifier = Modifier.weight(1f),
+            )
+        }
+        PrimaryTabRow(selectedTabIndex = ledger) {
+            Tab(
+                selected = ledger == 0,
+                onClick = { ledger = 0 },
+                text = { Text(stringResource(R.string.absence_meter_academics)) },
+            )
+            Tab(
+                selected = ledger == 1,
+                onClick = { ledger = 1 },
+                text = { Text(stringResource(R.string.absence_meter_ea)) },
+            )
+        }
+        if (shown.isEmpty()) {
+            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                Text(
+                    stringResource(R.string.absence_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(24.dp),
+                )
+            }
+        } else {
+            LazyColumn(Modifier.weight(1f)) {
+                items(shown, key = { it.id }) { reg ->
+                    AbsenceRegistrationRow(reg = reg, onClick = null)
+                    AppListDivider()
+                }
+            }
+        }
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.absence_register)) },
+            supportingContent = {
+                Text(
+                    if (isDemo) {
+                        stringResource(R.string.absence_register_demo)
+                    } else {
+                        stringResource(R.string.absence_register_hint)
+                    },
+                )
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (isDemo) {
+                        Modifier
+                    } else {
+                        Modifier.clickable {
+                            webTarget = W4WebTarget(
+                                title = registerTitle,
+                                url = W4Urls.route(W4Urls.Routes.ABSENCES_REGISTER).toString(),
+                            )
+                        }
+                    },
+                ),
+            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
+        )
+    }
+    W4WebSheet(target = webTarget, onDismiss = { webTarget = null })
 }
 
 @Composable

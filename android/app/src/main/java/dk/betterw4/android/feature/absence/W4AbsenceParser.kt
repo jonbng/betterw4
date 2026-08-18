@@ -112,11 +112,10 @@ object W4AbsenceParser {
         val teacherIdx = indexOf(headers, TEACHER_HEADERS)
 
         return bodyRows(table).mapIndexedNotNull { index, tr ->
-            if (tr.selectFirst("td.empty") != null) return@mapIndexedNotNull null
+            if (dk.betterw4.android.core.w4.W4Yii.isEmptyRow(tr)) return@mapIndexedNotNull null
             val cells = tr.select("td").map { it.text().trim() }
             if (cells.isEmpty() || cells.all { it.isBlank() }) return@mapIndexedNotNull null
             val dateRaw = cell(cells, dateIdx, 0)
-            if (dateRaw.equals("No results found.", ignoreCase = true)) return@mapIndexedNotNull null
             val date = parseDateCell(dateRaw)
             val period = cell(cells, periodIdx, if (dateIdx == null) 1 else null)
             val klass = cell(cells, classIdx, if (headers.isEmpty()) 2 else null)

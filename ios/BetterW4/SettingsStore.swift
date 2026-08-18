@@ -98,6 +98,7 @@ final class SettingsStore: ObservableObject {
         static let calendarStyle = "calendarStyle"
         static let appearanceMode = "appearanceMode"
         static let useSubjectColors = "useSubjectColors"
+        static let showSchoolCalendar = "showSchoolCalendar"
     }
 
     // MARK: - Published Properties
@@ -106,6 +107,8 @@ final class SettingsStore: ObservableObject {
     @Published var appearanceMode: AppearanceMode = .system
     /// When true, timetable blocks use per-subject hues; when false, status blue/green/red.
     @Published var useSubjectColors: Bool = true
+    /// When true, the public college Google Calendar is drawn on the timetable.
+    @Published var showSchoolCalendar: Bool = SchoolCalendar.isEnabledByDefault
 
     /// Master switch. Every per-type toggle below is only honoured while this is on.
     @Published var notificationsEnabled: Bool = false
@@ -177,6 +180,7 @@ final class SettingsStore: ObservableObject {
         }
 
         useSubjectColors = bool(Keys.useSubjectColors, default: true)
+        showSchoolCalendar = bool(Keys.showSchoolCalendar, default: SchoolCalendar.isEnabledByDefault)
     }
 
     /// `UserDefaults.bool` cannot tell "false" from "never set", so the default is applied here.
@@ -234,6 +238,11 @@ final class SettingsStore: ObservableObject {
     func saveUseSubjectColors(_ enabled: Bool) {
         useSubjectColors = enabled
         userDefaults?.set(enabled, forKey: Keys.useSubjectColors)
+    }
+
+    func saveShowSchoolCalendar(_ enabled: Bool) {
+        showSchoolCalendar = enabled
+        userDefaults?.set(enabled, forKey: Keys.showSchoolCalendar)
     }
 
     /// Timetable block accent: the subject hue when enabled, otherwise the status palette.

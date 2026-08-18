@@ -24,8 +24,13 @@ struct EventLayoutInfo: Identifiable, Equatable {
     let totalColumns: Int
     /// Minutes from Oslo midnight to the block's start.
     let startMinutes: Int
-    /// Minutes from Oslo midnight to the block's end, widened to the minimum readable duration.
+    /// Minutes from Oslo midnight to the block's real end. Visual min-height is applied later
+    /// and never fed back into overlap columns.
     let endMinutes: Int
+    /// Leading edge of the card as a fraction of the lane width.
+    let xFraction: CGFloat
+    /// Card width as a fraction of the lane width.
+    let widthFraction: CGFloat
 
     var id: String { event.id }
 }
@@ -36,11 +41,13 @@ enum ScheduleTimelineGeometry {
     /// is its real duration.
     static let pointsPerMinute: CGFloat = 1
 
-    /// A block shorter than this is unreadable, so it is widened for layout purposes only.
-    static let minimumBlockMinutes = W4TimetableGeometry.minimumBlockMinutes
-
-    /// Floor on a rendered card, independent of the minute maths.
+    /// Floor on a rendered card, used only when growing would not collide with the next block.
     static let minimumBlockHeight: CGFloat = 36
+
+    /// Isolated shorts may grow this many minutes. Adjacent blocks keep their real duration.
+    static var minimumVisualMinutes: Int {
+        Int((minimumBlockHeight / pointsPerMinute).rounded(.up))
+    }
 
     /// Breathing room under the last block of the day.
     static let trailingPadding: CGFloat = 24
@@ -57,8 +64,28 @@ enum ScheduleTimelineGeometry {
 
     /// Height in points of the content between `originMinutes` and the end of the last block.
     static func contentHeight(layouts: [EventLayoutInfo], originMinutes: Int) -> CGFloat {
-        guard let last = layouts.map(\.endMinutes).max() else { return 0 }
+        guard let last = layouts.map({ visualEndMinutes(of: $0, among: layouts) }).max() else { return 0 }
         return max(0, CGFloat(last - originMinutes)) * pointsPerMinute + trailingPadding
+    }
+
+    /// Minutes from midnight at which this card should stop painting.
+    ///
+    /// Isolated shorts grow to [minimumVisualMinutes] so a lone sliver is still tappable.
+    /// If another event starts at or after this one's real end, the card is clipped there —
+    /// otherwise a 15-minute break between two lessons would paint over the next module.
+    static func visualEndMinutes(of layout: EventLayoutInfo, among layouts: [EventLayoutInfo]) -> Int {
+        let grown = max(layout.endMinutes, layout.startMinutes + minimumVisualMinutes)
+        let nextStart = layouts
+            .filter { $0.id != layout.id && $0.startMinutes >= layout.endMinutes }
+            .map(\.startMinutes)
+            .min()
+        let capped = nextStart.map { min(grown, $0) } ?? grown
+        return max(layout.startMinutes + 1, capped)
+    }
+
+    static func visualHeight(of layout: EventLayoutInfo, among layouts: [EventLayoutInfo]) -> CGFloat {
+        let minutes = visualEndMinutes(of: layout, among: layouts) - layout.startMinutes
+        return max(1, CGFloat(minutes)) * pointsPerMinute
     }
 
     /// Vertical offset of `minutesFromMidnight` below the timeline's origin, or `nil` when it sits
@@ -72,15 +99,18 @@ enum ScheduleTimelineGeometry {
 
 /// Assigns overlapping lessons to columns so two blocks at the same time render side by side.
 ///
-/// Blocks with no start time are dropped — they belong in the all-day strip, not on a clock. The
-/// input is sorted by start time first, because the greedy column assignment below is only correct
-/// on a sorted sequence and `W4TimetableParser` makes no ordering promise.
+/// School-calendar events still get a column (the greedy pass has to run in start-time order),
+/// but [overlapPlacement] then parks them in the trailing strip so a real lesson keeps the
+/// primary lane. Blocks with no start time are dropped — they belong in the all-day strip.
 func calculateEventOverlapLayouts(for events: [TimetableEvent]) -> [EventLayoutInfo] {
     let ranges = events
         .compactMap { event -> (event: TimetableEvent, start: Int, end: Int)? in
             guard let start = event.startMinutesFromMidnight else { return nil }
             let rawEnd = event.endMinutesFromMidnight ?? start
-            let end = max(rawEnd, start + ScheduleTimelineGeometry.minimumBlockMinutes)
+            // Real clock range only. A 15-minute break that merely *touches* the next
+            // lesson is not an overlap — stretching it to a min-height here is what
+            // used to shove it into a side lane.
+            let end = max(rawEnd, start + 1)
             return (event, start, end)
         }
         .sorted { lhs, rhs in
@@ -97,17 +127,70 @@ func calculateEventOverlapLayouts(for events: [TimetableEvent]) -> [EventLayoutI
         assignments.append((range.event, column, range.start, range.end))
     }
 
-    return assignments.map { assignment in
-        let widest = assignments
-            .filter { $0.start < assignment.end && assignment.start < $0.end }
-            .map(\.column)
-            .max() ?? 0
+    let withColumns: [(event: TimetableEvent, column: Int, start: Int, end: Int, total: Int)] =
+        assignments.map { assignment in
+            let widest = assignments
+                .filter { $0.start < assignment.end && assignment.start < $0.end }
+                .map(\.column)
+                .max() ?? 0
+            return (assignment.event, assignment.column, assignment.start, assignment.end, widest + 1)
+        }
+
+    return withColumns.map { assignment in
+        let cluster = withColumns.filter { other in
+            other.start < assignment.end && assignment.start < other.end
+        }
+        let place = overlapPlacement(for: assignment, in: cluster)
         return EventLayoutInfo(
             event: assignment.event,
             column: assignment.column,
-            totalColumns: widest + 1,
+            totalColumns: assignment.total,
             startMinutes: assignment.start,
-            endMinutes: assignment.end
+            endMinutes: assignment.end,
+            xFraction: place.x,
+            widthFraction: place.width
         )
     }
+}
+
+/// Live lessons keep most of the lane. Cancelled leftovers and school-calendar events share a
+/// narrow trailing strip so they never steal the primary column.
+func overlapPlacement(
+    for layout: (event: TimetableEvent, column: Int, start: Int, end: Int, total: Int),
+    in cluster: [(event: TimetableEvent, column: Int, start: Int, end: Int, total: Int)]
+) -> (x: CGFloat, width: CGFloat) {
+    let live = cluster
+        .filter { $0.event.status != .cancelled && !SchoolCalendar.isSchoolCalendarEvent($0.event) }
+        .sorted { lhs, rhs in
+            lhs.column == rhs.column ? lhs.event.id < rhs.event.id : lhs.column < rhs.column
+        }
+    let leftover = cluster
+        .filter { $0.event.status == .cancelled || SchoolCalendar.isSchoolCalendarEvent($0.event) }
+        .sorted { lhs, rhs in
+            let leftCalendar = SchoolCalendar.isSchoolCalendarEvent(lhs.event)
+            let rightCalendar = SchoolCalendar.isSchoolCalendarEvent(rhs.event)
+            if leftCalendar != rightCalendar { return !leftCalendar }
+            if lhs.column != rhs.column { return lhs.column < rhs.column }
+            return lhs.event.id < rhs.event.id
+        }
+
+    if !live.isEmpty && !leftover.isEmpty {
+        let liveShare: CGFloat = 0.70
+        let leftoverShare: CGFloat = 0.30
+        if layout.event.status == .cancelled || SchoolCalendar.isSchoolCalendarEvent(layout.event) {
+            let index = leftover.firstIndex { $0.event.id == layout.event.id } ?? 0
+            return (
+                liveShare + leftoverShare * CGFloat(index) / CGFloat(leftover.count),
+                leftoverShare / CGFloat(leftover.count)
+            )
+        }
+        let index = live.firstIndex { $0.event.id == layout.event.id } ?? 0
+        return (
+            liveShare * CGFloat(index) / CGFloat(live.count),
+            liveShare / CGFloat(live.count)
+        )
+    }
+
+    let columns = CGFloat(max(1, layout.total))
+    return (CGFloat(layout.column) / columns, 1 / columns)
 }

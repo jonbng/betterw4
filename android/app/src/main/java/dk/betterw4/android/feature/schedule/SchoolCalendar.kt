@@ -23,6 +23,15 @@ object SchoolCalendar {
         return event.team.equals(SCHOOL_CALENDAR_TEAM_TOKEN, ignoreCase = true)
     }
 
+    /** Drops college-calendar overlay events when the student has hidden them. */
+    fun visibleEvents(
+        events: List<ScheduleEvent>,
+        showSchoolCalendar: Boolean,
+    ): List<ScheduleEvent> {
+        if (showSchoolCalendar) return events
+        return events.filterNot(::isSchoolCalendarEvent)
+    }
+
     fun eventsFromIcs(
         ics: String,
         year: Int,

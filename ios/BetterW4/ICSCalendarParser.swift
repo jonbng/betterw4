@@ -1178,16 +1178,18 @@ enum ICSCalendarParser {
     /// Google puts HTML in `DESCRIPTION`; the UI renders plain text.
     private static func stripHTML(_ value: String) -> String {
         guard value.contains("<") || value.contains("&") else { return value }
-        var text = replacing(#"(?i)<br\s*/?>"#, in: value, with: "\n")
-        text = replacing("<[^>]+>", in: text, with: "")
+        // Decode entities first so `&lt;br /&gt;` becomes a real break, then strip tags.
         // `&amp;` goes last so `&amp;lt;` does not decode twice.
+        var text = value
         for (entity, replacement) in [
-            ("&nbsp;", " "), ("&lt;", "<"), ("&gt;", ">"),
-            ("&quot;", "\""), ("&#39;", "'"), ("&amp;", "&")
+            ("&nbsp;", " "), ("&#39;", "'"), ("&quot;", "\""),
+            ("&lt;", "<"), ("&gt;", ">"),
         ] {
-            text = text.replacingOccurrences(of: entity, with: replacement)
+            text = text.replacingOccurrences(of: entity, with: replacement, options: .caseInsensitive)
         }
-        return text
+        text = text.replacingOccurrences(of: "&amp;", with: "&", options: .caseInsensitive)
+        text = replacing(#"(?i)<br\s*/?>"#, in: text, with: "\n")
+        return replacing("<[^>]+>", in: text, with: "")
     }
 
     private static func replacing(_ pattern: String, in text: String, with replacement: String) -> String {
