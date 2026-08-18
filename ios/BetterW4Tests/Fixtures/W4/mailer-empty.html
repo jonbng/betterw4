@@ -1,0 +1,73 @@
+<!--
+    [I] SYNTHESIZED FIXTURE — THIS IS NOT A CAPTURE OF w4.uwcrcn.no.
+
+    An empty inbox. No `mailer/*` page has ever been captured (docs/spec/parsers.md
+    section 7, plan OQ-4), so the empty-state markup below is the Yii 1 convention
+    from parsers.md section 0.4 and nothing more:
+
+        <tr><td colspan="N" class="empty"><span class="empty">No results found.</span></td></tr>
+
+    Yii 1.1 emits the `td.empty`; from 1.1.14 on it wraps the text in the inner
+    `span.empty`. Both are [I]. Bug B9 is that the Kotlin port only ever checks the
+    first of them, so this fixture carries BOTH markers plus the literal text, and
+    the tests additionally exercise each marker on its own with inline markup.
+
+    An empty mailbox is a NORMAL state, so the contract this file pins down is:
+    zero messages, outcome `.emptyState` (never `.unrecognised`), the header row
+    still column-matched, and no throw. "Empty" and "we could not read the page"
+    must never be reported to a student as the same thing.
+
+    TESTS WRITTEN AGAINST THIS FILE VERIFY W4MailerParser. THEY DO NOT VERIFY W4.
+
+    Identities follow the fixture sanitizer (plan D-7): nc26abcd / "Alex Andersen".
+-->
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Inbox</title>
+</head>
+<body>
+<div id="main">
+    <div id="header">
+        <div>UWCRCN W4</div>
+        <div id="version">W4 v. <a href="https://w4.uwcrcn.no/index.php?r=site/relnotes">25.9.1</a></div>
+        <div class="notifications"></div>
+    </div>
+    <div id="user-panel">
+        <div class="right">Welcome, Alex Andersen<br>
+            <a href="https://w4.uwcrcn.no/index.php?r=site/logout">Logout</a>
+        </div>
+    </div>
+    <div class="clear"></div>
+    <div id="content">
+        <div id="breadcrumb">
+            <div class="crumbs"><a href="https://w4.uwcrcn.no/">Home</a> &raquo; Inbox</div>
+        </div>
+        <div id="content_frame">
+            <div id="content_main">
+                <div id="content_inner">
+                    <h2>Inbox</h2>
+                    <div id="yw0" class="grid-view">
+                        <table class="items">
+                            <thead>
+                                <tr>
+                                    <th id="yw0_c0">Received</th>
+                                    <th id="yw0_c1">From</th>
+                                    <th id="yw0_c2">Subject</th>
+                                    <th class="button-column">&nbsp;</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td colspan="4" class="empty"><span class="empty">No results found.</span></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="footer">Copyright &copy; 2009 - 2026 Red Cross Nordic United World College</div>
+</div>
+</body>
+</html>

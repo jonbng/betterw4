@@ -1,0 +1,67 @@
+<!--
+    [I] SYNTHESIZED — this is NOT a capture of w4.uwcrcn.no.
+
+    No rendered W4 CMS *page* has ever been captured. This file exercises
+    W4DocumentsParser against the class names the server's own
+    references/pages/Documents_files/cmsrenderer.css styles (.page-title,
+    .page-details, .page-content, div.up > a) wrapped in the chrome shape that
+    IS verified (BetterW4Tests/Fixtures/W4/documents.html: #breadcrumb .crumbs,
+    #content_frame > #content_main > #content_inner).
+
+    Therefore: every assertion made against this file verifies THE PARSER, not
+    W4. The element types (h1 for .page-title, p for .page-details, div for
+    .page-content), the nesting order and the body markup are invented. Replace
+    this file with a real `documents/index&page_id=<n>` capture as soon as one
+    exists (docs/spec/parsers.md section 18, capture wishlist).
+-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"><head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" type="text/css" href="./Documents_files/cmsrenderer.css">
+<title>Documents</title>
+</head>
+<body>
+    <div id="main">
+        <div id="header">
+            <div>UWCRCN W4</div>
+            <div id="version">W4 v. <a title="View release notes" href="https://w4.uwcrcn.no/index.php?r=site/relnotes">25.9.1</a></div>
+            <div class="notifications"></div>
+        </div>
+        <div id="main_menu">
+            <a href="https://w4.uwcrcn.no/index.php?r=site/index">Home</a> | <a class="active" href="https://w4.uwcrcn.no/index.php?r=documents">Documents</a>
+        </div>
+        <div id="user-panel">
+            <div class="right">Welcome, Alex Andersen<br>
+                <a href="https://w4.uwcrcn.no/index.php?r=site/logout">Logout</a>
+            </div>
+        </div>
+        <div class="clear"></div>
+        <div id="content">
+            <div id="breadcrumb">
+                <div class="crumbs">
+<a href="https://w4.uwcrcn.no/">Home</a> &raquo; <a href="https://w4.uwcrcn.no/index.php?r=documents">Documents</a> &raquo; <a href="https://w4.uwcrcn.no/index.php?r=documents/index&amp;folder_id=27">Internal Information</a></div>
+                <div class="help-icon">
+                    <a class="help" title="Help" id="help-documents" href="https://w4.uwcrcn.no/index.php?r=documents#"><img src="./Documents_files/help_24.png" alt="Help icon"></a>
+                </div>
+            </div>
+            <div id="content_frame">
+                <div id="content_main">
+                    <div id="content_inner">
+                        <div class="up"><a href="https://w4.uwcrcn.no/index.php?r=documents/index&amp;folder_id=27">Up one level</a></div>
+                        <h1 class="page-title">Fire Drill Procedure</h1>
+                        <p class="page-details">Last updated 04-Sep-2025 by Alex Andersen</p>
+                        <div class="page-content">
+                            <p>When the alarm sounds, leave the building by the <strong>nearest exit</strong>.</p>
+                            <ul>
+                                <li>Assemble at the flagpole.</li>
+                                <li>Wait for your house parent to call the roll.</li>
+                            </ul>
+                            <p><a href="https://w4.uwcrcn.no/index.php?r=documents/index&amp;page_id=871">Learning support</a> has its own procedure.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="footer">Copyright © 2009 - 2026 Red Cross Nordic United World College</div>
+    </div>
+</body></html>

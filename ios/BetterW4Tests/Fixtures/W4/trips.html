@@ -1,0 +1,77 @@
+<!--
+  [I] SYNTHESIZED FIXTURE — THIS IS NOT A REAL W4 CAPTURE.
+
+  No page of `index.php?r=academics/trips` has ever been captured. Everything
+  below the page chrome is invented: the grid, the header labels, the row, the
+  "Plan new trip" button. It is written from README §6, which describes the
+  columns (Trip name | Outgoing date/time | Return date/time | Destination |
+  Type | Participants | Status), the status ladder and the button *in prose*,
+  and from the Android port's fixture (android/.../test/resources/w4/trips.html).
+
+  Therefore every assertion made against this file verifies W4TripsParser,
+  NOT W4. If a real capture ever lands, expect this markup to be wrong and
+  rewrite it — do not "fix" the parser to keep these tests green.
+
+  The one genuinely verified fact reproduced here is the route: the real
+  Academics side-menu capture (Fixtures/W4/academics-menu.html) links
+  `index.php?r=academics/trips` under a "Trips" group.
+
+  Layout note for the header-shuffle test: the Participants and Status header
+  cells sit on ONE line, as do their two body cells, so the test can swap the
+  columns with an exact, unambiguous string replacement.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head><title>My trips - UWCRCN W4</title></head>
+<body>
+<div id="main">
+  <div id="header">
+    <div>UWCRCN W4</div>
+    <div id="version"><a href="/index.php?r=site/relnotes">25.9.1</a></div>
+  </div>
+  <div id="content">
+    <div id="breadcrumb">
+      <div class="crumbs">
+        <a href="/index.php?r=site/index">Home</a> &raquo; <span>My trips</span>
+      </div>
+    </div>
+    <div id="content_frame">
+      <div id="content_main">
+        <div id="content_inner">
+          <h2>My trips</h2>
+          <div class="grid-view" id="yw0">
+            <div class="summary">Displaying 1-1 of 1 result.</div>
+            <table class="items">
+              <thead>
+                <tr>
+                  <th id="yw0_c0"><a class="sort_asc" href="/index.php?r=academics/trips&amp;Trip_sort=name">Trip name</a></th>
+                  <th id="yw0_c1"><a href="/index.php?r=academics/trips&amp;Trip_sort=outgoing">Outgoing date/time</a></th>
+                  <th id="yw0_c2"><a href="/index.php?r=academics/trips&amp;Trip_sort=return">Return date/time</a></th>
+                  <th id="yw0_c3">Destination</th>
+                  <th id="yw0_c4">Type</th>
+                  <th id="yw0_c5">Participants</th><th id="yw0_c6">Status</th>
+                  <th class="button-column">&nbsp;</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="odd">
+                  <td><a href="/index.php?r=academics/trips&amp;id=118">Bergen weekend</a></td>
+                  <td>20-Sep-2026 08:00</td>
+                  <td>21-Sep-2026 18:00</td>
+                  <td>Bergen</td>
+                  <td>Optional</td>
+                  <td>12</td><td>Planning</td>
+                  <td class="button-column"><a href="/index.php?r=academics/trips&amp;id=118" title="View">View</a></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <input name="yt0" type="button" value="Plan new trip" onclick="location.href='/index.php?r=academics/trips/create';" />
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="footer">Copyright &copy; 2009 - 2026 Red Cross Nordic United World College</div>
+</div>
+</body>
+</html>

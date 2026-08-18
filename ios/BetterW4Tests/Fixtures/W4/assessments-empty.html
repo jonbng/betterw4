@@ -1,0 +1,70 @@
+<!--
+  [I] SYNTHESIZED FIXTURE — THIS IS NOT A CAPTURE OF W4.
+
+  An empty assessments month: a calendar grid whose cells are all `td.no-day`
+  padding, with no `a.assessment-link` anywhere. Written by hand for BetterW4's
+  test suite; nothing at
+  https://w4.uwcrcn.no/index.php?r=academics/deadlines has ever been captured
+  (docs/spec/reviewer-notes.md section 7, docs/spec/parsers.md section 6, bug B12).
+
+  TESTS WRITTEN AGAINST THIS FILE VERIFY W4AssessmentParser. THEY DO NOT VERIFY W4.
+
+  It exists to pin down the degrade-to-empty contract: an empty month is a normal
+  state on this page, so the parser must return [] and must not throw. The page
+  still publishes its `ajax_urls`, because W4 renders the write endpoints whether
+  or not the month has any items.
+
+  Identities follow the fixture sanitizer (plan D-7): nc26abcd / "Alex Andersen".
+-->
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>My assessments</title>
+<script type="text/javascript">
+/*<![CDATA[*/
+var month = 07 - 1;
+var year = 2026;
+var uwc_id = 'nc26abcd';
+var ajax_urls = {
+	confirm: '/index.php?r=academics/deadlines/confirm&month=07&year=2026&uwc_id=nc26abcd',
+	revert: '/index.php?r=academics/deadlines/revert&month=07&year=2026&uwc_id=nc26abcd',
+	save: '/index.php?r=academics/deadlines/edit&month=07&year=2026&uwc_id=nc26abcd',
+	create: '/index.php?r=academics/deadlines/create&month=07&year=2026&uwc_id=nc26abcd',
+	delete: '/index.php?r=academics/deadlines/delete&month=07&year=2026&uwc_id=nc26abcd'
+};
+/*]]>*/
+</script>
+</head>
+<body>
+<div id="main">
+  <div id="user-panel"><div class="right">Welcome, Alex Andersen</div></div>
+  <div id="content">
+    <div id="content_frame">
+      <div id="content_main">
+        <div id="content_inner">
+          <h2>July 2026</h2>
+          <div class="calendar-div">
+            <table class="calendar">
+              <tr>
+                <th>Monday</th><th>Tuesday</th><th>Wednesday</th><th>Thursday</th>
+                <th>Friday</th><th>Saturday</th><th>Sunday</th>
+              </tr>
+              <tr class="days">
+                <td class="no-day"></td>
+                <td class="no-day"></td>
+                <td class="no-day"></td>
+                <td class="no-day"></td>
+                <td class="no-day"></td>
+                <td class="no-day"></td>
+                <td class="no-day"></td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,79 @@
+name: iOS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios.yml'
+  pull_request:
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    name: Port gates
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      # These run first and take seconds. A lectio.dk URL is a porting bug worth failing fast on:
+      # it would send a W4 session cookie to a third party and hit a server that cannot answer it.
+      - name: No Lectio hosts or ASP.NET protocol
+        run: ios/scripts/check-legacy.sh
+
+      - name: No Danish user-facing text
+        run: ios/scripts/check-english.sh
+
+      # The fixtures are generated from the captures in references/ with every real identity
+      # replaced. If regenerating changes anything, someone hand-edited a fixture and the
+      # sanitizer is no longer the source of truth.
+      - name: Fixtures are reproducible and sanitized
+        run: |
+          python3 ios/scripts/make-fixtures.py
+          if ! git diff --quiet -- ios/BetterW4Tests/Fixtures/W4; then
+            echo "::error::Regenerating fixtures produced a diff — a fixture was hand-edited."
+            git diff --stat -- ios/BetterW4Tests/Fixtures/W4
+            exit 1
+          fi
+
+  test:
+    name: Build and test
+    runs-on: macos-15
+    needs: gates
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_16.4.app
+
+      - name: Show toolchain
+        run: xcodebuild -version && xcodebuild -showsdks | grep -i simulator
+
+      # Signing is left ON deliberately. The Keychain needs the keychain-access-groups entitlement,
+      # which is only applied to a signed build; with CODE_SIGNING_ALLOWED=NO every SecItemAdd
+      # fails with -34018 and the Keychain tests fail for a reason unrelated to the code.
+      - name: Test
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project BetterW4.xcodeproj \
+            -scheme BetterW4 \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' \
+            -resultBundlePath TestResults.xcresult \
+            | xcpretty && exit ${PIPESTATUS[0]}
+
+      - name: Upload results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TestResults
+          path: ios/TestResults.xcresult
+          retention-days: 7

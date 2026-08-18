@@ -1,0 +1,48 @@
+<!--
+  people-list.html — [I] SYNTHESIZED. NOT A CAPTURE.
+
+  No W4 people list page has ever been captured. This file was written by hand
+  from `android/app/src/test/resources/w4/people-all.html` (itself an Android-port
+  fixture, not a capture) plus the ONE verified thing about W4 people markup:
+  the Home birthdays block, `references/pages/UWCRCN W4.html:201-214`, which
+  proves `a[href*=uwc_id] > img.photo` with `alt="Photo of {uwc_id}"`, a
+  `{uwc_id}_thumb.jpg` file name, and — on one and the same page — staff links
+  reading `people/staff/staff` next to student links reading
+  `people/students/student`.
+
+  Therefore: every assertion made against this file verifies W4PeopleParser.
+  NONE of them is evidence that W4 emits `ul.user-list`, this `<li>` layout, or
+  this ordering. Replace this file the day someone captures
+  `index.php?r=people/students/all` while signed in.
+
+  Identities are invented (reviewer-notes §8): `nc00aaa`-style ids, made-up names.
+-->
+<div id="content_inner">
+  <h2>All students</h2>
+  <h3>2 students</h3>
+  <ul class="user-list">
+    <li>
+      <a href="/index.php?r=people/students/student&amp;uwc_id=nc00aaa"><img class="photo" style="width: 75px" src="/images/user.png" alt="Photo of nc00aaa" /></a>
+      <a href="/index.php?r=people/students/student&amp;uwc_id=nc00aaa">Alex Andersen</a>
+      <br />
+      Denmark<br />
+      1<sup>st</sup> year<br />
+    </li>
+    <li>
+      <a href="/index.php?r=people/students/student&amp;uwc_id=nc00bbb"><img class="photo" style="width: 75px" src="/files/user_photos/nc00bbb_thumb.jpg" alt="Photo of nc00bbb" /></a>
+      <a href="/index.php?r=people/students/student&amp;uwc_id=nc00bbb">Bea Beltran</a>
+      <br />
+      Italy<br />
+      2<sup>nd</sup> year<br />
+    </li>
+  </ul>
+  <h2>Staff</h2>
+  <ul class="user-list">
+    <li>
+      <a href="/index.php?r=people/staff/staff&amp;uwc_id=nc00ccc"><img class="photo" style="width: 75px" src="/files/user_photos/nc00ccc_thumb.jpg" alt="Photo of nc00ccc" /></a>
+      <a href="/index.php?r=people/staff/staff&amp;uwc_id=nc00ccc">Chris Chen</a>
+      <br />
+      Advisor, Teacher<br />
+    </li>
+  </ul>
+</div>

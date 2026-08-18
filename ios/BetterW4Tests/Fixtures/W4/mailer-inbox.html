@@ -1,0 +1,113 @@
+<!--
+    [I] SYNTHESIZED FIXTURE — THIS IS NOT A CAPTURE OF w4.uwcrcn.no.
+
+    No page under `index.php?r=mailer/*` has ever been captured
+    (docs/spec/parsers.md section 7 and section 18 capture wishlist item 3,
+    docs/spec/reviewer-notes.md section 7, plan OQ-4). Every byte below was
+    hand-written from three things:
+
+      * the Yii 1 CGridView convention (parsers.md section 0.4) — `div.grid-view
+        table.items` and `a.sort_asc` / `a.sort_desc` are [V] only in the weak
+        sense that W4's own css/main.css styles them; `thead`, `tbody`,
+        `div.summary`, `div.pager`, `ul.yiiPager` are [I] from the framework;
+      * README section 6, which read the column labels "Received, From, Subject"
+        off a live inbox but recorded no markup;                            [I]
+      * the page chrome, which IS verified — `#main` > `#header` (`#version`,
+        `div.notifications`), `#user-panel .right`, `#breadcrumb .crumbs`,
+        `#content_frame` > `#content_main` > `#content_inner`, `#footer` — copied
+        in shape (not verbatim) from BetterW4Tests/Fixtures/W4/documents.html. [V]
+
+    Explicitly INVENTED, and marked again where they appear below:
+      * `tr.unread` on the first row — no unread marker has ever been seen  [U]
+      * the `Mailer_page=` pager parameter spelling                         [U]
+      * the trailing empty `th.button-column` / `td`                        [U]
+      * every date, name, subject and id.
+
+    TESTS WRITTEN AGAINST THIS FILE VERIFY W4MailerParser. THEY DO NOT VERIFY W4.
+
+    Replace this file with a real `GET index.php?r=mailer/inbox` (ideally one with
+    more than one page) and expect the assertions in W4MailerParserTests to change.
+
+    Identities follow the fixture sanitizer (plan D-7): nc26abcd / "Alex Andersen".
+    "House Leader" and "W4 Mailer" are invented sender names.
+-->
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Inbox</title>
+</head>
+<body>
+<div id="main">
+    <div id="header">
+        <div>UWCRCN W4</div>
+        <div id="version">W4 v. <a href="https://w4.uwcrcn.no/index.php?r=site/relnotes">25.9.1</a></div>
+        <div class="notifications"></div>
+    </div>
+    <div id="main_menu">
+        <a href="https://w4.uwcrcn.no/index.php?r=site/index">Home</a> |
+        <a class="active" href="https://w4.uwcrcn.no/index.php?r=people">School</a>
+    </div>
+    <div id="user-panel">
+        <div class="right">Welcome, Alex Andersen<br>
+            <a href="https://w4.uwcrcn.no/index.php?r=site/logout">Logout</a>
+        </div>
+    </div>
+    <div class="clear"></div>
+    <div id="content">
+        <div id="breadcrumb">
+            <div class="crumbs"><a href="https://w4.uwcrcn.no/">Home</a> &raquo; Inbox</div>
+        </div>
+        <div id="content_frame">
+            <div id="content_main">
+                <div id="content_inner">
+                    <h2>Inbox</h2>
+                    <div id="yw0" class="grid-view">
+                        <div class="summary">Displaying 1-2 of 5 results.</div>
+                        <table class="items">
+                            <thead>
+                                <tr>
+                                    <!-- a.sort_desc / a.sort_asc are the one [V] thing about this grid. -->
+                                    <th id="yw0_c0"><a class="sort_desc" href="/index.php?r=mailer/inbox&amp;Mailer_sort=received.desc">Received</a></th>
+                                    <th id="yw0_c1"><a class="sort_asc" href="/index.php?r=mailer/inbox&amp;Mailer_sort=from">From</a></th>
+                                    <th id="yw0_c2"><a class="sort_asc" href="/index.php?r=mailer/inbox&amp;Mailer_sort=subject">Subject</a></th>
+                                    <th class="button-column">&nbsp;</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- [U] INVENTED: the `unread` class. No unread marker has been captured. -->
+                                <tr class="odd unread">
+                                    <td>14-Aug-2026 12:04</td>
+                                    <td>House Leader</td>
+                                    <td><a href="/index.php?r=mailer/view&amp;id=12">Welcome to term 1</a></td>
+                                    <td>&nbsp;</td>
+                                </tr>
+                                <tr class="even">
+                                    <td>13-Aug-2026 09:00</td>
+                                    <td>W4 Mailer</td>
+                                    <td><a href="/index.php?r=mailer/view&amp;id=7">Kitchen booking</a></td>
+                                    <td>&nbsp;</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <!-- [U] INVENTED: the pager markup and the `Mailer_page` parameter name. -->
+                        <div class="pager">
+                            <ul class="yiiPager">
+                                <li class="first hidden"><a href="/index.php?r=mailer/inbox&amp;Mailer_page=1">&lt;&lt; First</a></li>
+                                <li class="previous hidden"><a href="/index.php?r=mailer/inbox&amp;Mailer_page=1">&lt; Previous</a></li>
+                                <li class="page selected"><a href="/index.php?r=mailer/inbox&amp;Mailer_page=1">1</a></li>
+                                <li class="page"><a href="/index.php?r=mailer/inbox&amp;Mailer_page=2">2</a></li>
+                                <li class="page"><a href="/index.php?r=mailer/inbox&amp;Mailer_page=3">3</a></li>
+                                <li class="next"><a href="/index.php?r=mailer/inbox&amp;Mailer_page=2">Next &gt;</a></li>
+                                <li class="last"><a href="/index.php?r=mailer/inbox&amp;Mailer_page=3">Last &gt;&gt;</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="footer">Copyright &copy; 2009 - 2026 Red Cross Nordic United World College</div>
+</div>
+</body>
+</html>

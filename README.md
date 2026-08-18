@@ -1,10 +1,28 @@
 # BetterW4
 
-Notes for building **BetterLectio-style native apps** (Android / iOS) against **UWCRCN W4** instead of Lectio.
+Unofficial native student apps — **Android and iOS** — for **W4**, the student information system at
+[UWC Red Cross Nordic](https://uwcrcn.no/). Both are ports of **BetterLectio**: same architecture,
+different school system.
 
-W4 is the internal college SIS at [UWC Red Cross Nordic](https://uwcrcn.no/) (`https://w4.uwcrcn.no/`). It is a custom Yii 1 PHP app (v**25.9.1**, Sep 2025), not Lectio, not ManageBac. There is **no public JSON API** in use. A live client scrapes HTML and posts forms, the same way BetterLectio scrapes Lectio — but the protocol is much simpler.
+W4 is the internal college SIS at `https://w4.uwcrcn.no/`. It is a custom Yii 1 PHP app (v**25.9.1**, Sep 2025), not Lectio, not ManageBac. There is **no public JSON API** in use. A live client scrapes HTML and posts forms, the same way BetterLectio scrapes Lectio — but the protocol is much simpler.
 
-This file is the implementation brief. A visual IA / Lectio comparison lives in the Cursor canvas `w4-lectio-feature-map.canvas.tsx`.
+Neither app is made by, endorsed by or affiliated with the college. Neither has a backend of its own:
+they talk to `w4.uwcrcn.no` and nothing else, and store everything on the device.
+
+## What's in this repo
+
+| Path | What it is | Start at |
+|---|---|---|
+| **`ios/`** | **BetterW4 for iOS** — SwiftUI, iOS 18.5+, iPhone and iPad. Native login + 2FA, four tabs (Timetable · Mail · Assessments · More), offline-first caching, demo mode. Builds green; 743 tests passing. | **[`ios/README.md`](ios/README.md)** — features, how to build, and an honest per-surface status of what is verified against real W4 markup versus synthesized fixtures. |
+| **`android/`** | **BetterW4 for Android** — Kotlin + Jetpack Compose, min SDK 29, plus a Wear module. | [`android/README.md`](android/README.md) · [`android/NATIVE_ANDROID_PLAN.md`](android/NATIVE_ANDROID_PLAN.md) |
+| **`references/`** | The evidence both apps were built from: a HAR, saved W4 pages, and the BetterLectio Android client being ported. | §2 below |
+| **the rest of this file** | **The protocol brief** — routes, cookies, the login flow, session-death rules, form payloads. Shared by both apps and authoritative for both. | §1 onward |
+
+Both apps share the application id `dk.jonathanb.w4`.
+
+Read the brief before either app's docs: it is the part that describes W4 itself, and everything in
+`ios/` and `android/` is an implementation of what §4–§6 specify. A visual IA / Lectio comparison
+lives in the Cursor canvas `w4-lectio-feature-map.canvas.tsx`.
 
 ---
 
@@ -416,11 +434,36 @@ If you ever get a staff capture: Administrative → Progress (RoP, transcripts, 
 
 ## 10. Unknowns / next captures
 
-OTP **route** is `site/verify2fa` (not only the guessed `site/otp`). Still worth a HAR of **one full login** (password → OTP → home) for exact OTP field names, whether `PHPSESSID` rotates, and whether `deviceId` is stored server-side.
+### Resolved — the login form, captured live 16 Aug 2026
 
-Also useful: POST payloads for Confirm done, trip create, and a notifications `refresh` HTML sample.
+An unauthenticated `GET index.php?r=site/login` returns the real form. It is exactly what §4.3 predicted, so the login POST needs no guesswork:
 
-Do not commit live `PHPSESSID` or iCal `token=` values.
+```html
+<form action="/index.php?r=site/login" method="post">
+  <input name="LoginForm[deviceId]" id="LoginForm_deviceId" type="hidden" />
+  <input name="LoginForm[username]" id="LoginForm_username" type="text" maxlength="16" class="text_input" />
+  <input name="LoginForm[password]" id="LoginForm_password" type="password" class="text_input" />
+  <input name="yt0" id="submit_button" type="submit" value="Login" />
+</form>
+```
+
+Confirmed: **no CSRF token**, no other hidden fields, and the page still ships ClientJS
+(`/js/clientjs-0.2.1/dist/client.base.min.js`) to populate `deviceId`. Title is
+`UWCRCN W4: UWCRCN W4 - Login Site`, which is the string the session-death check keys on.
+
+### Still open
+
+A HAR of **one full login** (password → OTP → home) remains the single highest-value capture: exact OTP field names, whether `PHPSESSID` rotates on login, and whether `deviceId` is stored server-side. The iOS client works around the unknown by discovering the OTP field from the rendered form rather than hardcoding a name, but that is a mitigation, not knowledge.
+
+Ranked next captures, by what they unblock:
+
+1. **A term-time `academics/timetable/mytimetable`** — every capture we have is from a holiday week with **zero** lesson blocks, so `.period`, `.inner`, `.datetime`, `.room` and the attendance marker classes are entirely unverified. The grid geometry *is* proven (`tt_start_hour = 7`, 900px over 15 hours ⇒ 1px = 1 minute), so a single capture would convert the daily-driver parser from assumed to evidenced.
+2. **`mailer/inbox` and one `mailer/view`** — the mailer parser is written defensively against a generic Yii `CGridView` and has never seen a real grid.
+3. **POST payloads for Confirm done / Revert to pending** (`academics/deadlines`) — the app's only write surface besides campus status, currently behind a feature flag for exactly this reason.
+4. A notifications `refresh` fragment with content — the captured chrome ships an *empty* `div.notifications`.
+5. `people/students/absences` with real rows, and `academics/grades/grades`.
+
+Do not commit live `PHPSESSID` or iCal `token=` values. The `academics/feeds` tokens are password-equivalent: anyone holding one can read that student's timetable and assessments without logging in.
 
 ---
 

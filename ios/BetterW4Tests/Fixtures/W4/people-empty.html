@@ -1,0 +1,29 @@
+<!--
+  people-empty.html — [I] as a *file*, but the body below is not invented.
+
+  The `#content_inner` block that follows is copied VERBATIM (whitespace and all)
+  from `references/pages/Current applicants at UWCRCN.html:80-82`, a real signed-in
+  capture. That is where W4's empty state for a people list comes from:
+
+      <div class="note">No users found</div>
+
+  What is synthesized here is only the surrounding skeleton — the real page also
+  carries the site header, the sdmenu, the breadcrumb and the footer, none of which
+  a parser test needs. The capture is the *applicants* browser rather than a student
+  directory (no empty student list has ever been captured), so the `<h2>` text below
+  is the real page's heading and not a people-list heading.
+
+  Assertions against this file: `notice == "No users found"` and `people == []` rest
+  on real markup; anything about page furniture does not.
+
+  This page contains no identities to scrub — that is the point of it.
+-->
+<html>
+<body>
+<div id="content"><div id="content_frame"><div id="content_main">
+                                                                        <div id="content_inner"> <h2>Current applicants at UWCRCN</h2>
+	        <div class="note">No users found</div>
+	 </div>
+</div></div></div>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!--
+    [I] SYNTHESIZED — this is NOT a capture of w4.uwcrcn.no.
+
+    A POPULATED W4 notification bell has never been captured. In BOTH real
+    captures we have (BetterW4Tests/Fixtures/W4/home.html and
+    BetterW4Tests/Fixtures/W4/documents.html) `#header div.notifications` is
+    EMPTY — zero notifications is the normal state at this school, and that is
+    what bug B8 in docs/spec/parsers.md is about.
+
+    The shape below is reconstructed from the real assets W4 serves
+    (references/pages/*_files/notifications.js and notifications.css). The
+    CLASS NAMES and ATTRIBUTE NAMES are [V] because those assets name them —
+    `.btn-group`, `div.alert`, `.dropdown-menu`, `h3.tasks`, `h3.emails`,
+    `a.read`, `a.clear`, `dl.email-list`, `span.deadline`, `span.duration`,
+    `data-notification-id`, `data-notification-type`, and the severities
+    `normal` / `new` / `overdue`. Their ARRANGEMENT here — which element nests
+    inside which, the row text, whether every row carries an href — is invented.
+
+    Therefore: every assertion made against this file verifies THE PARSER, not
+    W4. Replace it with a real capture of a populated bell (or of the
+    `notifications/refresh` fragment) as soon as one exists.
+
+    Note the deliberate mismatch between the badge class (`alert new`) and the
+    first task group (`overdue`): W4NotificationParser prefers the badge's own
+    class over the most severe row, and this file pins that behaviour down.
+-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"><head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" type="text/css" href="./UWCRCN W4_files/notifications.css">
+<title>UWCRCN W4</title>
+</head>
+<body>
+    <div id="main">
+        <div id="header">
+            <div>UWCRCN W4</div>
+            <div id="version">W4 v. <a title="View release notes" href="https://w4.uwcrcn.no/index.php?r=site/relnotes">25.9.1</a></div>
+            <div class="notifications"><div class="btn-group">
+    <img class="notification-icon" src="./UWCRCN W4_files/notification_24.png" alt="Notifications">
+    <div class="alert new">3</div>
+    <div class="dropdown-menu">
+        <h3 class="tasks">Tasks <a class="read" href="https://w4.uwcrcn.no/index.php?r=site/index#">Mark all read</a></h3>
+        <dl>
+            <dt class="overdue">Assessments<a class="read" data-notification-type="assessment" href="https://w4.uwcrcn.no/index.php?r=site/index#">read</a></dt>
+            <dd>
+                <ul>
+                    <li class="overdue"><a href="/index.php?r=academics/deadlines&amp;id=12">Biology IA draft <span class="deadline">Due 12-Aug-2026</span></a><a class="read" data-notification-id="12" href="https://w4.uwcrcn.no/index.php?r=site/index#">read</a></li>
+                    <li class="new"><a href="/index.php?r=academics/deadlines&amp;id=13">History essay <span class="deadline">Due 14-Aug-2026</span></a><a class="read" data-notification-id="13" href="https://w4.uwcrcn.no/index.php?r=site/index#">read</a></li>
+                </ul>
+            </dd>
+        </dl>
+        <h3 class="emails">Emails <a class="read" href="https://w4.uwcrcn.no/index.php?r=site/index#">Mark all read</a></h3>
+        <dl class="email-list">
+            <dt>Inbox<a class="read" data-notification-type="email" href="https://w4.uwcrcn.no/index.php?r=site/index#">read</a></dt>
+            <dd>
+                <ul>
+                    <li class="new"><a href="/index.php?r=mailer/view&amp;id=88">Kayaking trip briefing <span class="duration">2 days ago</span></a><a class="clear" data-notification-id="88" href="https://w4.uwcrcn.no/index.php?r=site/index#">clear</a></li>
+                </ul>
+            </dd>
+        </dl>
+    </div>
+</div></div>
+            <div class="status-dropdown">
+    <div class="status oncampus">
+        <div class="status-value">on campus</div>
+        <div class="location">
+                    </div>
+    </div>
+</div>
+        </div>
+        <div id="user-panel">
+            <div class="right">Welcome, Alex Andersen</div>
+        </div>
+        <div id="footer">Copyright © 2009 - 2026 Red Cross Nordic United World College</div>
+    </div>
+</body></html>

@@ -1,0 +1,94 @@
+<!--
+    [I] SYNTHESIZED FIXTURE — THIS IS NOT A CAPTURE OF w4.uwcrcn.no.
+
+    `index.php?r=mailer/view&id={n}` has NEVER been captured. It is item 3 on the
+    capture wishlist (docs/spec/parsers.md section 18) and parsers.md section 7 says
+    so in as many words: "Mail detail is [U] and currently a stub." The Android port
+    does not parse this page at all — MessageRepository.kt:109-123 dumps the whole
+    `#content_inner` into one synthetic thread entry and calls it a message.
+
+    So EVERY structural choice below is INVENTED:
+      * `table.detail-view` with `<th>From</th><td>…</td>` rows — the Yii 1
+        CDetailView convention, which is a framework guess, not an observation; [I]
+      * `div.message-body` as the wrapper around the TinyMCE-authored body;      [I]
+      * `div.attachments` and the `mailer/download&attachment_id=` link shape;   [I]
+      * the `<h2>` carrying the subject — parsers.md section 7's v1 instruction is
+        "extract subject from `#content_inner h1, h2`", but on the one page where a
+        heading IS captured (Documents) that heading is the PAGE TITLE, not a
+        subject. Whether W4 puts the subject there is unknown.                   [U]
+
+    Only three things here are not guesses: the route and its `id=` parameter [V],
+    `#content_inner` as the content container [V] (parsers.md section 0.3), and the
+    fact that the body is TinyMCE HTML rather than BBCode or plain text [V]
+    (README section 5.2 — the compose field is a TinyMCE editor).
+
+    TESTS WRITTEN AGAINST THIS FILE VERIFY W4MailDetailParser. THEY DO NOT VERIFY W4.
+
+    Replace this file the moment a real `mailer/view&id=…` is captured and expect
+    every assertion in the detail half of W4MailerParserTests to change.
+
+    Identities follow the fixture sanitizer (plan D-7): nc26abcd / "Alex Andersen".
+    "House Leader" is an invented sender name.
+-->
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>View message</title>
+</head>
+<body>
+<div id="main">
+    <div id="header">
+        <div>UWCRCN W4</div>
+        <div id="version">W4 v. <a href="https://w4.uwcrcn.no/index.php?r=site/relnotes">25.9.1</a></div>
+        <div class="notifications"></div>
+    </div>
+    <div id="user-panel">
+        <div class="right">Welcome, Alex Andersen<br>
+            <a href="https://w4.uwcrcn.no/index.php?r=site/logout">Logout</a>
+        </div>
+    </div>
+    <div class="clear"></div>
+    <div id="content">
+        <div id="breadcrumb">
+            <div class="crumbs"><a href="https://w4.uwcrcn.no/">Home</a> &raquo; Inbox &raquo; View message</div>
+        </div>
+        <div id="content_frame">
+            <div id="content_main">
+                <div id="content_inner">
+                    <h2>Welcome to term 1</h2>
+                    <!-- [I] INVENTED: Yii 1 CDetailView shape. Never observed on W4. -->
+                    <table class="detail-view">
+                        <tbody>
+                            <tr class="odd"><th>From</th><td>House Leader</td></tr>
+                            <tr class="even"><th>To</th><td>Alex Andersen, Second Year Students</td></tr>
+                            <tr class="odd"><th>Received</th><td>14-Aug-2026 12:04</td></tr>
+                        </tbody>
+                    </table>
+                    <!-- [I] INVENTED: the wrapper class. The CONTENT is TinyMCE-shaped HTML, which is [V]. -->
+                    <div class="message-body">
+                        <p>Dear <strong>Alex</strong>,</p>
+                        <p>Welcome back to Flekke. A few practical notes for the first week:</p>
+                        <ul>
+                            <li>House meeting on Monday at 19:00 in the common room.</li>
+                            <li>Bring your kayak gear to the Outdoor Department on Tuesday.</li>
+                        </ul>
+                        <p>The full handbook lives in <a href="https://w4.uwcrcn.no/index.php?r=documents/index&amp;page_id=3">Documents</a>.</p>
+                        <p>Best wishes,<br>House Leader</p>
+                    </div>
+                    <!-- [I] INVENTED: attachment list markup and link shape. -->
+                    <div class="attachments">
+                        <h3>Attachments</h3>
+                        <ul>
+                            <li><a href="/index.php?r=mailer/download&amp;attachment_id=91">term-1-schedule.pdf</a></li>
+                            <li><a href="/index.php?r=mailer/download&amp;attachment_id=92">packing-list.docx</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="footer">Copyright &copy; 2009 - 2026 Red Cross Nordic United World College</div>
+</div>
+</body>
+</html>

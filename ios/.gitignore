@@ -1,0 +1,25 @@
+.DS_Store
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
+xcuserdata/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Local diagnostics must never be committed.
+schedule-debug-*.html
+
+# Never commit a live W4 session or a personal feed token.
+*.phpsessid
+w4-session-*.json
+
+# Swift Package Manager / Xcode generated state.
+.build/
+Package.resolved.local

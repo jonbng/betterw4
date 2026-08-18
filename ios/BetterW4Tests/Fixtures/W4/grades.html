@@ -1,0 +1,141 @@
+<!--
+    SYNTHESIZED — [I]. THIS FILE IS NOT A CAPTURE OF w4.uwcrcn.no.
+
+    No grades page has ever been captured (docs/spec/parsers.md section 10:
+    "DOM — [I], with one strong [V] hint"; features.md section 1.6: "The W4
+    grades table itself is UNKNOWN — needs live capture"). Every byte below was
+    hand-written from the Yii 1 CGridView convention (parsers.md section 0.4)
+    plus the four things about this page that ARE verified:
+
+      * the route `academics/grades/grades` exists in the captured Academics
+        side menu,                                                          [V]
+      * W4's own `css/main.css` styles `table.grades th.anticipated` and
+        `table.grades tr.table_1_bg td.anticipated` — so the grades table is
+        `table.grades`, not the generic `table.items` (bug B13), it stripes
+        `tr.table_1_bg` / `tr.table_2_bg`, and an "anticipated" (predicted)
+        column is marked by a CLASS, not by its label,                      [V]
+      * the same stylesheet defines `.effort-grade-meets-expectations`,
+        `.effort-grade-almost-meets-expectations` and
+        `.effort-grade-does-not-meet-expectations` — three effort levels,
+        separate from the grade itself (plan D-14),                         [V]
+      * `div.errorMessage` / `div.error` / `div.warning` / `div.note` are the
+        alert containers W4 styles.                                         [V]
+
+    INFERRED, and therefore proof of nothing about W4: the column set and every
+    header label ("Subject", "Level", "Teacher", "Predicted", "Final",
+    "Effort"), the column order, the fact that level and teacher have columns of
+    their own, the row contents, and the wording of the note. A test that passes
+    against this file proves that `W4GradeParser` behaves as designed; it proves
+    NOTHING about what W4 actually serves. Replace this file the moment a real
+    `GET index.php?r=academics/grades/grades` is captured (parsers.md section 18,
+    capture wishlist item 6).
+
+    Grades here are IB 1-7 (features.md section 1.6). There is no Danish
+    7-point scale, no "standpunkt" column and no weight anywhere: W4 has no
+    weight concept, which is exactly why the effort grade takes its place.
+
+    Identities follow the fixture sanitizer (scripts/make-fixtures.py):
+    `nc26abcd` / "Alex Andersen". Teacher names are invented.
+-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <title>Grades</title>
+</head>
+<body>
+<div id="main">
+    <div id="header">
+        <div id="logo">UWCRCN W4</div>
+        <div id="version">W4 v. <a href="https://w4.uwcrcn.no/index.php?r=site/relnotes">25.9.1</a></div>
+        <div class="notifications"></div>
+        <div class="status-dropdown">
+            <div class="status oncampus">
+                <div class="status-value">on campus</div>
+                <div class="location"></div>
+            </div>
+        </div>
+    </div>
+    <div id="main_menu">
+        <a href="https://w4.uwcrcn.no/index.php?r=site/index">Home</a>
+        <a class="active" href="https://w4.uwcrcn.no/index.php?r=academics">Academics</a>
+        <a href="https://w4.uwcrcn.no/index.php?r=extraacademics">Extra Academics</a>
+        <a href="https://w4.uwcrcn.no/index.php?r=people">School</a>
+        <a href="https://w4.uwcrcn.no/index.php?r=admissions/browse/admissions">Admissions</a>
+        <a href="https://w4.uwcrcn.no/index.php?r=documents">Documents</a>
+    </div>
+    <div id="user-panel">
+        <div class="right">Welcome, Alex Andersen<br />
+            <a href="https://w4.uwcrcn.no/index.php?r=site/logout">Logout</a> |
+            <a href="https://w4.uwcrcn.no/index.php?r=site/profile">Profile</a> |
+            <a href="https://w4.uwcrcn.no/index.php?r=site/password">Password</a>
+        </div>
+    </div>
+    <div id="content">
+        <div id="breadcrumb">
+            <div class="crumbs">
+                <a href="https://w4.uwcrcn.no/index.php?r=site/index">Home</a> &raquo;
+                <a href="https://w4.uwcrcn.no/index.php?r=academics">Academics</a> &raquo;
+                Grades
+            </div>
+        </div>
+        <div id="content_frame">
+            <div class="sdmenu" id="dynamic_menu_academics">
+                <div>
+                    <span>My Academics</span>
+                    <a href="https://w4.uwcrcn.no/index.php?r=academics/timetable/mytimetable">My timetable</a>
+                    <a class="active" href="https://w4.uwcrcn.no/index.php?r=academics/grades/grades">My grades</a>
+                    <a href="https://w4.uwcrcn.no/index.php?r=academics/grades/grades/sat">SAT / ACT</a>
+                </div>
+            </div>
+            <div id="content_main">
+                <div id="content_inner">
+                    <h2>My Grades</h2>
+                    <div class="note">Predicted grades are provisional until the November session.</div>
+
+                    <table class="grades">
+                        <thead>
+                        <tr>
+                            <th>Subject</th>
+                            <th>Level</th>
+                            <th>Teacher</th>
+                            <th class="anticipated">Predicted</th>
+                            <th>Final</th>
+                            <th>Effort</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr class="table_1_bg">
+                            <td>Mathematics</td>
+                            <td>HL</td>
+                            <td>A. Newton</td>
+                            <td class="anticipated">6</td>
+                            <td>7</td>
+                            <td><span class="effort-grade-meets-expectations">Meets expectations</span></td>
+                        </tr>
+                        <tr class="table_2_bg">
+                            <td>Biology</td>
+                            <td>SL</td>
+                            <td>B. Darwin</td>
+                            <td class="anticipated">5</td>
+                            <td>&ndash;</td>
+                            <td><span class="effort-grade-almost-meets-expectations">Almost meets expectations</span></td>
+                        </tr>
+                        <tr class="table_1_bg">
+                            <td>Visual Arts</td>
+                            <td>SL</td>
+                            <td>C. Kahlo</td>
+                            <td class="anticipated">-</td>
+                            <td>4</td>
+                            <td><span class="effort-grade-does-not-meet-expectations">Does not meet expectations</span></td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="footer">Copyright &copy; 2009 - 2026 Red Cross Nordic United World College</div>
+</div>
+</body>
+</html>

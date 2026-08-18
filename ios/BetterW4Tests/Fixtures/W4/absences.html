@@ -1,0 +1,149 @@
+<!--
+    SYNTHESIZED — [I]. THIS FILE IS NOT A CAPTURE OF w4.uwcrcn.no.
+
+    No absence list page has ever been captured (docs/spec/parsers.md section 8:
+    "List page — [U]. Never captured."). Every byte below was hand-written from
+    the Yii 1 CGridView convention (parsers.md section 0.4) plus the two things
+    about this page that ARE verified:
+
+      * the routes `people/students/absences` / `people/students/eaabsences`
+        exist in the captured Academics / Extra Academics side menus,       [V]
+      * `tr.prearranged_1`, `tr.prearranged_2`, `tr.medical_1`, `tr.medical_2`
+        are styled by W4's own `css/tables.css` (bug register B14).         [V]
+
+    Everything else — the column set, the header labels, the meter sentence on
+    a list page, the summary and pager markup — is INFERRED. A test that passes
+    against this file proves that `W4AbsenceParser` behaves as designed; it
+    proves NOTHING about what W4 actually serves. Replace this file the moment a
+    real `GET index.php?r=people/students/absences` is captured (parsers.md
+    section 18, capture wishlist item 5).
+
+    Identities follow the fixture sanitizer (scripts/make-fixtures.py):
+    `nc26abcd` / "Alex Andersen". Staff names are invented.
+-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <title>Absences</title>
+</head>
+<body>
+<div id="main">
+    <div id="header">
+        <div id="logo">UWCRCN W4</div>
+        <div id="version">W4 v. <a href="https://w4.uwcrcn.no/index.php?r=site/relnotes">25.9.1</a></div>
+        <div class="notifications"></div>
+        <div class="status-dropdown">
+            <div class="status oncampus">
+                <div class="status-value">on campus</div>
+                <div class="location"></div>
+            </div>
+        </div>
+    </div>
+    <div id="main_menu">
+        <a href="https://w4.uwcrcn.no/index.php?r=site/index">Home</a>
+        <a class="active" href="https://w4.uwcrcn.no/index.php?r=academics">Academics</a>
+        <a href="https://w4.uwcrcn.no/index.php?r=extraacademics">Extra Academics</a>
+        <a href="https://w4.uwcrcn.no/index.php?r=people">School</a>
+        <a href="https://w4.uwcrcn.no/index.php?r=admissions/browse/admissions">Admissions</a>
+        <a href="https://w4.uwcrcn.no/index.php?r=documents">Documents</a>
+    </div>
+    <div id="user-panel">
+        <div class="right">Welcome, Alex Andersen<br />
+            <a href="https://w4.uwcrcn.no/index.php?r=site/logout">Logout</a> |
+            <a href="https://w4.uwcrcn.no/index.php?r=site/profile">Profile</a> |
+            <a href="https://w4.uwcrcn.no/index.php?r=site/password">Password</a>
+        </div>
+    </div>
+    <div id="content">
+        <div id="breadcrumb">
+            <div class="crumbs">
+                <a href="https://w4.uwcrcn.no/index.php?r=site/index">Home</a> &raquo;
+                <a href="https://w4.uwcrcn.no/index.php?r=academics">Academics</a> &raquo;
+                Absences
+            </div>
+        </div>
+        <div id="content_frame">
+            <div class="sdmenu" id="dynamic_menu_academics">
+                <div>
+                    <span>My Academics</span>
+                    <a href="https://w4.uwcrcn.no/index.php?r=academics/timetable/mytimetable">My timetable</a>
+                    <a class="active" href="https://w4.uwcrcn.no/index.php?r=people/students/absences">My absences</a>
+                    <a href="https://w4.uwcrcn.no/index.php?r=people/students/absences/register">Register absence</a>
+                </div>
+            </div>
+            <div id="content_main">
+                <div id="content_inner">
+                    <h2>My Absences</h2>
+                    <p>You have 3 absences and 1 lateness so far</p>
+
+                    <div class="grid-view" id="yw0">
+                        <div class="summary">Displaying 1-4 of 12 results.</div>
+                        <table class="items">
+                            <thead>
+                            <tr>
+                                <th><a class="sort_desc" href="https://w4.uwcrcn.no/index.php?r=people/students/absences&amp;StudentAbsence_sort=date.desc">Date</a></th>
+                                <th>Period</th>
+                                <th>Class</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th>Teacher</th>
+                                <th>Comment</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr class="odd">
+                                <td>10-Aug-2026</td>
+                                <td>P1</td>
+                                <td>Mathematics HL</td>
+                                <td>Absence</td>
+                                <td>Unexcused</td>
+                                <td>A. Teacher</td>
+                                <td></td>
+                            </tr>
+                            <tr class="even">
+                                <td>11-Aug-26</td>
+                                <td>P3</td>
+                                <td>Biology SL</td>
+                                <td>Lateness</td>
+                                <td>Excused</td>
+                                <td>B. Teacher</td>
+                                <td>Arrived 10 minutes late</td>
+                            </tr>
+                            <tr class="odd prearranged_1">
+                                <td>12-Aug-2026</td>
+                                <td>P2</td>
+                                <td>English A HL</td>
+                                <td>Absence</td>
+                                <td>Approved</td>
+                                <td>C. Teacher</td>
+                                <td>Dentist appointment</td>
+                            </tr>
+                            <tr class="even medical_2">
+                                <td>13-Aug-2026</td>
+                                <td>P5</td>
+                                <td>Chemistry SL</td>
+                                <td>Absence</td>
+                                <td>Health centre</td>
+                                <td>D. Teacher</td>
+                                <td>Reported by the health centre</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                        <div class="pager">
+                            <ul class="yiiPager">
+                                <li class="previous hidden"><a href="#">&lt; Previous</a></li>
+                                <li class="page selected"><a href="#">1</a></li>
+                                <li class="page"><a href="https://w4.uwcrcn.no/index.php?r=people/students/absences&amp;StudentAbsence_page=2">2</a></li>
+                                <li class="next"><a href="https://w4.uwcrcn.no/index.php?r=people/students/absences&amp;StudentAbsence_page=2">Next &gt;</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="footer">Copyright &copy; 2009 - 2026 Red Cross Nordic United World College</div>
+</div>
+</body>
+</html>

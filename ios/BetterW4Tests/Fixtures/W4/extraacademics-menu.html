@@ -1,0 +1,106 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!-- saved from url=(0047)https://w4.uwcrcn.no/index.php?r=extraacademics -->
+<html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        
+        <link rel="stylesheet" type="text/css" href="./Extra Academics_files/notifications.css">
+<link rel="stylesheet" type="text/css" href="./Extra Academics_files/campusstatusdropdown.css">
+<link rel="stylesheet" type="text/css" href="./Extra Academics_files/helprenderer.css">
+<link rel="stylesheet" type="text/css" href="./Extra Academics_files/jquery-ui.css">
+<link rel="stylesheet" type="text/css" href="./Extra Academics_files/sdmenu.css">
+<script type="text/javascript" src="./Extra Academics_files/jquery.min.js"></script>
+<script type="text/javascript" src="./Extra Academics_files/jquery-migrate-1.4.1.min.js"></script>
+<script type="text/javascript" src="./Extra Academics_files/init_ajax.js"></script>
+<script type="text/javascript" src="./Extra Academics_files/notifications.js"></script>
+<script type="text/javascript" src="./Extra Academics_files/campusstatusdropdown.js"></script>
+<script type="text/javascript" src="./Extra Academics_files/helprenderer.js"></script>
+<script type="text/javascript" src="./Extra Academics_files/center.js"></script>
+<script type="text/javascript" src="./Extra Academics_files/sdmenu.js"></script>
+<script type="text/javascript">
+/*<![CDATA[*/
+var notification_urls = {'read':'\x2Findex.php\x3Fr\x3Dnotifications\x2Fread','readGroup':'\x2Findex.php\x3Fr\x3Dnotifications\x2Freadgroup','readAll':'\x2Findex.php\x3Fr\x3Dnotifications\x2Freadall','clear':'\x2Findex.php\x3Fr\x3Dnotifications\x2Fclear','clearGroup':'\x2Findex.php\x3Fr\x3Dnotifications\x2Fcleargroup','clearAll':'\x2Findex.php\x3Fr\x3Dnotifications\x2Fclearall','refresh':'\x2Findex.php\x3Fr\x3Dnotifications\x2Frefresh','readAllEmails':'\x2Findex.php\x3Fr\x3Dnotifications\x2Freadallemails'}
+var status_urls = {'set':'\x2Findex.php\x3Fr\x3Dsite\x2Fsetstatus'}
+/*]]>*/
+</script>
+<title>Extra Academics</title>
+        <link href="./Extra Academics_files/main.css" rel="stylesheet" type="text/css">
+        <link href="./Extra Academics_files/tables.css" rel="stylesheet" type="text/css">
+                <link rel="alternate" type="application/rss+xml" title="UWCRCN W4 Announcements" href="https://w4.uwcrcn.no/index.php?r=site/rss">
+            </head>
+    <body>
+        <div id="main">
+            <div id="header">
+                <div>UWCRCN W4</div>
+                <div id="version">W4 v. <a title="View release notes" href="https://w4.uwcrcn.no/index.php?r=site/relnotes">25.9.1</a></div>                <div class="notifications"></div>                <div class="status-dropdown">
+    <div class="status oncampus">
+        <div class="status-value">on campus</div>
+        <div class="location">
+                    </div>
+    </div>
+</div>
+<div class="selection-box">
+    <p>I am currently:</p>
+    <span id="location"><input value="oncampus" id="location_0" checked="checked" type="radio" name="location"> <label for="location_0">On campus</label><br><input value="On a walk" id="location_1" type="radio" name="location"> <label for="location_1">On a walk</label><br><input value="At Raudbua" id="location_2" type="radio" name="location"> <label for="location_2">At Raudbua</label><br><input value="On Jarstadheia" id="location_3" type="radio" name="location"> <label for="location_3">On Jarstadheia</label><br><input value="On the island" id="location_4" type="radio" name="location"> <label for="location_4">On the island</label><br><input value="In Flekke" id="location_5" type="radio" name="location"> <label for="location_5">In Flekke</label><br><input value="In Dale" id="location_6" type="radio" name="location"> <label for="location_6">In Dale</label><br><input value="In A building (after 10:30pm)" id="location_7" type="radio" name="location"> <label for="location_7">In A building (after 10:30pm)</label><br><input value="In K building (after 10:30pm)" id="location_8" type="radio" name="location"> <label for="location_8">In K building (after 10:30pm)</label><br><input value="In Library/Study room (after 10:30pm)" id="location_9" type="radio" name="location"> <label for="location_9">In Library/Study room (after 10:30pm)</label><br><input value="other" id="location_10" type="radio" name="location"> <label for="location_10">Other</label></span>    <input maxlength="20" type="text" value="" name="other" id="other" style="display: none;">    <div class="buttons">
+        <input id="submit-campus-status" name="yt0" type="button" value="Set status">    </div>
+</div>
+            </div>
+
+                        <div id="main_menu">
+                                <a href="https://w4.uwcrcn.no/index.php?r=site/index">Home</a> | <a href="https://w4.uwcrcn.no/index.php?r=academics">Academics</a> | <a class="active" href="https://w4.uwcrcn.no/index.php?r=extraacademics">Extra Academics</a> | <a href="https://w4.uwcrcn.no/index.php?r=people">School</a> | <a href="https://w4.uwcrcn.no/index.php?r=admissions/browse/admissions">Admissions</a> | <a href="https://w4.uwcrcn.no/index.php?r=documents">Documents</a>            </div>
+            <div id="user-panel">
+                                <div class="right">Welcome, Alex Andersen<br>
+                    <a href="https://w4.uwcrcn.no/index.php?r=site/logout">Logout</a>                    |
+                    <a href="https://w4.uwcrcn.no/index.php?r=site/profile">Profile</a>                    |<a href="https://w4.uwcrcn.no/index.php?r=site/password">Password</a>                </div>
+                            </div>
+            <div class="clear"></div>
+            <div id="content">
+                <!-- Hide this if HOME -->
+                <div id="breadcrumb">
+                    <div class="crumbs">
+<a href="https://w4.uwcrcn.no/">Home</a> › <a href="https://w4.uwcrcn.no/index.php?r=extraacademics">Extra Academics</a></div>
+    <div class="help-icon">
+                     &nbsp;
+                             &nbsp;
+            <script type="text/javascript">
+/*<![CDATA[*/
+ajax_help_url = '/index.php?r=help/index'
+/*]]>*/
+</script><a class="help" title="Help" id="help-ea_home" href="https://w4.uwcrcn.no/index.php?r=extraacademics#"><img src="./Extra Academics_files/help_24.png" alt="Help icon"></a><div id="help_display" class="ui-draggable" style="position: relative;">
+	<div id="help_title_bar" class="ui-draggable-handle">UWCRCN W4 Help</div>
+	<div id="help_index"><a id="help_index_link" href="https://w4.uwcrcn.no/index.php?r=extraacademics#">Help index</a></div>
+	<iframe id="help_content" src="./Extra Academics_files/saved_resource.html">&nbsp;</iframe>
+	<div id="help_button"><input id="help_close_button" name="yt1" type="button" value="Close"></div>
+</div>            </div>
+                </div>
+                <div id="content_frame">
+
+<div class="sdmenu" id="dynamic_menu_extraacademics"><div><span>My Extra Academics</span><a href="https://w4.uwcrcn.no/index.php?r=extraacademics/timetable/mytimetable">My EA timetable</a><a href="https://w4.uwcrcn.no/index.php?r=extraacademics/activities/myactivities">My activities</a><a href="https://w4.uwcrcn.no/index.php?r=people/students/staff&amp;type=leaders">My group leaders</a><a href="https://w4.uwcrcn.no/index.php?r=extraacademics/activities/myactivities/diary">My EA diary</a><a href="https://w4.uwcrcn.no/index.php?r=extraacademics/activities/myportfolio">My portfolio</a><a href="https://w4.uwcrcn.no/index.php?r=people/students/eaabsences">My absences</a><a href="https://w4.uwcrcn.no/index.php?r=extraacademics/activities/interviews">My CAS interviews</a><a href="https://w4.uwcrcn.no/index.php?r=extraacademics/safetynet/mysafetynet">My SafetyNet</a></div><div><span>Extra Academics</span><a href="https://w4.uwcrcn.no/index.php?r=extraacademics/activities/ea">All</a><a href="https://w4.uwcrcn.no/index.php?r=extraacademics/activities/ea&amp;type=eac">EAC</a><a href="https://w4.uwcrcn.no/index.php?r=extraacademics/activities/ea&amp;type=cr">Campus responsibility</a><a href="https://w4.uwcrcn.no/index.php?r=extraacademics/activities/ea&amp;type=pbl">PBL</a><a href="https://w4.uwcrcn.no/index.php?r=extraacademics/activities/ea&amp;type=leirsk">Leirskule</a><a href="https://w4.uwcrcn.no/index.php?r=extraacademics/documents">Documents</a></div></div>                    <div id="content_main">
+                        <!-- End Headre for the Page Layout -->
+                        <!-- Start Main Countent -->
+                                                                        <div id="content_inner"> <h2>Extra Academics</h2>
+<p>Welcome to Extra Academics section of UWCRCN W4</p> </div>
+                        <!-- End Main Countent -->
+                        <!-- Start Footer for the Page Layout -->
+                    </div>
+                </div>
+            </div>
+            <div id="footer">Copyright © 2009 - 2026 Red Cross Nordic United World College</div>
+        </div>
+    <script type="text/javascript" src="./Extra Academics_files/jquery-ui.min.js"></script>
+<script type="text/javascript">
+/*<![CDATA[*/
+jQuery(function($) {
+jQuery('#help_display').draggable([]);
+	var dynMenu;
+	$(function() {
+		dynMenu = new SDMenu("dynamic_menu_extraacademics");
+		dynMenu.speed = 5 ;                    // Menu sliding speed (1 - 5 recomended)
+		dynMenu.oneSmOnly = 1 ;             // One expanded submenu at a time
+		dynMenu.markCurrent = 1 ;            // Mark current link / page (link.href == location.href)
+		dynMenu.init();
+	});
+});
+/*]]>*/
+</script>
+
+
+</body></html>

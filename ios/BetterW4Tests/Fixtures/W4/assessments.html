@@ -1,0 +1,129 @@
+<!--
+  [I] SYNTHESIZED FIXTURE — THIS IS NOT A CAPTURE OF W4.
+
+  This file was written by hand for BetterW4's test suite. Nothing at
+  https://w4.uwcrcn.no/index.php?r=academics/deadlines has ever been captured
+  (docs/spec/reviewer-notes.md section 7, docs/spec/parsers.md section 6, bug B12).
+
+  Every `data-assessment-*` attribute name below is INVENTED. It comes from
+  android/app/src/main/java/dk/betterw4/android/feature/homework/W4AssessmentParser.kt,
+  whose own test fixture is also hand-written. The only independently corroborated
+  names on this page are the FORM fields — assessment_id, student_assessment_id,
+  student_deadline_date, student_assessment_title — and the button labels
+  "Confirm done" / "Revert to pending" / "Save" / "Delete", which README section 5.2
+  read off a live page.
+
+  TESTS WRITTEN AGAINST THIS FILE VERIFY W4AssessmentParser. THEY DO NOT VERIFY W4.
+
+  Replace this file with a real term-time capture of `academics/deadlines` (capture
+  C-3 in the plan) and expect the assertions in W4AssessmentParserTests to change.
+
+  Identities follow the fixture sanitizer (plan D-7): nc26abcd / "Alex Andersen".
+  The teacher name "Jane Doe" is invented, not sanitized from a real person.
+-->
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>My assessments</title>
+<script type="text/javascript">
+/*<![CDATA[*/
+var month = 08 - 1;
+var year = 2026;
+var uwc_id = 'nc26abcd';
+var ajax_urls = {
+	confirm: '/index.php?r=academics/deadlines/confirm&month=08&year=2026&uwc_id=nc26abcd',
+	revert: '/index.php?r=academics/deadlines/revert&month=08&year=2026&uwc_id=nc26abcd',
+	save: '/index.php?r=academics/deadlines/edit&month=08&year=2026&uwc_id=nc26abcd',
+	create: '/index.php?r=academics/deadlines/create&month=08&year=2026&uwc_id=nc26abcd',
+	delete: '/index.php?r=academics/deadlines/delete&month=08&year=2026&uwc_id=nc26abcd'
+};
+/*]]>*/
+</script>
+</head>
+<body>
+<div id="main">
+  <div id="user-panel"><div class="right">Welcome, Alex Andersen</div></div>
+  <div id="content">
+    <div id="breadcrumb"><div class="crumbs"><a href="/index.php?r=academics">Academics</a></div></div>
+    <div id="content_frame">
+      <div id="content_main">
+        <div id="content_inner">
+          <h2>August 2026</h2>
+          <div class="calendar-div">
+            <table class="calendar">
+              <tr>
+                <th>Monday</th><th>Tuesday</th><th>Wednesday</th><th>Thursday</th>
+                <th>Friday</th><th>Saturday</th><th>Sunday</th>
+              </tr>
+              <tr class="days">
+                <td class="day">
+                  <div class="day-header">10</div>
+                  <div class="day-content">
+                    <div class="assessments">
+                      <a class="assessment-link" href="#"
+                         data-assessment-type="class"
+                         data-editable="1"
+                         data-status="pending"
+                         data-assessment-id="42"
+                         data-assessment-date="10-Aug-2026"
+                         data-subject-name="Biology"
+                         data-class-id="BIO HL"
+                         data-teacher-name="Jane Doe"
+                         data-unit="Cell biology"
+                         data-days-left="4"
+                         data-css-class="new">Lab report</a>
+                    </div>
+                    <a title="Add assessment" class="assessment-icon" href="#"></a>
+                  </div>
+                </td>
+                <td class="day">
+                  <div class="day-header">11</div>
+                  <div class="day-content">
+                    <div class="assessments">
+                      <a class="assessment-link" href="#"
+                         data-assessment-type="student"
+                         data-editable="1"
+                         data-status="done"
+                         data-assessment-id="99"
+                         data-assessment-date="11-Aug-2026"
+                         data-css-class="">My essay</a>
+                    </div>
+                    <a title="Add assessment" class="assessment-icon" href="#"></a>
+                  </div>
+                </td>
+                <td class="day">
+                  <div class="day-header">12</div>
+                  <div class="day-content">
+                    <div class="assessments"></div>
+                    <a title="Add assessment" class="assessment-icon" href="#"></a>
+                  </div>
+                </td>
+                <td class="no-day"></td>
+                <td class="no-day"></td>
+                <td class="no-day"></td>
+                <td class="no-day"></td>
+              </tr>
+            </table>
+          </div>
+          <form id="student_assessment_form" action="/index.php?r=academics/deadlines" method="post">
+            <input type="hidden" name="assessment_id" id="assessment_id" value="" />
+            <input name="yt0" id="confirm" type="button" value="Confirm done" />
+            <input name="yt1" id="revert" type="button" value="Revert to pending" />
+          </form>
+          <form id="add_assessment_form" action="/index.php?r=academics/deadlines" method="post">
+            <input type="hidden" name="student_assessment_id" id="student_assessment_id" value="" />
+            <input type="text" name="student_deadline_date" id="student_deadline_date" value="" />
+            <input type="text" name="student_assessment_title" id="student_assessment_title" value="" />
+            <input name="yt3" id="student_save" type="button" value="Save" />
+            <input name="yt5" id="student_confirm" type="button" value="Confirm done" />
+            <input name="yt6" id="student_revert" type="button" value="Revert to pending" />
+            <input name="yt4" id="student_delete" type="button" value="Delete" />
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

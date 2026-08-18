@@ -1,0 +1,85 @@
+<!--
+    [I] SYNTHESIZED FIXTURE — THIS IS NOT A CAPTURE OF w4.uwcrcn.no.
+
+    `index.php?r=mailer/archive` (the "Sent" grid) has never been captured
+    (docs/spec/parsers.md section 7, section 18 capture wishlist item 3, plan OQ-4).
+    Hand-written from the Yii 1 CGridView convention (parsers.md section 0.4) and
+    README section 6's column prose. The column set below —
+    `Send date | Subject | Attachment` — is INFERRED, not observed.
+
+    THE POINT OF THIS FILE: it has **no From column at all**. That is the shape the
+    port plan's item 4.3 "Done" criterion names — the parser must return
+    `from == nil` and must still find the subject by matching the *header text*,
+    not by landing on index 2 and getting lucky. If a future capture shows a
+    `From` column here, this fixture is wrong about W4 but the assertion it backs
+    (a missing column yields nil and never shifts its neighbours) still stands.
+
+    Also INVENTED [U]: the attachment link shape
+    (`mailer/download&attachment_id=`), the absence of a pager, every date, subject
+    and id. There is no `unread` class here on purpose: a sent message has no
+    unread state to model.
+
+    TESTS WRITTEN AGAINST THIS FILE VERIFY W4MailerParser. THEY DO NOT VERIFY W4.
+
+    Identities follow the fixture sanitizer (plan D-7): nc26abcd / "Alex Andersen".
+-->
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Sent</title>
+</head>
+<body>
+<div id="main">
+    <div id="header">
+        <div>UWCRCN W4</div>
+        <div id="version">W4 v. <a href="https://w4.uwcrcn.no/index.php?r=site/relnotes">25.9.1</a></div>
+        <div class="notifications"></div>
+    </div>
+    <div id="user-panel">
+        <div class="right">Welcome, Alex Andersen<br>
+            <a href="https://w4.uwcrcn.no/index.php?r=site/logout">Logout</a>
+        </div>
+    </div>
+    <div class="clear"></div>
+    <div id="content">
+        <div id="breadcrumb">
+            <div class="crumbs"><a href="https://w4.uwcrcn.no/">Home</a> &raquo; Sent</div>
+        </div>
+        <div id="content_frame">
+            <div id="content_main">
+                <div id="content_inner">
+                    <h2>Sent</h2>
+                    <div id="yw0" class="grid-view">
+                        <div class="summary">Displaying 1-2 of 2 results.</div>
+                        <table class="items">
+                            <thead>
+                                <tr>
+                                    <th id="yw0_c0"><a class="sort_desc" href="/index.php?r=mailer/archive&amp;Mailer_sort=sent.desc">Send date</a></th>
+                                    <th id="yw0_c1"><a class="sort_asc" href="/index.php?r=mailer/archive&amp;Mailer_sort=subject">Subject</a></th>
+                                    <th id="yw0_c2">Attachment</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="odd">
+                                    <td>12-Aug-2026 16:20</td>
+                                    <td><a href="/index.php?r=mailer/view&amp;id=55">Kayak trip permission</a></td>
+                                    <!-- [U] INVENTED: no attachment link has ever been captured. -->
+                                    <td><a href="/index.php?r=mailer/download&amp;attachment_id=91">permission-form.pdf</a></td>
+                                </tr>
+                                <tr class="even">
+                                    <td>09-Aug-2026 08:15</td>
+                                    <td><a href="/index.php?r=mailer/view&amp;id=41">Room change request</a></td>
+                                    <td>&nbsp;</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="footer">Copyright &copy; 2009 - 2026 Red Cross Nordic United World College</div>
+</div>
+</body>
+</html>

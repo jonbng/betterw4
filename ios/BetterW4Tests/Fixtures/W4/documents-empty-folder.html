@@ -1,0 +1,42 @@
+<!--
+    [I] SYNTHESIZED — this is NOT a capture of w4.uwcrcn.no.
+
+    An empty W4 CMS folder has never been captured; nobody knows whether the
+    renderer emits an empty <ul class="folder-list"> or omits it entirely. This
+    file assumes the empty <ul>, which is the Yii/PHP-template-shaped guess.
+
+    Its whole job is to pin down bug B16 (docs/spec/parsers.md section 12): the
+    Kotlin port decides "this is a page" from the ABSENCE of folder and page
+    links, which turns every empty folder into a bogus page whose body is the
+    surrounding chrome. The parser must return items == [] AND page == nil here.
+
+    Therefore: every assertion made against this file verifies THE PARSER, not
+    W4.
+-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"><head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" type="text/css" href="./Documents_files/cmsrenderer.css">
+<title>Documents</title>
+</head>
+<body>
+    <div id="main">
+        <div id="content">
+            <div id="breadcrumb">
+                <div class="crumbs">
+<a href="https://w4.uwcrcn.no/">Home</a> &raquo; <a href="https://w4.uwcrcn.no/index.php?r=documents">Documents</a></div>
+            </div>
+            <div id="content_frame">
+                <div id="content_main">
+                    <div id="content_inner"> <h2>
+						Outdoor Department
+	</h2>	<ul class="folder-list">
+		</ul>
+	<div class="up"><a href="https://w4.uwcrcn.no/index.php?r=documents">Up one level</a></div>
+ </div>
+                </div>
+            </div>
+        </div>
+        <div id="footer">Copyright © 2009 - 2026 Red Cross Nordic United World College</div>
+    </div>
+</body></html>
