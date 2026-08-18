@@ -89,11 +89,11 @@ class W4LoginClient @Inject constructor(
     }
 
     suspend fun submitOtp(challenge: W4OtpChallenge, code: String): W4LoginStep {
-        val fields = challenge.hiddenFields.toMutableMap()
-        fields[challenge.otpFieldName] = code.trim()
-        val submitName = challenge.submitName ?: "yt0"
-        val submitValue = challenge.submitValue ?: "Verify"
-        fields.putIfAbsent(submitName, submitValue)
+        val fields = W4OtpFields.build(
+            challenge = challenge,
+            code = code,
+            deviceId = deviceIdStore.getOrCreate(),
+        )
 
         val posted = engine.execute(
             W4Request(

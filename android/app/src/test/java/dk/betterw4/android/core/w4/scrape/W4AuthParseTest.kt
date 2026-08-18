@@ -90,6 +90,21 @@ class W4FormTest {
     }
 
     @Test
+    fun parses_captured_verify2fa_form() {
+        val html = javaClass.classLoader!!
+            .getResourceAsStream("w4/verify2fa.html")!!
+            .bufferedReader()
+            .readText()
+        val parsed = W4Form.parse(html)!!
+        assertEquals("/index.php?r=site/verify2fa", parsed.action)
+        assertEquals("OtpModel[otp]", parsed.otpFieldName)
+        assertEquals("0", parsed.fields["OtpModel[remember]"])
+        assertEquals("", parsed.fields["OtpModel[deviceId]"])
+        assertEquals("yt0", parsed.submitName)
+        assertEquals("Submit", parsed.submitValue)
+    }
+
+    @Test
     fun encode_brackets_are_percent_encoded() {
         val bytes = W4Form.encode(mapOf("LoginForm[username]" to "nc26test"))
         val encoded = bytes.decodeToString()
