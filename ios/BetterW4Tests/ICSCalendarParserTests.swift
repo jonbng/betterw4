@@ -903,9 +903,9 @@ final class ICSCalendarParserTests: XCTestCase {
         XCTAssertEqual(PersonalFeedKind.allCases.filter(\.isCalendar).count, 4)
     }
 
-    /// The overlay ships off by default until OQ-8 is closed.
+    /// The overlay ships on by default, matching Android.
     func testSchoolCalendarConstants() {
-        XCTAssertFalse(SchoolCalendar.isEnabledByDefault)
+        XCTAssertTrue(SchoolCalendar.isEnabledByDefault)
         XCTAssertEqual(SchoolCalendar.idPrefix, "gcal-")
         XCTAssertEqual(SchoolCalendar.cacheTTL, 6 * 60 * 60)
         XCTAssertNotNil(SchoolCalendar.icsURL)

@@ -10,6 +10,7 @@ import dk.betterw4.android.core.i18n.UiText
 import dk.betterw4.android.core.result.AppError
 import dk.betterw4.android.core.result.AppResult
 import dk.betterw4.android.core.util.IsoDateUtils
+import dk.betterw4.android.core.w4.W4Dates
 import dk.betterw4.android.feature.campus.CampusStatusRepository
 import dk.betterw4.android.feature.live.LiveLessonNotifier
 import dk.betterw4.android.feature.live.LiveLessonScheduler
@@ -42,7 +43,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -53,7 +53,7 @@ data class ScheduleUiState(
     val week: ScheduleWeek? = null,
     val year: Int = IsoDateUtils.isoWeekYear(),
     val weekNum: Int = IsoDateUtils.isoWeek(),
-    val selectedDate: LocalDate = LocalDate.now(),
+    val selectedDate: LocalDate = W4Dates.today(),
     /** Merged events for any loaded day (multi-week cache for day swipe). */
     val eventsByDate: Map<LocalDate, List<ScheduleEvent>> = emptyMap(),
     /** Rotation / no-classes metadata for any loaded day. */
@@ -122,7 +122,7 @@ class ScheduleViewModel @Inject constructor(
     private val loadingWeeks = ConcurrentHashMap.newKeySet<String>()
 
     init {
-        val today = LocalDate.now()
+        val today = W4Dates.today()
         _state.update {
             it.copy(
                 selectedDate = today,
@@ -359,12 +359,12 @@ class ScheduleViewModel @Inject constructor(
     }
 
     private fun publishLiveAndWidget(week: ScheduleWeek) {
-        val today = LocalDate.now()
+        val today = W4Dates.today()
         val todayEvents = visibleEvents(week.days.find { it.date == today }?.events.orEmpty())
-        val now = LocalDateTime.now()
+        val now = W4Dates.now()
         liveLessonNotifier.update(todayEvents, now)
         liveLessonScheduler.scheduleBoundaries(todayEvents, now)
-        val zone = java.time.ZoneId.systemDefault()
+        val zone = W4Dates.ZONE
         ScheduleWidgetSnapshot.write(
             appContext,
             WidgetSnapshot(

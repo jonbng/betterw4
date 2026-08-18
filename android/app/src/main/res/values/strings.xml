@@ -144,6 +144,8 @@
     <string name="empty_messages_search_hint">Try another term, or clear the search field.</string>
     <string name="cd_back">Back</string>
     <string name="cd_notifications">Notifications</string>
+    <string name="cd_show_school_calendar">Show school calendar</string>
+    <string name="cd_hide_school_calendar">Hide school calendar</string>
     <string name="cd_clear_search">Clear search</string>
     <string name="cd_search">Search</string>
     <string name="message_attachment">Attachment: %1$s</string>
@@ -495,7 +497,7 @@
     <string name="live_teacher_line">Teacher: %1$s</string>
     <string name="live_starts_at">Starts %1$s</string>
     <string name="live_ends_at">Ends %1$s</string>
-    <string name="live_next_line">Next: %1$s %2$s</string>
+    <string name="live_next_line">Next: %1$s</string>
     <string name="live_open_schedule">Open schedule</string>
     <string name="live_next_in_minutes">Next lesson in %1$d min</string>
     <string name="live_schedule_update_in">Schedule update in %1$d min</string>

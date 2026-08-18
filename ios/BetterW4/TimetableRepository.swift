@@ -204,7 +204,7 @@ actor TimetableRepository {
     private let resolveContext: @Sendable () throws -> W4RequestContext
     private let clock: @Sendable () -> Date
     /// School Google-Calendar ICS overlay. `nil` ⇒ never fetch. The shared instance wires
-    /// `SchoolCalendarRepository` and honours the Settings toggle (off by default, OQ-8).
+    /// `SchoolCalendarRepository` and honours the Settings toggle (on by default, same as Android).
     private let schoolCalendarOverlay: (@Sendable (_ year: Int, _ week: Int) async -> ScheduleWeek?)?
 
     /// Whether `?year=&week=` has been proven to work. The UI reads this to decide if the

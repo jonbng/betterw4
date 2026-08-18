@@ -1,7 +1,8 @@
 package dk.betterw4.android.feature.live
 
-import dk.betterw4.android.feature.schedule.ScheduleEvent
 import dk.betterw4.android.feature.schedule.EventStatus
+import dk.betterw4.android.feature.schedule.SCHOOL_CALENDAR_TEAM_TOKEN
+import dk.betterw4.android.feature.schedule.ScheduleEvent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -157,5 +158,51 @@ class LiveLessonBoundaryTest {
                 LocalDateTime.of(day, LocalTime.of(9, 0)),
             ),
         )
+    }
+
+    @Test
+    fun minutes_round_up_so_the_last_second_still_says_one() {
+        val lesson = event("a", 8, 0, 9, 0)
+
+        val onTheMinute = LiveLessonBoundary.project(
+            listOf(lesson),
+            LocalDateTime.of(day, LocalTime.of(8, 30, 0)),
+        )
+        assertEquals(30, onTheMinute?.minutesRemaining)
+
+        val oneSecondIn = LiveLessonBoundary.project(
+            listOf(lesson),
+            LocalDateTime.of(day, LocalTime.of(8, 30, 1)),
+        )
+        assertEquals(30, oneSecondIn?.minutesRemaining)
+
+        val lastSecond = LiveLessonBoundary.project(
+            listOf(lesson),
+            LocalDateTime.of(day, LocalTime.of(8, 59, 1)),
+        )
+        assertEquals(1, lastSecond?.minutesRemaining)
+
+        assertEquals(
+            LiveLessonBoundary.Phase.CURRENT,
+            LiveLessonBoundary.project(
+                listOf(lesson),
+                LocalDateTime.of(day, LocalTime.of(8, 0, 0)),
+            )?.phase,
+        )
+    }
+
+    @Test
+    fun school_calendar_never_drives_the_countdown() {
+        val assembly = event("gcal-assembly", 8, 0, 12, 0).copy(
+            team = SCHOOL_CALENDAR_TEAM_TOKEN,
+            source = "gcal",
+        )
+        val math = event("math", 9, 0, 10, 0)
+        val duringAssembly = LiveLessonBoundary.project(
+            listOf(assembly, math),
+            LocalDateTime.of(day, LocalTime.of(8, 30)),
+        )
+        assertEquals(LiveLessonBoundary.Phase.UPCOMING, duringAssembly?.phase)
+        assertEquals("math", duringAssembly?.event?.id)
     }
 }

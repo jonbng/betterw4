@@ -43,6 +43,8 @@ struct ModernTimelineListView: View {
     var gridStartHour: Int = W4TimetableGeometry.defaultStartHour
     /// `tt_end_hour` of the week this day belongs to.
     var gridEndHour: Int = W4TimetableGeometry.defaultEndHour
+    /// Shared Oslo clock with the header countdown.
+    var now: Date = TimeProvider.now
     var onEventTapped: ((TimetableEvent) -> Void)?
 
     /// Width of the hour-label gutter plus its spacing.
@@ -64,10 +66,8 @@ struct ModernTimelineListView: View {
                         block(for: layout, in: layouts, origin: origin)
                     }
 
-                    TimelineView(.periodic(from: TimeProvider.now, by: 60)) { context in
-                        nowLine(at: context.date, origin: origin)
-                    }
-                    .allowsHitTesting(false)
+                    nowLine(at: now, origin: origin)
+                        .allowsHitTesting(false)
                 }
                 .padding(.vertical, 8)
 

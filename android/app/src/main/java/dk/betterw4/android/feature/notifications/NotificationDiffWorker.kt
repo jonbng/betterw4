@@ -27,9 +27,8 @@ import dk.betterw4.android.feature.schedule.EventStatus
 import dk.betterw4.android.feature.schedule.ScheduleRepository
 import dk.betterw4.android.feature.schedule.statusLabel
 import dk.betterw4.android.feature.schedule.timeLabel
+import dk.betterw4.android.core.w4.W4Dates
 import dk.betterw4.android.feature.settings.SettingsStore
-import java.time.LocalDate
-import java.time.LocalDateTime
 import java.util.concurrent.TimeUnit
 import java.util.Locale
 
@@ -71,10 +70,10 @@ class NotificationDiffWorker(
         val scheduleResult = deps.scheduleRepository().loadWeek(forceRefresh = true)
         if (scheduleResult is AppResult.Success) {
             val todayEvents = scheduleResult.data.days
-                .find { it.date == LocalDate.now() }
+                .find { it.date == W4Dates.today() }
                 ?.events
                 .orEmpty()
-            val now = LocalDateTime.now()
+            val now = W4Dates.now()
             deps.liveLessonNotifier().update(todayEvents, now)
             deps.liveLessonScheduler().scheduleBoundaries(todayEvents, now)
         }

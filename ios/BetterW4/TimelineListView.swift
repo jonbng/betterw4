@@ -6,9 +6,9 @@
 //
 //  Blocks are positioned absolutely at one point per minute below the timeline's origin
 //  (`ScheduleTimelineGeometry`), which is derived from the week's own `tt_start_hour`. The now-line
-//  is drawn from `TimeProvider.now` read in Europe/Oslo — never from W4's `#current_time`, which
-//  was written by JavaScript in the browser before the page was captured and would pin the line to
-//  13:34 forever (plan D-10).
+//  is drawn from the same Oslo clock as the header countdown (`TimeProvider.now`, ticked on the
+//  minute) — never from W4's `#current_time`, which was written by JavaScript in the browser
+//  before the page was captured and would pin the line to 13:34 forever (plan D-10).
 //
 
 import SwiftUI
@@ -18,6 +18,9 @@ struct TimelineListView: View {
     let events: [TimetableEvent]
     /// `tt_start_hour` of the week this day belongs to.
     var gridStartHour: Int = W4TimetableGeometry.defaultStartHour
+    /// Shared Oslo clock with the header countdown. Must not be `TimelineView`'s
+    /// `context.date`, which ignores `SIMULATED_DATE` and can disagree by a minute.
+    var now: Date = TimeProvider.now
     var onEventTapped: ((TimetableEvent) -> Void)?
 
     @ObservedObject private var settingsStore = SettingsStore.shared
@@ -42,10 +45,8 @@ struct TimelineListView: View {
                     }
 
                     // "Now" line — only on the day it is actually now.
-                    TimelineView(.periodic(from: TimeProvider.now, by: 60)) { context in
-                        nowLine(at: context.date, origin: origin)
-                    }
-                    .allowsHitTesting(false)
+                    nowLine(at: now, origin: origin)
+                        .allowsHitTesting(false)
                 }
 
                 Color.clear.frame(height: 80)

@@ -4,8 +4,10 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 /**
@@ -63,4 +65,18 @@ object W4Dates {
         date.format(DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.UK))
 
     fun today(): LocalDate = LocalDate.now(ZONE)
+
+    /** Oslo wall-clock "now". Timetable math must never use the phone's zone. */
+    fun now(): LocalDateTime = LocalDateTime.now(ZONE)
+
+    fun nowZoned(): ZonedDateTime = ZonedDateTime.now(ZONE)
+
+    /**
+     * Milliseconds until the next Europe/Oslo minute. Always at least 1 ms so a
+     * ticker cannot spin if it wakes on the exact boundary.
+     */
+    fun millisUntilNextMinute(now: ZonedDateTime = nowZoned()): Long {
+        val next = now.truncatedTo(ChronoUnit.MINUTES).plusMinutes(1)
+        return ChronoUnit.MILLIS.between(now, next).coerceAtLeast(1L)
+    }
 }

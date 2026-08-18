@@ -16,6 +16,11 @@ import Foundation
 
 enum TimeProvider {
     /// Current date/time. Uses SIMULATED_DATE from environment when set (for testing).
+    ///
+    /// Bare wall-clock strings (`2026-08-14T13:34:00`) are Europe/Oslo, the same
+    /// zone the timetable is drawn in. A trailing `Z`/offset is honoured as an
+    /// instant. Never `TimeZone.current` — a student on a trip must still see
+    /// the Oslo now-line and countdown.
     static var now: Date {
         guard let value = ProcessInfo.processInfo.environment["SIMULATED_DATE"] else {
             return Date()
@@ -30,7 +35,8 @@ enum TimeProvider {
         ]
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone.current
+        formatter.timeZone = W4Dates.zone
+        formatter.calendar = W4Dates.calendar
         for format in formats {
             formatter.dateFormat = format
             if let date = formatter.date(from: value) {
@@ -38,5 +44,19 @@ enum TimeProvider {
             }
         }
         return Date()
+    }
+
+    /// Seconds until the next Europe/Oslo minute. Always a small positive
+    /// interval so a ticker cannot spin if it wakes on the exact boundary.
+    static func secondsUntilNextMinute(after instant: Date = now) -> TimeInterval {
+        guard let next = W4Dates.calendar.nextDate(
+            after: instant,
+            matching: DateComponents(second: 0, nanosecond: 0),
+            matchingPolicy: .strict,
+            direction: .forward
+        ) else {
+            return 60
+        }
+        return max(0.05, next.timeIntervalSince(instant))
     }
 }

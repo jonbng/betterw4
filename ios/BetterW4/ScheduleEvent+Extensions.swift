@@ -67,9 +67,20 @@ extension TimetableEvent {
         return max(0, endMinutes - startMinutes)
     }
 
+    /// True when this block is allowed to drive the header countdown.
+    /// Cancelled leftovers, all-day markers and the school-calendar overlay
+    /// still paint on the grid; they must never steal "ends in 4 min".
+    var drivesCountdown: Bool {
+        status != .cancelled
+            && !isAllDay
+            && start != nil
+            && end != nil
+            && !SchoolCalendar.isSchoolCalendarEvent(self)
+    }
+
     /// True when `instant` falls inside this lesson.
     func isLive(at instant: Date) -> Bool {
-        guard let start, let end else { return false }
+        guard drivesCountdown, let start, let end else { return false }
         return instant >= start && instant < end
     }
 

@@ -16,11 +16,11 @@
 //      there is genuinely nothing to show, and a failure leaves the week on screen with a banner;
 //    * the "last updated" line is driven by `W4Loaded.freshness`, so an offline launch says how
 //      old the grid is rather than pretending it is live;
-//    * the now-line is computed from `TimeProvider.now` in Europe/Oslo against the week's own
-//      `tt_start_hour`, never from W4's baked-in `#current_time` (plan D-10).
+//    * the now-line and the header countdown share `TimeProvider.now` in Europe/Oslo, ticked
+//      on the minute and again when the app becomes active — never W4's baked-in `#current_time`
+//      (plan D-10).
 //
 
-import Combine
 import SwiftUI
 import UIKit
 
@@ -38,8 +38,6 @@ struct ScheduleView: View {
     @State private var stripTopY: CGFloat = 0
     @State private var pagerHeight: CGFloat = 700
     @Environment(\.scenePhase) private var scenePhase
-
-    private let minuteTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     /// W4 is one student's own timetable; there is no "someone else's schedule" surface to target.
     /// `authViewModel` is accepted and ignored so the tab shell can keep passing it.
@@ -167,6 +165,15 @@ struct ScheduleView: View {
         .coordinateSpace(name: "scheduleView")
         .onPreferenceChange(StripTopPositionKey.self) { stripTopY = $0 }
         .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                CampusStatusControl()
+            }
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                schoolCalendarToolbarButton
+                NotificationsBellButton()
+            }
+        }
         .task {
             if dateRange.isEmpty {
                 dateRange = buildDateRange(around: viewModel.today)
@@ -189,8 +196,14 @@ struct ScheduleView: View {
         .onReceive(NotificationCenter.default.publisher(for: .betterW4CachesDidClear)) { _ in
             Task { await viewModel.reset() }
         }
-        .onReceive(minuteTimer) { _ in
+        .task {
             currentTime = TimeProvider.now
+            while !Task.isCancelled {
+                let wait = TimeProvider.secondsUntilNextMinute(after: TimeProvider.now)
+                let nanoseconds = UInt64((wait * 1_000_000_000).rounded())
+                try? await Task.sleep(nanoseconds: nanoseconds)
+                currentTime = TimeProvider.now
+            }
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
@@ -247,27 +260,22 @@ struct ScheduleView: View {
 
     @ViewBuilder
     private var calendarStripHeader: some View {
-        VStack(spacing: 0) {
-            CalendarStripView(
-                selectedDate: selectedDate,
-                weekNavigationEnabled: viewModel.weekNavigationAvailable,
-                hasEvents: { date in !viewModel.events(on: date).isEmpty },
-                onDateSelected: { date in
-                    selectDate(date, animated: true)
-                    Task { await viewModel.select(date: date) }
-                },
-                onWeekChanged: { date in
-                    selectDate(date, animated: false)
-                    Task { await viewModel.select(date: date) }
-                }
-            )
-            .frame(height: 72)
-            .frame(maxWidth: .infinity)
-            .padding(.top, 12)
-
-            schoolCalendarToggle
-        }
+        CalendarStripView(
+            selectedDate: selectedDate,
+            weekNavigationEnabled: viewModel.weekNavigationAvailable,
+            hasEvents: { date in !viewModel.events(on: date).isEmpty },
+            onDateSelected: { date in
+                selectDate(date, animated: true)
+                Task { await viewModel.select(date: date) }
+            },
+            onWeekChanged: { date in
+                selectDate(date, animated: false)
+                Task { await viewModel.select(date: date) }
+            }
+        )
+        .frame(height: 72)
         .frame(maxWidth: .infinity)
+        .padding(.top, 12)
         .background(Color(uiColor: .systemBackground))
         .clipShape(RoundedCorner(radius: 24, corners: [.topLeft, .topRight]))
         .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: -4)
@@ -335,6 +343,7 @@ struct ScheduleView: View {
                     events: viewModel.timedEvents(on: date),
                     gridStartHour: viewModel.gridStartHour(for: date),
                     gridEndHour: viewModel.gridEndHour(for: date),
+                    now: currentTime,
                     onEventTapped: { selectedEvent = $0 }
                 )
                 .padding(.trailing, 16)
@@ -343,6 +352,7 @@ struct ScheduleView: View {
                     displayDate: date,
                     events: viewModel.timedEvents(on: date),
                     gridStartHour: viewModel.gridStartHour(for: date),
+                    now: currentTime,
                     onEventTapped: { selectedEvent = $0 }
                 )
                 .padding(.trailing, 16)
@@ -417,31 +427,18 @@ struct ScheduleView: View {
 
     // MARK: - Banners
 
-    private var schoolCalendarToggle: some View {
-        HStack {
-            Button {
-                settingsStore.saveShowSchoolCalendar(!settingsStore.showSchoolCalendar)
-            } label: {
-                Label("School calendar", systemImage: "calendar")
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule().fill(
-                            settingsStore.showSchoolCalendar
-                                ? Color.accentColor.opacity(0.16)
-                                : Color(uiColor: .secondarySystemBackground)
-                        )
-                    )
-                    .foregroundStyle(settingsStore.showSchoolCalendar ? Color.accentColor : .secondary)
-            }
-            .buttonStyle(.plain)
-            .accessibilityAddTraits(settingsStore.showSchoolCalendar ? [.isSelected] : [])
-            Spacer(minLength: 0)
+    private var schoolCalendarToolbarButton: some View {
+        Button {
+            settingsStore.saveShowSchoolCalendar(!settingsStore.showSchoolCalendar)
+        } label: {
+            Image(systemName: settingsStore.showSchoolCalendar ? "calendar.circle.fill" : "calendar")
+                .imageScale(.large)
+                .foregroundStyle(settingsStore.showSchoolCalendar ? Color.accentColor : Color.secondary)
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 4)
-        .padding(.bottom, 8)
+        .accessibilityLabel(
+            settingsStore.showSchoolCalendar ? "Hide school calendar" : "Show school calendar"
+        )
+        .accessibilityAddTraits(settingsStore.showSchoolCalendar ? [.isSelected] : [])
     }
 
     @ViewBuilder

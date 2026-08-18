@@ -93,6 +93,7 @@ import dk.betterw4.android.ui.screens.schedule.ScheduleDayPager
 import dk.betterw4.android.ui.screens.schedule.StandardDayList
 import dk.betterw4.android.ui.screens.schedule.TimelineDayView
 import dk.betterw4.android.ui.theme.BetterW4ThemeExtras
+import dk.betterw4.android.core.w4.W4Dates
 import java.time.LocalDate
 
 @Composable
@@ -180,7 +181,7 @@ fun PersonSchedulePane(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
 ) {
-    val today = LocalDate.now()
+    val today = W4Dates.today()
     val extended = BetterW4ThemeExtras.extendedColors
     var calendarStyle by remember(defaultCalendarStyle) { mutableStateOf(defaultCalendarStyle) }
     var selectedDate by remember { mutableStateOf(today) }

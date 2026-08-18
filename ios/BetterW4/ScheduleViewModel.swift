@@ -166,7 +166,8 @@ final class ScheduleViewModel: ObservableObject {
     func nextLesson(at instant: Date, withinMinutes: Int = 60) -> TimetableEvent? {
         guard currentLesson(at: instant) == nil else { return nil }
         return timedEvents(on: instant).first { event in
-            guard let minutes = event.minutesUntilStart(from: instant) else { return false }
+            guard event.drivesCountdown,
+                  let minutes = event.minutesUntilStart(from: instant) else { return false }
             return minutes <= withinMinutes
         }
     }

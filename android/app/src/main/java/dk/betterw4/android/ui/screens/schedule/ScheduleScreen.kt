@@ -13,18 +13,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -40,7 +40,6 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -81,7 +80,6 @@ import dk.betterw4.android.ui.components.PersonAvatar
 import dk.betterw4.android.ui.components.StatusChip
 import dk.betterw4.android.ui.components.W4ChromeActions
 import dk.betterw4.android.ui.theme.BetterW4ThemeExtras
-import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.TextStyle
@@ -105,10 +103,13 @@ fun ScheduleScreen(
     val useSubjectColors by viewModel.useSubjectColors.collectAsStateWithLifecycle()
     val extended = BetterW4ThemeExtras.extendedColors
 
+    val now = rememberW4Now()
+    val today = now.toLocalDate()
+
     // Scroll-to-top: jump to today
-    LaunchedEffect(scrollToTopToken) {
+    LaunchedEffect(scrollToTopToken, today) {
         if (scrollToTopToken > 0) {
-            viewModel.selectDate(LocalDate.now())
+            viewModel.selectDate(today)
         }
     }
     LaunchedEffect(state.pendingNotificationHref) {
@@ -120,22 +121,12 @@ fun ScheduleScreen(
                 href.contains("assessment", ignoreCase = true) -> onOpenAssessments()
         }
     }
-
-    // Tick every minute for live header
-    var nowEpochMinute by remember { mutableLongStateOf(System.currentTimeMillis() / 60_000) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(30_000)
-            nowEpochMinute = System.currentTimeMillis() / 60_000
-        }
-    }
-    val now = remember(nowEpochMinute) { LocalDateTime.now() }
-    val liveHeader = remember(state.eventsByDate, nowEpochMinute, showSchoolCalendar) {
+    val liveHeader = remember(state.eventsByDate, now, showSchoolCalendar) {
         computeLiveHeader(
             events = viewModel.visibleEvents(
-                state.eventsByDate[LocalDate.now()].orEmpty()
+                state.eventsByDate[today].orEmpty()
                     .ifEmpty {
-                        state.week?.days?.find { it.date == LocalDate.now() }?.events.orEmpty()
+                        state.week?.days?.find { it.date == today }?.events.orEmpty()
                     },
             ),
             now = now,
@@ -147,7 +138,6 @@ fun ScheduleScreen(
     val dayName = state.selectedDate.dayOfWeek.getDisplayName(TextStyle.FULL, locale)
         .replaceFirstChar { if (it.isLowerCase()) it.titlecase(locale) else it.toString() }
     val subtitle = stringResource(R.string.schedule_week_subtitle, dayName, state.weekNum)
-    val today = remember { LocalDate.now() }
     val isAwayFromToday = state.selectedDate != today
 
     Scaffold(
@@ -164,6 +154,29 @@ fun ScheduleScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = { viewModel.setShowSchoolCalendar(!showSchoolCalendar) },
+                    ) {
+                        Icon(
+                            if (showSchoolCalendar) {
+                                Icons.Filled.CalendarMonth
+                            } else {
+                                Icons.Outlined.CalendarMonth
+                            },
+                            contentDescription = stringResource(
+                                if (showSchoolCalendar) {
+                                    R.string.cd_hide_school_calendar
+                                } else {
+                                    R.string.cd_show_school_calendar
+                                },
+                            ),
+                            tint = if (showSchoolCalendar) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
                     W4ChromeActions(
                         onNotificationHref = { href ->
                             when {
@@ -250,10 +263,6 @@ fun ScheduleScreen(
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                             )
-                            SchoolCalendarToggleChip(
-                                selected = showSchoolCalendar,
-                                onClick = { viewModel.setShowSchoolCalendar(!showSchoolCalendar) },
-                            )
                         }
 
                         HorizontalDivider(
@@ -279,6 +288,7 @@ fun ScheduleScreen(
                                     ?: state.week?.days?.find { it.date == date },
                                 calendarStyle = calendarStyle,
                                 viewModel = viewModel,
+                                now = now,
                             )
                         }
                     }
@@ -501,38 +511,13 @@ fun ScheduleScreen(
 }
 
 @Composable
-private fun SchoolCalendarToggleChip(
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        FilterChip(
-            selected = selected,
-            onClick = onClick,
-            label = { Text(stringResource(R.string.school_calendar_team)) },
-            leadingIcon = {
-                Icon(
-                    Icons.Default.CalendarMonth,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-            },
-        )
-    }
-}
-
-@Composable
 private fun DayPageContent(
     date: LocalDate,
     events: List<ScheduleEvent>,
     day: ScheduleDay?,
     calendarStyle: CalendarStyle,
     viewModel: ScheduleViewModel,
+    now: LocalDateTime,
 ) {
     Column(Modifier.fillMaxSize()) {
         DayContextRow(day)
@@ -544,6 +529,7 @@ private fun DayPageContent(
                 accentFor = { Color(viewModel.accentArgbFor(it)) },
                 onEventClick = { viewModel.selectEvent(it) },
                 modifier = Modifier.weight(1f),
+                now = now,
             )
         } else {
             StandardDayList(

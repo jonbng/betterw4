@@ -89,6 +89,7 @@ fun TimelineDayView(
     dayStartHour: Int = REFERENCE_HOUR,
     dayEndHour: Int = 16,
     minuteHeight: Dp = 1.dp,
+    now: LocalDateTime? = null,
 ) {
     val allDay = events.filter { it.isAllDay }
     val timed = events.filter { !it.isAllDay }
@@ -103,8 +104,13 @@ fun TimelineDayView(
     val spanMinutes = max((dayEndHour - dayStartHour) * 60, latestEnd + 40)
     val totalHeight = minuteHeight * spanMinutes
     val scroll = rememberScrollState()
-    val now = LocalDateTime.now()
-    val showNow = now.toLocalDate() == date
+    val clock = now ?: rememberW4Now()
+    val nowMinutes = ScheduleNowLine.minutesFromOrigin(
+        now = clock,
+        date = date,
+        originHour = dayStartHour,
+        spanMinutes = spanMinutes,
+    )
 
     Column(modifier.fillMaxSize()) {
         if (allDay.isNotEmpty()) {
@@ -209,32 +215,29 @@ fun TimelineDayView(
                         )
                     }
 
-                    if (showNow) {
-                        val nowMin = (now.hour * 60 + now.minute) - dayStartHour * 60
-                        if (nowMin in 0 until spanMinutes) {
-                            val y = minuteHeight * nowMin
-                            Row(
+                    if (nowMinutes != null) {
+                        val y = minuteHeight * nowMinutes
+                        Row(
+                            Modifier
+                                .zIndex(3f)
+                                .offset(y = y - 3.dp)
+                                .fillMaxWidth()
+                                .padding(start = TimeGutter - 6.dp)
+                                .height(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(
                                 Modifier
-                                    .zIndex(3f)
-                                    .offset(y = y - 3.dp)
-                                    .fillMaxWidth()
-                                    .padding(start = TimeGutter - 6.dp)
-                                    .height(6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Box(
-                                    Modifier
-                                        .size(6.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFFE53935)),
-                                )
-                                Box(
-                                    Modifier
-                                        .weight(1f)
-                                        .height(1.5.dp)
-                                        .background(Color(0xFFE53935)),
-                                )
-                            }
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFE53935)),
+                            )
+                            Box(
+                                Modifier
+                                    .weight(1f)
+                                    .height(1.5.dp)
+                                    .background(Color(0xFFE53935)),
+                            )
                         }
                     }
                 }
