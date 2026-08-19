@@ -17,11 +17,12 @@ object DirectoryParser {
         }
         val subtitle = incoming.subtitle?.takeIf { it.isNotBlank() } ?: existing.subtitle
         val avatar = pickAvatar(existing.avatarUrl, incoming.avatarUrl)
-        return incoming.copy(name = name, subtitle = subtitle, avatarUrl = avatar)
+        val year = incoming.year ?: existing.year
+        return incoming.copy(name = name, subtitle = subtitle, avatarUrl = avatar, year = year)
     }
 
     /**
-     * Prefer a real W4 thumb (`/files/user_photos/…`) over a guessed `/photos/…`
+     * Prefer a real W4 portrait (`/files/user_photos/…`) over a guessed `/photos/…`
      * URL. Name-only `a[href*=uwc_id]` links must not clobber the photo link.
      */
     fun pickAvatar(existing: String?, incoming: String?): String? {
@@ -37,9 +38,9 @@ object DirectoryParser {
     private fun usableAvatar(url: String?): String? {
         val u = url?.takeIf { it.isNotBlank() } ?: return null
         if (u.contains("/images/user.png")) return null
-        // Legacy guessed path; live thumbs are `/files/user_photos/…`.
+        // Legacy guessed path; live portraits are `/files/user_photos/…`.
         if (u.contains("/photos/")) return null
-        return u
+        return W4PeopleParser.fullSizePhotoUrl(u)
     }
 
     private fun avatarScore(url: String): Int =
@@ -54,13 +55,4 @@ object DirectoryParser {
         val n = name.trim().lowercase()
         return n in setOf("home", "logout", "profile", "password", "help")
     }
-
-    fun isValidPrefixedId(id: String): Boolean {
-        val trimmed = id.trim()
-        return W4Html.UWC_ID.containsMatchIn(trimmed) ||
-            Regex("^(S|T|HE|RO|RE|GE|SC)\\d+$", RegexOption.IGNORE_CASE).matches(trimmed)
-    }
-
-    fun numericId(prefixedId: String): String =
-        prefixedId.dropWhile { !it.isDigit() }.ifBlank { prefixedId }
 }

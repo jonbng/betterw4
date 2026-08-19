@@ -87,7 +87,7 @@ struct StudentCardView: View {
                     cardField("YEAR", value: year)
                 }
                 if let house = model.profile?.house {
-                    cardField("HOUSE", value: house)
+                    cardField("HOUSE", value: houseFlagLabel(house))
                 }
                 if let country = model.profile?.country {
                     cardField("COUNTRY", value: country)

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="brand_blue">#FF3362E1</color>
-    <color name="ic_launcher_background">#FF0155A0</color>
-    <color name="splash_background">#FF0155A0</color>
+    <color name="ic_launcher_background">#FF004A97</color>
+    <color name="splash_background">#FF004A97</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 </resources>

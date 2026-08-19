@@ -1,5 +1,10 @@
 package dk.betterw4.android.ui.auth
 
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,6 +25,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -30,6 +36,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -40,9 +47,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,6 +78,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dk.betterw4.android.R
 import dk.betterw4.android.core.i18n.asString
 import dk.betterw4.android.core.i18n.toUiText
+import dk.betterw4.android.core.w4.auth.W4OtpCode
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
@@ -191,6 +201,15 @@ fun LoginScreen(
                 onSubmit = {
                     hideKeyboard()
                     viewModel.submitOtp()
+                },
+                onOpenGmail = {
+                    if (!openGmail(context)) {
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.login_otp_gmail_missing),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
                 },
             )
             state.showUnlock -> UnlockPane(
@@ -490,7 +509,37 @@ private fun OtpForm(
     modifier: Modifier = Modifier,
     onOtp: (String) -> Unit,
     onSubmit: () -> Unit,
+    onOpenGmail: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val latestState = rememberUpdatedState(state)
+    val latestOnOtp = rememberUpdatedState(onOtp)
+    val latestOnSubmit = rememberUpdatedState(onSubmit)
+    var lastClipTimestamp by remember { mutableLongStateOf(clipboardTimestamp(context)) }
+    var lastConsumedCode by remember { mutableStateOf<String?>(null) }
+
+    fun consumeClipboardIfNeeded() {
+        val current = latestState.value
+        if (current.loggingIn) return
+        val timestamp = clipboardTimestamp(context)
+        if (timestamp != 0L && timestamp <= lastClipTimestamp) return
+        val code = W4OtpCode.extract(clipboardText(context))
+        if (timestamp != 0L) lastClipTimestamp = timestamp
+        if (code == null || code == lastConsumedCode) return
+        if (current.otp.isNotEmpty() && current.otp != code) return
+        lastConsumedCode = code
+        latestOnOtp.value(code)
+        latestOnSubmit.value()
+    }
+
+    LifecycleResumeEffect(Unit) {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val listener = ClipboardManager.OnPrimaryClipChangedListener { consumeClipboardIfNeeded() }
+        clipboard.addPrimaryClipChangedListener(listener)
+        consumeClipboardIfNeeded()
+        onPauseOrDispose { clipboard.removePrimaryClipChangedListener(listener) }
+    }
+
     Column(
         modifier
             .verticalScroll(rememberScrollState())
@@ -515,7 +564,7 @@ private fun OtpForm(
             keyboardOptions = KeyboardOptions(
                 capitalization = KeyboardCapitalization.None,
                 autoCorrectEnabled = false,
-                keyboardType = KeyboardType.Number,
+                keyboardType = KeyboardType.Ascii,
                 imeAction = ImeAction.Done,
             ),
             keyboardActions = KeyboardActions(onDone = { onSubmit() }),
@@ -546,6 +595,60 @@ private fun OtpForm(
                 ),
             )
         }
+        OutlinedButton(
+            onClick = onOpenGmail,
+            enabled = !state.loggingIn,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(
+                Icons.Default.Email,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(stringResource(R.string.login_otp_open_gmail))
+        }
+        Text(
+            stringResource(R.string.login_otp_open_gmail_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Spacer(Modifier.height(24.dp))
     }
 }
+
+private const val GMAIL_PACKAGE = "com.google.android.gm"
+private const val GMAIL_WEB = "https://mail.google.com"
+
+private fun openGmail(context: Context): Boolean {
+    val pm = context.packageManager
+    val gmail = pm.getLaunchIntentForPackage(GMAIL_PACKAGE)?.apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    if (gmail != null && runCatching { context.startActivity(gmail) }.isSuccess) {
+        return true
+    }
+    val inbox = Intent(Intent.ACTION_MAIN).apply {
+        addCategory(Intent.CATEGORY_APP_EMAIL)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    if (runCatching { context.startActivity(inbox) }.isSuccess) return true
+    val web = Intent(Intent.ACTION_VIEW, Uri.parse(GMAIL_WEB)).apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    return runCatching { context.startActivity(web) }.isSuccess
+}
+
+private fun clipboardManager(context: Context): ClipboardManager =
+    context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+
+private fun clipboardTimestamp(context: Context): Long =
+    runCatching { clipboardManager(context).primaryClipDescription?.timestamp ?: 0L }
+        .getOrDefault(0L)
+
+private fun clipboardText(context: Context): String? =
+    runCatching {
+        val clip = clipboardManager(context).primaryClip ?: return null
+        if (clip.itemCount < 1) return null
+        clip.getItemAt(0).coerceToText(context)?.toString()
+    }.getOrNull()

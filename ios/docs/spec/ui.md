@@ -1,6 +1,6 @@
 # BetterW4 iOS — Information Architecture & Screen-by-Screen UI Plan
 
-Status: spec, not yet implemented. Authoritative inputs: `/README.md` (the W4 protocol brief),
+Status: spec, not yet implemented. Authoritative inputs: `/PROTOCOL.md` (the W4 protocol brief),
 the completed Android port under `android/app/src/main/java/dk/betterw4/android/**`, the saved
 W4 pages under `references/pages/`, and the existing SwiftUI code in `ios/BetterW4/`.
 

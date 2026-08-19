@@ -156,12 +156,57 @@ struct PersonProfileField: Codable, Equatable, Hashable, Sendable {
 /// **[I] — no profile page has ever been captured.** `table.detail-view` is the Yii 1
 /// `CDetailView` convention; the field labels come from README section 6. Everything the
 /// parser does not recognise still reaches the UI through `fields`.
+enum StaffRoles {
+    static func parse(_ raw: String?) -> [String] {
+        guard let raw, !raw.isEmpty else { return [] }
+        let source = raw.split(separator: "·").map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.last(where: { $0.contains(",") }) ?? raw
+        var seen = Set<String>()
+        var result: [String] = []
+        for part in source.split(separator: ",") {
+            let role = part.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !role.isEmpty, !isMailingList(role) else { continue }
+            let key = role.lowercased()
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            result.append(role)
+        }
+        return result
+    }
+
+    static func isMailingList(_ role: String) -> Bool {
+        let n = role.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return n.contains("mail list") || n.hasSuffix(" mail") || n == "support staff mail"
+    }
+}
+
+struct StaffActivity: Codable, Equatable, Hashable, Identifiable, Sendable {
+    let name: String
+    let dates: String?
+    let category: String?
+
+    var id: String { "\(name)|\(dates ?? "")" }
+
+    init(name: String, dates: String? = nil, category: String? = nil) {
+        self.name = name
+        self.dates = dates
+        self.category = category
+    }
+}
+
 struct DirectoryPersonProfile: Codable, Equatable, Hashable, Sendable {
     let person: DirectoryPerson
     let birthday: String?
     let lastLogin: String?
     /// The address printed on the page, when there is one. `person.email` stays derived.
     let scrapedEmail: String?
+    let officeTel: String?
+    let mobile: String?
+    /// Jobs/subjects from the staff Position field, mailing lists already stripped.
+    let positions: [String]
+    let taughtClasses: [PersonClass]
+    let activities: [StaffActivity]
     /// Every labelled row, in document order.
     let fields: [PersonProfileField]
 
@@ -172,12 +217,22 @@ struct DirectoryPersonProfile: Codable, Equatable, Hashable, Sendable {
         birthday: String? = nil,
         lastLogin: String? = nil,
         scrapedEmail: String? = nil,
+        officeTel: String? = nil,
+        mobile: String? = nil,
+        positions: [String] = [],
+        taughtClasses: [PersonClass] = [],
+        activities: [StaffActivity] = [],
         fields: [PersonProfileField] = []
     ) {
         self.person = person
         self.birthday = birthday
         self.lastLogin = lastLogin
         self.scrapedEmail = scrapedEmail
+        self.officeTel = officeTel
+        self.mobile = mobile
+        self.positions = positions
+        self.taughtClasses = taughtClasses
+        self.activities = activities
         self.fields = fields
     }
 

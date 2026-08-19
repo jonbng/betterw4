@@ -20,6 +20,8 @@ enum class W4Surface {
     TRIPS,
     TRAVEL,
     PEOPLE,
+    CLASSES,
+    ON_DUTY,
     PROFILE,
     EXTRA_ACADEMICS,
     RESOURCES,
@@ -31,8 +33,10 @@ object CachePolicy {
     fun ttlMs(surface: W4Surface): Long = when (surface) {
         W4Surface.CHROME -> 60_000L
         W4Surface.MAIL_INBOX, W4Surface.MAIL_ARCHIVE -> 5 * 60_000L
-        W4Surface.HOME, W4Surface.ASSESSMENTS, W4Surface.ATTENDANCE_METERS -> 15 * 60_000L
-        W4Surface.TIMETABLE_ACADEMICS, W4Surface.TIMETABLE_EXTRA_ACADEMICS -> 30 * 60_000L
+        W4Surface.HOME, W4Surface.ASSESSMENTS, W4Surface.ATTENDANCE_METERS,
+        W4Surface.ON_DUTY -> 15 * 60_000L
+        W4Surface.TIMETABLE_ACADEMICS, W4Surface.TIMETABLE_EXTRA_ACADEMICS,
+        W4Surface.CLASSES -> 30 * 60_000L
         W4Surface.ATTENDANCE_ACADEMICS, W4Surface.ATTENDANCE_EXTRA_ACADEMICS,
         W4Surface.GRADES, W4Surface.TRIPS, W4Surface.TRAVEL -> 30 * 60_000L
         W4Surface.EXTRA_ACADEMICS, W4Surface.RESOURCES, W4Surface.PROFILE -> 60 * 60_000L

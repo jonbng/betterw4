@@ -3,7 +3,7 @@
 //  BetterW4
 //
 //  The people directory: students (all / first year / second year) and staff, every row keyed on
-//  a UWC id, every photo derived from that id (`{uwc_id}_thumb.jpg`) with initials as the
+//  a UWC id, every photo derived from that id (`{uwc_id}.jpg`) with initials as the
 //  fallback.
 //
 //  Data comes from `DirectoryViewModel`, which reads `DirectoryRepository` — cached rows paint
@@ -30,34 +30,60 @@ struct StudentSearchView: View {
     @StateObject private var viewModel = DirectoryViewModel()
 
     var body: some View {
-        ScrollView {
-            let sections = viewModel.sections
-            LazyVStack(alignment: .leading, spacing: 20) {
-                if viewModel.isSearching {
-                    searchResults
-                } else {
-                    ForEach(sections) { section in
-                        peopleSection(section)
+        VStack(spacing: 0) {
+            Picker("People", selection: roleBinding) {
+                Text("Students").tag(DirectoryPresentation.full)
+                Text("Teachers").tag(DirectoryPresentation.teachers)
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, viewModel.presentation.showsStaff ? 10 : 8)
+            .accessibilityLabel("Students or teachers")
+
+            if !viewModel.presentation.showsStaff {
+                Picker("Year", selection: yearBinding) {
+                    Text("All").tag(DirectoryYearFilter.all)
+                    Text("1st year").tag(DirectoryYearFilter.first)
+                    Text("2nd year").tag(DirectoryYearFilter.second)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 10)
+                .accessibilityLabel("Year")
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
+            ScrollView {
+                let sections = viewModel.sections
+                LazyVStack(alignment: .leading, spacing: 20) {
+                    if viewModel.isSearching {
+                        searchResults
+                    } else {
+                        ForEach(sections) { section in
+                            peopleSection(section)
+                        }
+                        if sections.isEmpty {
+                            emptyState
+                        }
                     }
-                    if sections.isEmpty {
-                        emptyState
+                    if !sections.isEmpty || viewModel.isSearching {
+                        footer
                     }
                 }
-                if !sections.isEmpty || viewModel.isSearching {
-                    footer
+                .padding(.vertical, 8)
+            }
+            .overlay {
+                if viewModel.isLoading {
+                    loadingOverlay
                 }
             }
-            .padding(.vertical, 16)
         }
+        .animation(.easeInOut(duration: 0.18), value: viewModel.presentation.showsStaff)
         .background(Color(UIColor.systemGroupedBackground))
-        .overlay {
-            if viewModel.isLoading {
-                loadingOverlay
-            }
-        }
-        .navigationTitle(presentation.title)
+        .navigationTitle(viewModel.presentation.title)
         .navigationBarTitleDisplayMode(.large)
-        .searchable(text: $viewModel.searchQuery, prompt: "Search students and staff")
+        .searchable(text: $viewModel.searchQuery, prompt: searchPrompt)
         .refreshable {
             await viewModel.refresh()
         }
@@ -77,6 +103,34 @@ struct StudentSearchView: View {
                 }
             }
         }
+    }
+
+    private var roleBinding: Binding<DirectoryPresentation> {
+        Binding(
+            get: { viewModel.presentation.showsStaff ? .teachers : .full },
+            set: { newValue in
+                Task {
+                    if newValue.showsStaff {
+                        await viewModel.show(.teachers)
+                    } else {
+                        await viewModel.showStudents()
+                    }
+                }
+            }
+        )
+    }
+
+    private var yearBinding: Binding<DirectoryYearFilter> {
+        Binding(
+            get: { viewModel.presentation.yearFilter },
+            set: { newValue in
+                Task { await viewModel.show(newValue.presentation) }
+            }
+        )
+    }
+
+    private var searchPrompt: String {
+        viewModel.presentation.showsStaff ? "Search teachers" : "Search students"
     }
 
     // MARK: Sections

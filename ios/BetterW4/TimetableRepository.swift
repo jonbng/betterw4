@@ -451,6 +451,122 @@ actor TimetableRepository {
         return W4Loaded(presented, freshness: .fresh)
     }
 
+    /// Another person's AC+EA week: `academics/timetable/timetable&uwc_id=`.
+    ///
+    /// `mytimetable&uwc_id=` is ignored and always returns the signed-in student, so this
+    /// uses the public person routes and a cache key that includes the target id.
+    func personWeek(
+        uwcId rawUwcId: String,
+        containing date: Date,
+        forceRefresh: Bool = false
+    ) async throws -> W4Loaded<ScheduleWeek> {
+        let context = try resolveContext()
+        let uwcId = DirectoryRepository.normalizedUwcId(rawUwcId)
+        guard !uwcId.isEmpty else {
+            throw W4Error.parsingError("A person week needs a uwc id")
+        }
+        if context.isDemo {
+            return W4Loaded(Self.demoWeek(containing: date), freshness: .demo)
+        }
+
+        let iso = W4Dates.isoWeek(of: date)
+        let weekKey = ScheduleIdentity.weekKey(year: iso.year, week: iso.week)
+        let cacheKey = "person:\(uwcId):\(weekKey)"
+        let cached = await cache.page(
+            surface: .timetableAcademics,
+            key: cacheKey,
+            uwcId: context.uwcId
+        )
+        if !forceRefresh, let cached, !cached.isStale {
+            let parsed = W4TimetableParser.parseWeek(
+                html: cached.html,
+                source: .academics,
+                fallbackYear: iso.year,
+                fallbackWeek: iso.week
+            )
+            if !parsed.days.isEmpty {
+                return W4Loaded(
+                    parsed,
+                    freshness: .cached(fetchedAt: cached.fetchedAt, isStale: false)
+                )
+            }
+        }
+
+        let query = [
+            "uwc_id": uwcId,
+            "year": String(iso.year),
+            "week": String(iso.week)
+        ]
+        async let academicsTask = loadPage(
+            route: W4Routes.R.personTimetableIndex,
+            query: query,
+            context: context,
+            priority: .important,
+            skip: false,
+            tolerateFailure: false
+        )
+        async let extraTask = loadPage(
+            route: W4Routes.R.eaPersonTimetableIndex,
+            query: query,
+            context: context,
+            priority: .opportunistic,
+            skip: false,
+            tolerateFailure: true
+        )
+        let academics = try await academicsTask
+        let extra = try await extraTask
+        guard let primaryHTML = academics?.html else {
+            if let cached {
+                let parsed = W4TimetableParser.parseWeek(
+                    html: cached.html,
+                    source: .academics,
+                    fallbackYear: iso.year,
+                    fallbackWeek: iso.week
+                )
+                if !parsed.days.isEmpty {
+                    return W4Loaded(
+                        parsed,
+                        freshness: .cached(fetchedAt: cached.fetchedAt, isStale: true)
+                    )
+                }
+            }
+            throw W4Error.noResponse
+        }
+
+        var merged = W4TimetableParser.parseWeek(
+            html: primaryHTML,
+            source: .academics,
+            fallbackYear: iso.year,
+            fallbackWeek: iso.week
+        )
+        guard !merged.days.isEmpty else {
+            throw W4Error.parsingError("timetable page carried no day columns")
+        }
+        if let extraHTML = extra?.html {
+            let extraWeek = W4TimetableParser.parseWeek(
+                html: extraHTML,
+                source: .extraAcademics,
+                fallbackYear: merged.year,
+                fallbackWeek: merged.week
+            )
+            if extraWeek.year == merged.year, extraWeek.week == merged.week {
+                merged = W4TimetableParser.merge(merged, with: extraWeek)
+            }
+        }
+
+        let fetchedAt = clock()
+        await cache.store(
+            html: primaryHTML,
+            surface: .timetableAcademics,
+            key: cacheKey,
+            uwcId: context.uwcId,
+            finalURL: academics?.finalURL,
+            contentType: Self.htmlContentType,
+            fetchedAt: fetchedAt
+        )
+        return W4Loaded(merged.withFetchedAt(fetchedAt), freshness: .fresh)
+    }
+
     /// One page fetch, with the two behaviours the caller needs to vary: skip it entirely (we
     /// already have the HTML), and tolerate its failure (Extra Academics is a bonus, not the
     /// screen). A dead session is never tolerated.

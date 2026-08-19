@@ -9,6 +9,7 @@ import dk.betterw4.android.core.result.AppResult
 import dk.betterw4.android.core.w4.auth.AuthSessionInstaller
 import dk.betterw4.android.core.w4.auth.DeviceAuthenticator
 import dk.betterw4.android.core.w4.auth.W4OtpChallenge
+import dk.betterw4.android.core.w4.auth.W4OtpCode
 import dk.betterw4.android.core.w4.session.LastSchoolHint
 import dk.betterw4.android.core.w4.session.LastSchoolReason
 import dk.betterw4.android.core.w4.session.LastSchoolStore
@@ -77,7 +78,7 @@ class LoginViewModel @Inject constructor(
     }
 
     fun onOtp(value: String) {
-        _state.update { it.copy(otp = value, error = null) }
+        _state.update { it.copy(otp = W4OtpCode.sanitizeInput(value), error = null) }
     }
 
     fun cancelOtp() {

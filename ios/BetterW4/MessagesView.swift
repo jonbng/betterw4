@@ -35,7 +35,9 @@ struct MessagesView: View {
             .searchable(text: $viewModel.searchQuery, prompt: "Search mail")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { folderMenu }
-                ToolbarItem(placement: .topBarTrailing) { composeButton }
+                if MailFeatureFlags.visible {
+                    ToolbarItem(placement: .topBarTrailing) { composeButton }
+                }
             }
             .navigationDestination(for: MailMessage.self) { message in
                 MailMessageView(message: message, student: student)

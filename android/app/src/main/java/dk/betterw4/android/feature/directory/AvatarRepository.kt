@@ -18,10 +18,10 @@ import javax.inject.Singleton
 /**
  * Resolves W4 portrait URLs for students and teachers.
  *
- * W4 photos are derived from a UWC id (`/files/user_photos/{uwc_id}_thumb.jpg`).
+ * W4 photos are derived from a UWC id (`/files/user_photos/{uwc_id}_photo.jpg`).
  * Calendar bricks only carry the teacher's display name, so this repository
  * indexes the offline people catalog by normalized name and peeks/guesses
- * the thumb URL from the matching id.
+ * the portrait URL from the matching id.
  */
 @Singleton
 class AvatarRepository @Inject constructor(
@@ -126,7 +126,7 @@ class AvatarRepository @Inject constructor(
 }
 
 /**
- * In-memory name → UWC id index plus derived `/files/user_photos/{id}_thumb.jpg` URLs.
+ * In-memory name → UWC id index plus derived `/files/user_photos/{id}_photo.jpg` URLs.
  * Calendar bricks resolve portraits through here after the people catalog is ingested.
  */
 internal class AvatarIndex(

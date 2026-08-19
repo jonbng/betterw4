@@ -30,12 +30,8 @@ import Foundation
 // MARK: - Presentation
 
 /// Which slice of W4's people the directory screen is showing.
-///
-/// The five `classes` / `holds` / `rooms` / `groups` / `resources` names below are compatibility
-/// aliases for the More tab's old catalogue tiles. W4 has no such directories, so they all open
-/// the full people list; the shell should drop those tiles.
 enum DirectoryPresentation: Hashable {
-    /// Everybody: pinned, classmates, staff, then the year lists.
+    /// Students: pinned classmates, then the year lists.
     case full
     /// The signed-in student's own IB year.
     case classmates
@@ -44,12 +40,6 @@ enum DirectoryPresentation: Hashable {
     case firstYear
     case secondYear
     case staff
-
-    static let classes = DirectoryPresentation.full
-    static let holds = DirectoryPresentation.full
-    static let rooms = DirectoryPresentation.full
-    static let groups = DirectoryPresentation.full
-    static let resources = DirectoryPresentation.full
 
     var title: String {
         switch self {
@@ -70,6 +60,37 @@ enum DirectoryPresentation: Hashable {
         case .firstYear: return .firstYear
         case .secondYear: return .secondYear
         case .staff: return .currentStaff
+        }
+    }
+
+    /// The two roles the directory switcher offers.
+    var showsStaff: Bool {
+        switch self {
+        case .teachers, .staff: return true
+        case .full, .classmates, .firstYear, .secondYear: return false
+        }
+    }
+
+    var yearFilter: DirectoryYearFilter {
+        switch self {
+        case .firstYear: return .first
+        case .secondYear: return .second
+        case .full, .classmates, .teachers, .staff: return .all
+        }
+    }
+}
+
+/// Year slice shown under Students.
+enum DirectoryYearFilter: Hashable {
+    case all
+    case first
+    case second
+
+    var presentation: DirectoryPresentation {
+        switch self {
+        case .all: return .full
+        case .first: return .firstYear
+        case .second: return .secondYear
         }
     }
 }
@@ -142,7 +163,9 @@ final class DirectoryViewModel: ObservableObject {
     private var generation = 0
     private var searchGeneration = 0
     private var searchTask: Task<Void, Never>?
-    private var presentation: DirectoryPresentation = .full
+    @Published private(set) var presentation: DirectoryPresentation = .full
+    /// Last Students-side slice, so Teachers → Students restores All / 1st / 2nd.
+    private var studentPresentation: DirectoryPresentation = .full
     /// The signed-in student's own IB year, from `site/profile`. Drives "Classmates".
     private var myYear: String?
     private var myUwcId: String?
@@ -157,10 +180,35 @@ final class DirectoryViewModel: ObservableObject {
 
     // MARK: - Loading
 
+    /// Switch the Students/Teachers slice without a full reload when the catalog is already here.
+    func show(_ presentation: DirectoryPresentation) async {
+        guard self.presentation != presentation else { return }
+        rememberStudentSlice(presentation)
+        self.presentation = presentation
+        notice = nil
+        applyVisible(for: presentation)
+        rerunSearchIfNeeded()
+        if visiblePeople.isEmpty && pinnedPeople.isEmpty {
+            await load(presentation)
+        }
+    }
+
+    /// Restore the last Students year filter after leaving Teachers.
+    func showStudents() async {
+        await show(studentPresentation.showsStaff ? .full : studentPresentation)
+    }
+
+    private func rememberStudentSlice(_ presentation: DirectoryPresentation) {
+        if !presentation.showsStaff {
+            studentPresentation = presentation
+        }
+    }
+
     /// Cache-first load: paint what is stored, then refresh in the background.
     func load(_ presentation: DirectoryPresentation) async {
         generation += 1
         let token = generation
+        rememberStudentSlice(presentation)
         self.presentation = presentation
         notice = nil
 
@@ -268,7 +316,7 @@ final class DirectoryViewModel: ObservableObject {
     private func applyVisible(for presentation: DirectoryPresentation) {
         switch presentation {
         case .full:
-            visiblePeople = allPeople
+            visiblePeople = students
         case .classmates:
             visiblePeople = self.classmates
         case .teachers, .staff:
@@ -335,8 +383,9 @@ final class DirectoryViewModel: ObservableObject {
     var sections: [DirectoryPeopleSection] {
         var result: [DirectoryPeopleSection] = []
 
-        if !pinnedPeople.isEmpty {
-            result.append(DirectoryPeopleSection(id: "pinned", title: "Pinned", people: pinnedPeople))
+        let pins = pinnedPeople.filter(matchesCurrentSlice)
+        if !pins.isEmpty {
+            result.append(DirectoryPeopleSection(id: "pinned", title: "Pinned", people: pins))
         }
 
         switch presentation {
@@ -360,9 +409,6 @@ final class DirectoryViewModel: ObservableObject {
             let unplaced = students.filter { $0.year == nil && !placed.contains($0.uwcId) }
             if !unplaced.isEmpty {
                 result.append(DirectoryPeopleSection(id: "students", title: "Students", people: unplaced))
-            }
-            if !staff.isEmpty {
-                result.append(DirectoryPeopleSection(id: "staff", title: "Staff", people: staff))
             }
         case .classmates, .teachers, .firstYear, .secondYear, .staff:
             if !visiblePeople.isEmpty {
@@ -408,13 +454,24 @@ final class DirectoryViewModel: ObservableObject {
             let hits = await repository.search(query, limit: 40)
             guard !Task.isCancelled, let self else { return }
             guard token == self.searchGeneration, self.searchQuery == query else { return }
-            self.searchResults = Self.rank(hits, pinned: pinned, classmates: mates)
+            let scoped = hits.filter { self.matchesCurrentSlice($0) }
+            self.searchResults = Self.rank(scoped, pinned: pinned, classmates: mates)
         }
     }
 
     private func rerunSearchIfNeeded() {
         guard isSearching else { return }
         scheduleSearch()
+    }
+
+    private func matchesCurrentSlice(_ person: DirectoryPerson) -> Bool {
+        if presentation.showsStaff { return person.kind == .staff }
+        guard person.kind == .student else { return false }
+        switch presentation {
+        case .firstYear: return person.year == "1"
+        case .secondYear: return person.year == "2"
+        default: return true
+        }
     }
 
     nonisolated static func rank(
@@ -466,7 +523,7 @@ final class DirectoryViewModel: ObservableObject {
         return allPeople.first { $0.uwcId == id } ?? visiblePeople.first { $0.uwcId == id }
     }
 
-    /// The photo W4 serves for a person: `{uwc_id}_thumb.jpg`. Views fall back to initials.
+    /// The photo W4 serves for a person: `{uwc_id}.jpg`. Views fall back to initials.
     nonisolated func photoURL(for person: DirectoryPerson) -> URL? {
         person.photoURL ?? W4PeopleParser.photoURL(forUWCId: person.uwcId)
     }

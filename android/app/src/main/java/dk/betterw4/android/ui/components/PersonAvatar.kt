@@ -36,7 +36,7 @@ interface AvatarRepositoryEntryPoint {
 /**
  * Circular person photo with initials fallback.
  *
- * Resolves W4 thumb URLs via [AvatarRepository] (cookie-aware Coil).
+ * Resolves W4 portrait URLs via [AvatarRepository] (cookie-aware Coil).
  */
 @Composable
 fun PersonAvatar(

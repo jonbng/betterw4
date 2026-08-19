@@ -78,7 +78,7 @@ fun RowScope.W4ChromeActions(
 ) {
     val snapshot by viewModel.notificationSnapshot.collectAsStateWithLifecycle()
     NotificationsBell(
-        snapshot = snapshot,
+        snapshot = snapshot.forDisplay(),
         onOpenChanged = viewModel::setNotificationsOpen,
         onMarkRead = { item ->
             viewModel.markNotificationRead(item)

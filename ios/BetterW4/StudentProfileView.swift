@@ -21,18 +21,30 @@ final class PersonProfileModel: ObservableObject {
 
     @Published private(set) var profile: StudentProfile?
     @Published private(set) var freshness: W4Freshness?
+    @Published private(set) var week: ScheduleWeek?
+    @Published private(set) var selectedDate: Date = W4Dates.startOfDay(TimeProvider.now)
     /// Only ever set when there is nothing at all to show.
     @Published private(set) var errorMessage: String?
     @Published private(set) var isLoading = false
     @Published private(set) var isRefreshing = false
+    @Published private(set) var isLoadingSchedule = false
 
     private let repository: ProfileRepository
+    private let houseRepository: HouseRepository
+    private let timetableRepository: TimetableRepository
     /// A newer load always wins, so a slow answer for a person the student has left cannot
     /// overwrite the one they are looking at now.
     private var generation = 0
+    private var loadedUwcId = ""
 
-    init(repository: ProfileRepository = .shared) {
+    init(
+        repository: ProfileRepository = .shared,
+        houseRepository: HouseRepository = .shared,
+        timetableRepository: TimetableRepository = .shared
+    ) {
         self.repository = repository
+        self.houseRepository = houseRepository
+        self.timetableRepository = timetableRepository
     }
 
     /// - Parameter fallback: what the directory row already knew, shown until the page answers.
@@ -44,12 +56,14 @@ final class PersonProfileModel: ObservableObject {
     ) async {
         generation += 1
         let token = generation
+        loadedUwcId = uwcId
 
         if profile == nil { profile = fallback }
 
         if !forceRefresh, let cached = await repository.cachedProfile(uwcId: uwcId) {
             guard token == generation else { return }
             profile = StudentProfile(profile: cached.value)
+                .applying(placement: nil, classes: fallback?.classes ?? [])
             freshness = cached.freshness
         }
 
@@ -83,6 +97,73 @@ final class PersonProfileModel: ObservableObject {
                 errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             }
         }
+
+        await loadPlacementAndSchedule(uwcId: uwcId, token: token, forceRefresh: forceRefresh)
+    }
+
+    func shiftWeek(_ delta: Int) async {
+        let start = W4Dates.startOfWeek(containing: selectedDate)
+        let next = W4Dates.adding(days: delta * 7, to: start)
+        selectedDate = next
+        await loadWeek(uwcId: loadedUwcId, containing: next, token: generation)
+    }
+
+    func goToToday() async {
+        let today = W4Dates.startOfDay(TimeProvider.now)
+        selectedDate = today
+        await loadWeek(uwcId: loadedUwcId, containing: today, token: generation)
+    }
+
+    func select(date: Date) {
+        selectedDate = W4Dates.startOfDay(date)
+    }
+
+    private func loadPlacementAndSchedule(uwcId: String, token: Int, forceRefresh: Bool) async {
+        async let placementTask = houseRepository.findPlacement(uwcId: uwcId)
+        await loadWeek(uwcId: uwcId, containing: selectedDate, token: token, forceRefresh: forceRefresh)
+        let placement = await placementTask
+        guard token == generation else { return }
+        let classes = week.map(PersonClasses.from(week:)) ?? []
+        if let current = profile {
+            profile = current.applying(placement: placement, classes: classes)
+        }
+    }
+
+    private func loadWeek(
+        uwcId: String,
+        containing date: Date,
+        token: Int,
+        forceRefresh: Bool = false
+    ) async {
+        guard !uwcId.isEmpty else { return }
+        isLoadingSchedule = week == nil
+        defer {
+            if token == generation { isLoadingSchedule = false }
+        }
+        do {
+            let loaded = try await timetableRepository.personWeek(
+                uwcId: uwcId,
+                containing: date,
+                forceRefresh: forceRefresh
+            )
+            guard token == generation else { return }
+            week = loaded.value
+            if let current = profile {
+                profile = current.applying(placement: nil, classes: PersonClasses.from(week: loaded.value))
+            }
+            let days = loaded.value.days
+            if !days.contains(where: { W4Dates.isSameDay($0.date, selectedDate) }) {
+                let today = W4Dates.startOfDay(TimeProvider.now)
+                selectedDate = days.first(where: { W4Dates.isSameDay($0.date, today) })?.date
+                    ?? days.first(where: { W4Dates.calendar.component(.weekday, from: $0.date) == W4Dates.calendar.component(.weekday, from: selectedDate) })?.date
+                    ?? days.first?.date
+                    ?? selectedDate
+            }
+        } catch {
+            guard token == generation else { return }
+            if error is CancellationError { return }
+            (error as? W4Error)?.notifyIfSessionExpired()
+        }
     }
 }
 
@@ -96,10 +177,12 @@ struct StudentProfileView: View {
 
     @ObservedObject var directory: DirectoryViewModel
     @StateObject private var model = PersonProfileModel()
+    @StateObject private var houses = HousesViewModel()
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showingPhoto = false
     @State private var didCopyEmail = false
+    @State private var tab: ProfileTab
 
     /// Pushed from a directory row: everything the row knew is on screen before the fetch starts.
     init(person: DirectoryPerson, directory: DirectoryViewModel) {
@@ -107,6 +190,16 @@ struct StudentProfileView: View {
         self.kind = person.kind
         self.fallback = StudentProfile(person: person)
         self._directory = ObservedObject(wrappedValue: directory)
+        self._tab = State(initialValue: person.kind == .staff ? .about : .schedule)
+    }
+
+    /// Pushed from a house room: house + room are already known, so the hero paints them immediately.
+    init(person: DirectoryPerson, placement: HousePlacement, directory: DirectoryViewModel) {
+        self.uwcId = person.uwcId
+        self.kind = person.kind
+        self.fallback = StudentProfile(person: person).applying(placement: placement, classes: [])
+        self._directory = ObservedObject(wrappedValue: directory)
+        self._tab = State(initialValue: person.kind == .staff ? .about : .schedule)
     }
 
     /// Pushed from a bare UWC id (a deep link, or a person who has left the cached table).
@@ -115,6 +208,7 @@ struct StudentProfileView: View {
         self.kind = nil
         self.fallback = nil
         self._directory = ObservedObject(wrappedValue: directory)
+        self._tab = State(initialValue: .schedule)
     }
 
     private var profile: StudentProfile? { model.profile ?? fallback }
@@ -125,8 +219,21 @@ struct StudentProfileView: View {
                 if let profile {
                     hero(profile)
                     actions(profile)
-                    details(profile)
-                    extraFields(profile)
+                    Picker("Section", selection: $tab) {
+                        Text("Schedule").tag(ProfileTab.schedule)
+                        Text("About").tag(ProfileTab.about)
+                    }
+                    .pickerStyle(.segmented)
+                    switch tab {
+                    case .schedule:
+                        personSchedule
+                    case .about:
+                        if profile.kind == .staff {
+                            staffAbout(profile)
+                        } else {
+                            about(profile)
+                        }
+                    }
                     footer
                 } else if model.isLoading {
                     ProgressView()
@@ -146,6 +253,7 @@ struct StudentProfileView: View {
         }
         .task(id: uwcId) {
             await model.load(uwcId: uwcId, kind: kind, fallback: fallback)
+            await houses.load()
         }
         .onReceive(NotificationCenter.default.publisher(for: .betterW4CachesDidClear)) { _ in
             Task { await model.load(uwcId: uwcId, kind: kind, fallback: fallback, forceRefresh: true) }
@@ -183,23 +291,38 @@ struct StudentProfileView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                if let subtitle = profile.subtitle {
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
+                if profile.kind == .staff {
+                    if let country = profile.country {
+                        Text(country)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    if !profile.positions.isEmpty {
+                        roleChips(profile.positions)
+                    } else {
+                        Label(profile.kindLabel, systemImage: "person.text.rectangle.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.accentColor)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 5)
+                            .background(Color.accentColor.opacity(0.12))
+                            .clipShape(Capsule())
+                    }
+                } else {
+                    if let subtitle = profile.subtitle {
+                        Text(subtitle)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    Label(profile.kindLabel, systemImage: "person.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(Color.accentColor.opacity(0.12))
+                        .clipShape(Capsule())
                 }
-
-                Label(
-                    profile.kindLabel,
-                    systemImage: profile.kind == .staff ? "person.text.rectangle.fill" : "person.fill"
-                )
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.accentColor)
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
-                .background(Color.accentColor.opacity(0.12))
-                .clipShape(Capsule())
             }
             .accessibilityElement(children: .combine)
         }
@@ -292,13 +415,233 @@ struct StudentProfileView: View {
         }
     }
 
-    // MARK: Details
+    // MARK: About
 
-    private func details(_ profile: StudentProfile) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            ForEach(Self.detailRows(for: profile)) { row in
-                detailRow(row.title, value: row.value, systemImage: row.systemImage)
+    @ViewBuilder
+    private func about(_ profile: StudentProfile) -> some View {
+        VStack(spacing: 16) {
+            aboutCard {
+                if let house = profile.house {
+                    if let houseId = profile.houseId {
+                        NavigationLink {
+                            HouseDetailView(
+                                houseId: houseId,
+                                viewModel: houses,
+                                directory: directory
+                            )
+                        } label: {
+                            aboutLinkRow(
+                                title: "House",
+                                value: houseFlagLabel(house, houseId: houseId),
+                                systemImage: "house.fill",
+                                hint: "View house"
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        detailRow("House", value: houseFlagLabel(house), systemImage: "house.fill")
+                    }
+                }
+                if let room = profile.room {
+                    if let houseId = profile.houseId {
+                        NavigationLink {
+                            HouseDetailView(
+                                houseId: houseId,
+                                viewModel: houses,
+                                directory: directory
+                            )
+                        } label: {
+                            aboutLinkRow(
+                                title: "Room",
+                                value: room,
+                                systemImage: "door.left.hand.closed",
+                                hint: "View house"
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        detailRow("Room", value: room, systemImage: "door.left.hand.closed")
+                    }
+                }
+                if profile.house == nil && profile.room == nil {
+                    Text("House not listed")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             }
+
+            aboutCard {
+                Text("Classes")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                if profile.classes.isEmpty {
+                    Text("No classes on this week's timetable")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(profile.classes) { item in
+                        classRow(item)
+                    }
+                }
+            }
+
+            extraFields(profile)
+
+            aboutCard {
+                ForEach(Self.detailRows(for: profile)) { row in
+                    detailRow(row.title, value: row.value, systemImage: row.systemImage)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func staffAbout(_ profile: StudentProfile) -> some View {
+        VStack(spacing: 16) {
+            aboutCard {
+                Text("Contact")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                contactRow(
+                    title: "Email",
+                    value: profile.email,
+                    systemImage: "envelope.fill",
+                    url: URL(string: "mailto:\(profile.email)")
+                )
+                if let office = profile.officeTel {
+                    detailRow("Office", value: office, systemImage: "phone.fill")
+                }
+                if let mobile = profile.mobile {
+                    contactRow(
+                        title: "Mobile",
+                        value: mobile,
+                        systemImage: "iphone",
+                        url: Self.phoneURL(mobile)
+                    )
+                }
+            }
+
+            aboutCard {
+                Text("Classes they teach")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                if profile.classes.isEmpty {
+                    Text("Not teaching any classes")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(profile.classes) { item in
+                        classRow(item)
+                    }
+                }
+            }
+
+            aboutCard {
+                Text("Extra academics")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                if profile.activities.isEmpty {
+                    Text("No extra-academic activities listed")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(profile.activities) { activity in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(activity.name)
+                                .font(.subheadline.weight(.medium))
+                            let meta = [
+                                activity.category?.capitalized,
+                                activity.dates
+                            ].compactMap { $0 }.joined(separator: " · ")
+                            if !meta.isEmpty {
+                                Text(meta)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+
+            extraFields(profile)
+
+            if profile.country != nil || profile.birthday != nil {
+                aboutCard {
+                    if let country = profile.country {
+                        detailRow("Country", value: country, systemImage: "globe")
+                    }
+                    if let birthday = profile.birthday {
+                        detailRow("Birthday", value: birthday, systemImage: "gift")
+                    }
+                }
+            }
+        }
+    }
+
+    private func roleChips(_ roles: [String]) -> some View {
+        LazyVGrid(
+            columns: [GridItem(.adaptive(minimum: 72), spacing: 6, alignment: .leading)],
+            alignment: .leading,
+            spacing: 6
+        ) {
+            ForEach(roles, id: \.self) { role in
+                Text(role)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(Color.accentColor.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func classRow(_ item: PersonClass) -> some View {
+        if let classId = item.classId, item.canOpen {
+            NavigationLink {
+                ClassRosterView(
+                    classId: classId,
+                    title: item.name,
+                    directory: directory
+                )
+            } label: {
+                aboutLinkRow(
+                    title: item.name,
+                    value: item.subtitle,
+                    systemImage: "book.fill",
+                    hint: item.subtitle == nil ? "View class" : ""
+                )
+            }
+            .buttonStyle(.plain)
+        } else {
+            detailRow(item.name, value: item.subtitle ?? "", systemImage: "book.fill")
+        }
+    }
+
+    @ViewBuilder
+    private func contactRow(title: String, value: String, systemImage: String, url: URL?) -> some View {
+        if let url {
+            Link(destination: url) {
+                detailRow(title, value: value, systemImage: systemImage)
+            }
+            .buttonStyle(.plain)
+        } else {
+            detailRow(title, value: value, systemImage: systemImage)
+        }
+    }
+
+    private static func phoneURL(_ raw: String) -> URL? {
+        let digits = raw.filter { $0.isNumber || $0 == "+" }
+        let count = digits.filter(\.isNumber).count
+        guard count >= 8 else { return nil }
+        return URL(string: "tel:\(digits)")
+    }
+
+    private func aboutCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            content()
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -306,7 +649,36 @@ struct StudentProfileView: View {
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
-    /// Every field W4 can tell us about a person, in a fixed order, skipping the ones it did not.
+    private func aboutLinkRow(
+        title: String,
+        value: String?,
+        systemImage: String,
+        hint: String
+    ) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.caption).foregroundStyle(.secondary)
+                if let value, !value.isEmpty {
+                    Text(value).font(.subheadline.weight(.medium)).foregroundStyle(.primary)
+                }
+                if !hint.isEmpty {
+                    Text(hint)
+                        .font(.caption)
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.tertiary)
+        }
+        .contentShape(Rectangle())
+    }
+
+    /// Remaining identity fields — house, room and classes have their own rows.
     private static func detailRows(for profile: StudentProfile) -> [ProfileDetailRow] {
         var rows: [ProfileDetailRow] = [
             ProfileDetailRow(title: "UWC id", value: profile.uwcId, systemImage: "person.text.rectangle"),
@@ -314,9 +686,6 @@ struct StudentProfileView: View {
         ]
         if let year = profile.year {
             rows.append(ProfileDetailRow(title: "Year", value: year, systemImage: "graduationcap"))
-        }
-        if let house = profile.house {
-            rows.append(ProfileDetailRow(title: "House", value: house, systemImage: "house.fill"))
         }
         if let country = profile.country {
             rows.append(ProfileDetailRow(title: "Country", value: country, systemImage: "globe"))
@@ -331,6 +700,118 @@ struct StudentProfileView: View {
             rows.append(ProfileDetailRow(title: "Last login", value: lastLogin, systemImage: "clock"))
         }
         return rows
+    }
+
+    @ViewBuilder
+    private var personSchedule: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(scheduleTitle)
+                    .font(.headline)
+                Spacer()
+                if model.isLoadingSchedule {
+                    ProgressView().controlSize(.mini)
+                }
+                Button {
+                    Task { await model.shiftWeek(-1) }
+                } label: {
+                    Image(systemName: "chevron.left")
+                }
+                .disabled(model.isLoadingSchedule)
+                Button {
+                    Task { await model.goToToday() }
+                } label: {
+                    Text("Today")
+                        .font(.caption.weight(.semibold))
+                }
+                .disabled(model.isLoadingSchedule)
+                Button {
+                    Task { await model.shiftWeek(1) }
+                } label: {
+                    Image(systemName: "chevron.right")
+                }
+                .disabled(model.isLoadingSchedule)
+            }
+
+            if let week = model.week {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(week.days, id: \.date) { day in
+                            let selected = W4Dates.isSameDay(day.date, model.selectedDate)
+                            Button {
+                                model.select(date: day.date)
+                            } label: {
+                                VStack(spacing: 4) {
+                                    Text(String(W4Dates.weekdayName(of: day.date).prefix(3)))
+                                        .font(.caption2.weight(.semibold))
+                                    Text("\(W4Dates.calendar.component(.day, from: day.date))")
+                                        .font(.headline)
+                                    Circle()
+                                        .fill(day.events.isEmpty ? Color.clear : Color.accentColor)
+                                        .frame(width: 5, height: 5)
+                                }
+                                .foregroundStyle(selected ? Color.white : Color.primary)
+                                .frame(width: 48, height: 64)
+                                .background(
+                                    selected ? Color.accentColor : Color(uiColor: .tertiarySystemFill)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
+                let events = week.day(on: model.selectedDate)?.events ?? []
+                if events.isEmpty {
+                    Text("No lessons this day")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 8)
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(events) { event in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(event.displayTitle)
+                                    .font(.subheadline.weight(.semibold))
+                                Text(eventTimeLine(event))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
+            } else if !model.isLoadingSchedule {
+                Text("No lessons this week")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private var scheduleTitle: String {
+        if let week = model.week {
+            return "Schedule · week \(week.week)"
+        }
+        return "Schedule"
+    }
+
+    private func eventTimeLine(_ event: TimetableEvent) -> String {
+        var parts: [String] = []
+        if let start = event.start, let end = event.end {
+            parts.append("\(W4Dates.formatTime(start)) – \(W4Dates.formatTime(end))")
+        } else if event.isAllDay {
+            parts.append("All day")
+        }
+        if let room = event.room, !room.isEmpty { parts.append(room) }
+        if let teacher = event.teacher, !teacher.isEmpty { parts.append(teacher) }
+        return parts.joined(separator: " · ")
     }
 
     @ViewBuilder
@@ -444,6 +925,11 @@ struct StudentProfileView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
+}
+
+private enum ProfileTab: Hashable {
+    case schedule
+    case about
 }
 
 // MARK: - Detail row

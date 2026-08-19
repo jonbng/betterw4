@@ -825,7 +825,7 @@ final class DirectoryRepositoryTests: XCTestCase {
         XCTAssertTrue(entity.searchTokens.contains("nc00aaa"))
         XCTAssertEqual(
             W4PeopleParser.photoURL(forUWCId: entity.numericID)?.absoluteString,
-            "https://w4.uwcrcn.no/files/user_photos/nc00aaa_thumb.jpg"
+            "https://w4.uwcrcn.no/files/user_photos/nc00aaa_photo.jpg"
         )
     }
 }

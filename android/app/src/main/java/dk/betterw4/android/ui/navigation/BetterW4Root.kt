@@ -242,7 +242,6 @@ private fun AuthenticatedShell() {
 
     if (showOnboarding) {
         OnboardingOverlay(
-            settingsStore = settingsStore,
             onComplete = {
                 settingsStore.markOnboardingCompleted()
                 showOnboarding = false

@@ -159,14 +159,27 @@ final class NotificationsViewModel: ObservableObject {
     var isDemo: Bool { freshness == .demo }
 
     /// What the badge shows. Zero means no badge at all.
-    var unreadCount: Int { max(0, snapshot.count) }
+    var unreadCount: Int {
+        let raw = max(0, snapshot.count)
+        guard MailFeatureFlags.visible else {
+            let hidden = snapshot.emailGroups.reduce(0) { $0 + $1.items.count }
+            return max(0, raw - hidden)
+        }
+        return raw
+    }
 
     var hasUnread: Bool { unreadCount > 0 }
 
     var taskGroups: [W4NotificationGroup] { snapshot.taskGroups }
-    var emailGroups: [W4NotificationGroup] { snapshot.emailGroups }
+    var emailGroups: [W4NotificationGroup] {
+        MailFeatureFlags.visible ? snapshot.emailGroups : []
+    }
 
-    var isEmpty: Bool { snapshot.isEmpty }
+    var isEmpty: Bool {
+        snapshot.taskGroups.allSatisfy(\.items.isEmpty)
+            && emailGroups.allSatisfy(\.items.isEmpty)
+            && unreadCount <= 0
+    }
 
     var bellSymbol: String { hasUnread ? "bell.badge.fill" : "bell" }
 

@@ -1,5 +1,6 @@
 package dk.betterw4.android.feature.notifications
 
+import dk.betterw4.android.core.FeatureFlags
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 
@@ -34,6 +35,16 @@ data class W4NotificationSnapshot(
         get() = taskGroups.flatMap { it.items } + emailGroups.flatMap { it.items }
 
     val isEmpty: Boolean get() = items.isEmpty() && count <= 0
+
+    /** Drops W4 mailer items when [FeatureFlags.MAIL_ENABLED] is off. */
+    fun forDisplay(): W4NotificationSnapshot {
+        if (FeatureFlags.MAIL_ENABLED) return this
+        val hidden = emailGroups.sumOf { it.items.size }
+        return copy(
+            emailGroups = emptyList(),
+            count = (count - hidden).coerceAtLeast(0),
+        )
+    }
 }
 
 /**

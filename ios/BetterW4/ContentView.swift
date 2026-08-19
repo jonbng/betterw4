@@ -17,6 +17,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct ContentView: View {
     @StateObject private var authViewModel = AuthenticationViewModel()
@@ -33,6 +34,12 @@ struct ContentView: View {
 
             case .authenticated(let student):
                 AuthenticatedTabShell(student: student, authViewModel: authViewModel)
+                    .task {
+                        await NotificationRefresh.requestAuthorizationIfNeeded()
+                    }
+                    .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+                        NotificationBackgroundRefresh.schedule()
+                    }
             }
         }
         .preferredColorScheme(settingsStore.preferredColorScheme)
@@ -214,7 +221,10 @@ struct MoreView: View {
             Section {
                 row("Home", systemImage: "house") { HomeView(student: student) }
                 row("Notifications", systemImage: "bell") { NotificationsView() }
-                row("Mail", systemImage: "envelope") { MessagesView(student: student) }
+                if MailFeatureFlags.visible {
+                    row("Mail", systemImage: "envelope") { MessagesView(student: student) }
+                }
+                row("Houses", systemImage: "building.2") { HousesView() }
             } header: {
                 Text("School")
             }
@@ -229,6 +239,7 @@ struct MoreView: View {
 
             Section {
                 directoryRow("Teachers", systemImage: "person.text.rectangle.fill", presentation: .teachers)
+                row("On duty", systemImage: "person.badge.shield.checkmark") { OnDutyView() }
             } header: {
                 Text("People")
             }

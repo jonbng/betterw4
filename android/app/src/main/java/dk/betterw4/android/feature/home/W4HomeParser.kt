@@ -3,6 +3,7 @@ package dk.betterw4.android.feature.home
 import dk.betterw4.android.core.w4.W4Hosts
 import dk.betterw4.android.core.w4.W4Html
 import dk.betterw4.android.core.w4.W4Urls
+import dk.betterw4.android.feature.directory.W4PeopleParser
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -281,7 +282,7 @@ object W4HomeParser {
     private fun photoUrl(source: String): String? {
         val url = absoluteUrl(source) ?: return null
         if (url.substringAfterLast('/').equals("user.png", ignoreCase = true)) return null
-        return url
+        return W4PeopleParser.fullSizePhotoUrl(url)
     }
 
     private fun stableHash(vararg parts: String): String {

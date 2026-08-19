@@ -108,7 +108,7 @@ class StudiekortRepository @Inject constructor(
 
     private fun demoCard(student: Student) = StudentCard(
         student = student.copy(
-            name = student.name ?: "Demo Elev",
+            name = student.name ?: "Demo Student",
             classLabel = student.classLabel ?: "Year 1 · Haugland",
             schoolName = student.schoolName ?: W4School.NAME,
         ),

@@ -6,7 +6,9 @@
 //
 
 import SwiftUI
-import UserNotifications
+#if os(iOS)
+import BackgroundTasks
+#endif
 
 @main
 struct BetterW4App: App {
@@ -14,29 +16,16 @@ struct BetterW4App: App {
         Task.detached(priority: .utility) {
             OutgoingMessageAttachment.purgeStaleTemporaryFiles()
         }
+        #if os(iOS)
+        NotificationBackgroundRefresh.register { task in
+            NotificationRefresh.handle(task)
+        }
+        #endif
     }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .task {
-                    await requestNotificationsIfNeeded()
-                }
-        }
-    }
-
-    private func requestNotificationsIfNeeded() async {
-        let center = UNUserNotificationCenter.current()
-        let settings = await center.notificationSettings()
-        guard settings.authorizationStatus == .notDetermined else { return }
-
-        do {
-            let granted = try await center.requestAuthorization(options: [.alert, .badge, .sound])
-            await MainActor.run {
-                SettingsStore.shared.saveNotificationsEnabled(granted)
-            }
-        } catch {
-            print("Notification permission error: \(error)")
         }
     }
 }

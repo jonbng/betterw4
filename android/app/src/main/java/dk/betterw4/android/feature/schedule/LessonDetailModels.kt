@@ -12,11 +12,11 @@ data class LessonParticipant(
 ) {
     companion object {
         fun fromDirectory(entity: DirectoryEntity): LessonParticipant {
-            val role = when (entity.kind) {
-                DirectoryEntityKind.TEACHER -> "Lærer"
-                DirectoryEntityKind.STUDENT -> "Elev"
-                else -> null
-            }
+            val role = entity.subtitle?.takeIf { it.isNotBlank() }
+                ?: when (entity.kind) {
+                    DirectoryEntityKind.TEACHER -> "Teacher"
+                    DirectoryEntityKind.STUDENT -> "Student"
+                }
             return LessonParticipant(
                 id = entity.id,
                 name = entity.name,
@@ -26,6 +26,14 @@ data class LessonParticipant(
             )
         }
     }
+
+    fun toEntity(): DirectoryEntity = DirectoryEntity(
+        id = id,
+        name = name,
+        kind = kind ?: DirectoryEntityKind.STUDENT,
+        subtitle = role,
+        avatarUrl = avatarUrl,
+    )
 }
 
 data class LessonResource(

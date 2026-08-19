@@ -11,7 +11,7 @@
 //    * W4 is one school on one host, so there is no `gymId` to scope by;
 //    * `uwc_id` (`nc26abcd`) is globally unique, so it *is* the primary key;
 //    * W4 has people and rooms, not nine kinds of dropdown row;
-//    * photos are `{uwc_id}_thumb.jpg` — derived, so a `pictureID` column has nothing to hold, and
+//    * photos are `{uwc_id}.jpg` — derived, so a `pictureID` column has nothing to hold, and
 //      the third-party image-URL builder that read it is deleted rather than ported;
 //    * with ~200 people the whole table fits in memory, so search is one computed normalized
 //      string rather than a persisted token table;
@@ -262,7 +262,7 @@ final class DirectoryStore {
 
     // MARK: - Photos
 
-    /// W4's photo convention: `/files/user_photos/{uwc_id}_thumb.jpg`.
+    /// W4's photo convention: `/files/user_photos/{uwc_id}_photo.jpg`.
     ///
     /// Derived, so there is nothing to fetch and nothing to store. The Lectio picture-id image
     /// URL builder this replaces is deleted, not ported.

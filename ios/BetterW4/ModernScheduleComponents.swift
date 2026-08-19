@@ -14,26 +14,6 @@
 import SwiftUI
 import UIKit
 
-// MARK: - Colour blending
-
-private extension Color {
-    /// Blends toward `other`. `fraction` = how much of `other` to mix in (0 = self, 1 = other).
-    func blended(with fraction: CGFloat, of other: Color) -> Color {
-        let base = UIColor(self)
-        let target = UIColor(other)
-        var r1: CGFloat = 0, g1: CGFloat = 0, b1: CGFloat = 0, a1: CGFloat = 0
-        var r2: CGFloat = 0, g2: CGFloat = 0, b2: CGFloat = 0, a2: CGFloat = 0
-        base.getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
-        target.getRed(&r2, green: &g2, blue: &b2, alpha: &a2)
-        return Color(
-            red: Double(r1 + (r2 - r1) * fraction),
-            green: Double(g1 + (g2 - g1) * fraction),
-            blue: Double(b1 + (b2 - b1) * fraction),
-            opacity: 1
-        )
-    }
-}
-
 // MARK: - Timeline
 
 struct ModernTimelineListView: View {
@@ -188,13 +168,12 @@ struct ModernScheduleCard: View {
 
     private var isCancelled: Bool { event.status == .cancelled }
 
-    /// Light mode tints toward white; dark mode tints toward near-black so blocks stay saturated.
     private var cardBackgroundColor: Color {
         if isCancelled {
             return Color(colorScheme == .dark ? UIColor.systemGray4 : UIColor.systemGray6)
         }
-        let neutral: Color = colorScheme == .dark ? Color(UIColor.systemGray6) : .white
-        return themeColor.blended(with: colorScheme == .dark ? 0.6 : 0.85, of: neutral)
+        let surface = Color(colorScheme == .dark ? UIColor.systemGray6 : UIColor.systemBackground)
+        return surface.tinted(with: themeColor, amount: colorScheme == .dark ? 0.24 : 0.18)
     }
 
     var body: some View {
@@ -202,39 +181,48 @@ struct ModernScheduleCard: View {
             RoundedRectangle(cornerRadius: compact ? 8 : 15, style: .continuous)
                 .fill(cardBackgroundColor)
 
-            VStack(alignment: .leading, spacing: compact ? 0 : 4) {
-                HStack(alignment: .center, spacing: 6) {
-                    Text(event.displayTitle)
-                        .font(.system(size: compact ? 12 : 15, weight: .medium))
-                        .foregroundColor(.primary.opacity(0.6))
-                        .lineLimit(1)
-                        .minimumScaleFactor(compact ? 0.75 : 1)
-                        .strikethrough(isCancelled)
+            HStack(alignment: .top, spacing: 0) {
+                RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                    .fill(isCancelled ? Color.clear : themeColor)
+                    .frame(width: 3)
+                    .frame(maxHeight: .infinity)
+                    .padding(.vertical, compact ? 4 : 10)
+                    .padding(.leading, 6)
 
-                    Spacer(minLength: 4)
+                VStack(alignment: .leading, spacing: compact ? 0 : 4) {
+                    HStack(alignment: .center, spacing: 6) {
+                        Text(event.displayTitle)
+                            .font(.system(size: compact ? 12 : 15, weight: .semibold))
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(compact ? 0.75 : 1)
+                            .strikethrough(isCancelled)
+
+                        Spacer(minLength: 4)
+
+                        if !compact {
+                            Image(systemName: event.iconName)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(themeColor.opacity(0.85))
+                        }
+                    }
+
+                    if !compact, let detail = event.locationLine {
+                        Text(detail)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
 
                     if !compact {
-                        Image(systemName: event.iconName)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.primary.opacity(0.4))
+                        Spacer(minLength: 0)
                     }
                 }
-
-                if !compact, let detail = event.locationLine {
-                    Text(detail)
-                        .font(.system(size: 13, weight: .light))
-                        .foregroundColor(.primary.opacity(0.5))
-                        .lineLimit(1)
-                }
-
-                if !compact {
-                    Spacer(minLength: 0)
-                }
+                .padding(.top, compact ? 1 : 12)
+                .padding(.bottom, compact ? 1 : 4)
+                .padding(.leading, 10)
+                .padding(.trailing, compact ? 8 : 12)
             }
-            .padding(.top, compact ? 1 : 12)
-            .padding(.bottom, compact ? 1 : 4)
-            .padding(.leading, compact ? 10 : 14)
-            .padding(.trailing, compact ? 8 : 12)
 
             if !compact, event.status != .normal {
                 VStack {

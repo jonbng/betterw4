@@ -172,8 +172,13 @@ enum W4Routes {
         static let assessments = "academics/deadlines"
         static let myTimetable = "academics/timetable/mytimetable"
         static let myTimetableIndex = "academics/timetable/mytimetable/index"
+        /// Another person's AC week: `?uwc_id=&year=&week=`.
+        static let personTimetable = "academics/timetable/timetable"
+        static let personTimetableIndex = "academics/timetable/timetable/index"
         static let myClasses = "academics/classes/myclasses"
         static let allClasses = "academics/classes/allclasses"
+        /// One class: `?class_id=1EA16CECOX`. The roster lives here.
+        static let classPage = "academics/classes/class"
         static let allAssessments = "academics/classes/assessments/all"
         static let grades = "academics/grades/grades"
         static let satACT = "academics/grades/grades/sat"
@@ -187,10 +192,13 @@ enum W4Routes {
         static let travel = "academics/travel/travel.list"
         static let resources = "academics/resources/resources"
         static let roomTimetable = "academics/timetable/room"
+        static let roomTimetableIndex = "academics/timetable/room/index"
 
         // extra academics
         static let eaTimetable = "extraacademics/timetable/mytimetable"
         static let eaTimetableIndex = "extraacademics/timetable/mytimetable/index"
+        static let eaPersonTimetable = "extraacademics/timetable/timetable"
+        static let eaPersonTimetableIndex = "extraacademics/timetable/timetable/index"
         static let eaActivities = "extraacademics/activities/myactivities"
         static let eaDiary = "extraacademics/activities/myactivities/diary"
         static let eaPortfolio = "extraacademics/activities/myportfolio"
@@ -207,11 +215,15 @@ enum W4Routes {
         static let studentsAll = "people/students/all"
         static let studentsFirstYear = "people/students/firstyear"
         static let studentsSecondYear = "people/students/secondyear"
+        static let studentsByHouse = "people/students/byhouse"
+        static let studentsByHouseIndex = "people/students/byhouse/index"
         static let staff = "people/students/staff"
         static let staffCurrent = "people/staff/current"
         static let staffProfile = "people/staff/staff"
         static let letterOfAttendance = "people/students/letter/attendance"
         static let birthdays = "people/birthdays"
+        static let onDuty = "people/onduty"
+        static let onDutySchedule = "people/onduty/schedule"
 
         // mailer
         static let mailerInbox = "mailer/inbox"

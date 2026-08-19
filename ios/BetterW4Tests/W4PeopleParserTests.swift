@@ -110,7 +110,8 @@ final class W4PeopleParserTests: XCTestCase {
     }
 
     /// **[I]** for the list row; the `/images/user.png` placeholder itself and the
-    /// `{uwc_id}_thumb.jpg` convention are **[V]** (parsers.md §11).
+    /// `{uwc_id}_thumb.jpg` list-page convention are **[V]** (parsers.md §11).
+    /// We upgrade thumbs to the matching full `{uwc_id}_photo.jpg` portrait.
     func testPlaceholderPhotoIsNilAndThumbnailResolves() throws {
         let page = W4PeopleParser.parseList(try fixture("people-list"))
 
@@ -120,11 +121,11 @@ final class W4PeopleParserTests: XCTestCase {
         )
         XCTAssertEqual(
             try person(page, "nc00bbb").photoURL?.absoluteString,
-            "https://w4.uwcrcn.no/files/user_photos/nc00bbb_thumb.jpg"
+            "https://w4.uwcrcn.no/files/user_photos/nc00bbb_photo.jpg"
         )
         XCTAssertEqual(
             try person(page, "nc00ccc").photoURL?.absoluteString,
-            "https://w4.uwcrcn.no/files/user_photos/nc00ccc_thumb.jpg"
+            "https://w4.uwcrcn.no/files/user_photos/nc00ccc_photo.jpg"
         )
     }
 
@@ -138,7 +139,7 @@ final class W4PeopleParserTests: XCTestCase {
         XCTAssertEqual(try person(page, "nc00bbb").name, "Bea Beltran")
         XCTAssertEqual(
             try person(page, "nc00bbb").photoURL?.absoluteString,
-            "https://w4.uwcrcn.no/files/user_photos/nc00bbb_thumb.jpg",
+            "https://w4.uwcrcn.no/files/user_photos/nc00bbb_photo.jpg",
             "the name-only anchor must not clobber the photo anchor's portrait"
         )
         XCTAssertTrue(try person(page, "nc00bbb").hasResolvedName)
@@ -288,7 +289,7 @@ final class W4PeopleParserTests: XCTestCase {
         XCTAssertEqual(first.name, "nc00ddd")
         XCTAssertFalse(first.hasResolvedName, "the UI must be able to tell there is no real name")
         XCTAssertEqual(first.photoURL?.absoluteString,
-                       "https://w4.uwcrcn.no/files/user_photos/nc00ddd_thumb.jpg")
+                       "https://w4.uwcrcn.no/files/user_photos/nc00ddd_photo.jpg")
 
         XCTAssertEqual(second.name, "nc00eee")
         XCTAssertFalse(second.hasResolvedName)
@@ -303,17 +304,38 @@ final class W4PeopleParserTests: XCTestCase {
     }
 
     /// Every capture we hold was saved by a browser, which rewrote photo sources
-    /// to `./UWCRCN W4_files/{uwc_id}_thumb.jpg`. Restore the live convention
-    /// rather than dropping the portrait.
+    /// to `./UWCRCN W4_files/{uwc_id}_thumb.jpg`. Restore the live full-size
+    /// convention rather than dropping the portrait.
     func testSavedPageThumbnailPathIsRestoredToTheLiveConvention() {
         XCTAssertEqual(
             W4PeopleParser.photoURL(fromSource: "./UWCRCN W4_files/nc00aaa_thumb.jpg", uwcId: "nc00aaa")?
                 .absoluteString,
-            "https://w4.uwcrcn.no/files/user_photos/nc00aaa_thumb.jpg"
+            "https://w4.uwcrcn.no/files/user_photos/nc00aaa_photo.jpg"
         )
         XCTAssertEqual(
             W4PeopleParser.photoURL(forUWCId: "NC00AAA")?.absoluteString,
-            "https://w4.uwcrcn.no/files/user_photos/nc00aaa_thumb.jpg"
+            "https://w4.uwcrcn.no/files/user_photos/nc00aaa_photo.jpg"
+        )
+        XCTAssertEqual(
+            W4PeopleParser.photoURL(
+                fromSource: "/files/user_photos/nc00aaa_thumb.jpg",
+                uwcId: "nc00aaa"
+            )?.absoluteString,
+            "https://w4.uwcrcn.no/files/user_photos/nc00aaa_photo.jpg"
+        )
+        XCTAssertEqual(
+            W4PeopleParser.photoURL(
+                fromSource: "/files/user_photos/nc00aaa.jpg",
+                uwcId: "nc00aaa"
+            )?.absoluteString,
+            "https://w4.uwcrcn.no/files/user_photos/nc00aaa_photo.jpg"
+        )
+        XCTAssertEqual(
+            W4PeopleParser.photoURL(
+                fromSource: "/files/user_photos/nc00aaa_photo.jpg",
+                uwcId: "nc00aaa"
+            )?.absoluteString,
+            "https://w4.uwcrcn.no/files/user_photos/nc00aaa_photo.jpg"
         )
     }
 
@@ -386,7 +408,7 @@ final class W4PeopleParserTests: XCTestCase {
         XCTAssertEqual(profile.lastLogin, "15-Aug-2026 09:14")
         XCTAssertEqual(
             profile.person.photoURL?.absoluteString,
-            "https://w4.uwcrcn.no/files/user_photos/nc00aaa_thumb.jpg"
+            "https://w4.uwcrcn.no/files/user_photos/nc00aaa_photo.jpg"
         )
     }
 
@@ -473,6 +495,53 @@ final class W4PeopleParserTests: XCTestCase {
         XCTAssertEqual(profile.value(forLabel: "uwc_id"), "nc00aaa",
                        "label lookup is case- and punctuation-insensitive")
         XCTAssertNil(profile.value(forLabel: "Shoe size"))
+    }
+
+    /// **[V]** Live staff pages (`people/staff/staff`) use `dl/dt/dd`, not
+    /// `table.detail-view`. Students want role, contact, taught classes and EA
+    /// activities — not house/year.
+    func testStaffProfileParsesRolesContactClassesAndEA() throws {
+        let profile = try XCTUnwrap(W4PeopleParser.parseProfile(try fixture("staff-profile"), kind: .staff))
+
+        XCTAssertEqual(profile.uwcId, "nc00ccc")
+        XCTAssertEqual(profile.person.name, "Chris Chen")
+        XCTAssertEqual(profile.person.kind, .staff)
+        XCTAssertEqual(profile.person.country, "China")
+        XCTAssertEqual(profile.scrapedEmail, "chris.chen@uwcrcn.no")
+        XCTAssertEqual(profile.officeTel, "7022")
+        XCTAssertEqual(profile.mobile, "40432379")
+        XCTAssertEqual(profile.birthday, "17-Nov")
+        XCTAssertEqual(profile.positions, ["Advisor", "EA Leader", "Economics", "Mathematics", "Teacher"])
+        XCTAssertEqual(
+            profile.person.photoURL?.absoluteString,
+            "https://w4.uwcrcn.no/files/user_photos/nc00ccc_photo.jpg"
+        )
+        XCTAssertEqual(profile.taughtClasses.count, 3)
+        let econ = try XCTUnwrap(profile.taughtClasses.first { $0.classId == "1EA16CECOX" })
+        XCTAssertEqual(econ.name, "Economics")
+        XCTAssertEqual(econ.year, "1")
+        XCTAssertEqual(econ.levelLabel, "HL/SL")
+        XCTAssertEqual(econ.room, "A 1.6")
+        let advisor = try XCTUnwrap(profile.taughtClasses.first { $0.classId == "Chris" })
+        XCTAssertEqual(advisor.name, "Advisor group")
+        XCTAssertEqual(advisor.room, "Leif Høegh")
+        XCTAssertEqual(profile.activities.count, 2)
+        XCTAssertEqual(profile.activities[0].name, "Campus responsibility Peer tutoring Economics")
+        XCTAssertEqual(profile.activities[0].dates, "01-Apr-2026 to 31-Mar-2027")
+        XCTAssertEqual(profile.activities[0].category, "service")
+    }
+
+    func testKitchenStaffProfileHasRoleAndNoClasses() throws {
+        let profile = try XCTUnwrap(W4PeopleParser.parseProfile(try fixture("staff-kitchen")))
+        XCTAssertEqual(profile.uwcId, "nc00ddd")
+        XCTAssertEqual(profile.person.kind, .staff)
+        XCTAssertEqual(profile.positions, ["Kitchen"])
+        XCTAssertEqual(profile.scrapedEmail, "dana.dahl@uwcrcn.no")
+        XCTAssertNil(profile.officeTel)
+        XCTAssertNil(profile.mobile)
+        XCTAssertTrue(profile.taughtClasses.isEmpty)
+        XCTAssertTrue(profile.activities.isEmpty)
+        XCTAssertEqual(profile.person.country, "Norway")
     }
 
     // MARK: - Synthesized markup builders ([I] — invented, never captured)

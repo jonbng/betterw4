@@ -70,6 +70,9 @@ class SettingsStore @Inject constructor(
     private val _notifAssignments = MutableStateFlow(prefs.getBoolean("notif_assignments", true))
     val notifAssignments: StateFlow<Boolean> = _notifAssignments.asStateFlow()
 
+    private val _notifTrips = MutableStateFlow(prefs.getBoolean("notif_trips", true))
+    val notifTrips: StateFlow<Boolean> = _notifTrips.asStateFlow()
+
     /** When true, never append the BetterW4 signature on send/reply. */
     private val _disableSignature = MutableStateFlow(prefs.getBoolean("disable_signature", false))
     val disableSignature: StateFlow<Boolean> = _disableSignature.asStateFlow()
@@ -161,6 +164,11 @@ class SettingsStore @Inject constructor(
     fun setNotifAssignments(v: Boolean) {
         prefs.edit { putBoolean("notif_assignments", v) }
         _notifAssignments.value = v
+    }
+
+    fun setNotifTrips(v: Boolean) {
+        prefs.edit { putBoolean("notif_trips", v) }
+        _notifTrips.value = v
     }
 
     fun setDisableSignature(v: Boolean) {

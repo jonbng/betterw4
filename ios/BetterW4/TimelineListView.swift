@@ -243,11 +243,22 @@ struct ScheduleCard: View {
         }
     }
 
+    @ViewBuilder
+    private var accentBar: some View {
+        if !isCancelled {
+            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                .fill(themeColor)
+                .frame(width: 3)
+                .padding(.vertical, layoutStyle == .micro ? 3 : 8)
+                .padding(.leading, 5)
+        }
+    }
+
     private var microBody: some View {
         HStack(alignment: .center, spacing: 6) {
             Text(title)
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(isCancelled ? .secondary : themeColor.opacity(themeTitleOpacity))
+                .foregroundColor(isCancelled ? .secondary : .primary)
                 .strikethrough(isCancelled)
                 .minimumScaleFactor(0.75)
                 .lineLimit(1)
@@ -257,15 +268,17 @@ struct ScheduleCard: View {
             if !subtitle.isEmpty {
                 Text(subtitle)
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(isCancelled ? .secondary : themeColor.opacity(themeSubtitleOpacity))
+                    .foregroundColor(.secondary)
                     .minimumScaleFactor(0.75)
                     .lineLimit(1)
             }
         }
         .frame(maxHeight: .infinity)
-        .padding(.horizontal, 10)
+        .padding(.leading, 14)
+        .padding(.trailing, 10)
         .padding(.vertical, 1)
         .background(backgroundColorForStatus)
+        .overlay(alignment: .leading) { accentBar }
         .cornerRadius(8, antialiased: true)
         .overlay(
             RoundedRectangle(cornerRadius: 8)
@@ -277,12 +290,12 @@ struct ScheduleCard: View {
         HStack(alignment: .center, spacing: 8) {
             Image(systemName: iconName)
                 .font(.system(size: 18))
-                .foregroundColor(isCancelled ? .gray : themeColor.opacity(themeIconOpacity))
+                .foregroundColor(isCancelled ? .gray : themeColor.opacity(0.85))
                 .frame(width: 22)
 
             Text(title)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(isCancelled ? .secondary : themeColor.opacity(themeTitleOpacity))
+                .foregroundColor(isCancelled ? .secondary : .primary)
                 .strikethrough(isCancelled)
                 .minimumScaleFactor(0.85)
                 .lineLimit(1)
@@ -296,7 +309,7 @@ struct ScheduleCard: View {
             if !subtitle.isEmpty {
                 Text(subtitle)
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(isCancelled ? .secondary : themeColor.opacity(themeSubtitleOpacity))
+                    .foregroundColor(.secondary)
                     .minimumScaleFactor(0.85)
                     .lineLimit(1)
             }
@@ -304,9 +317,11 @@ struct ScheduleCard: View {
             statusBadge
         }
         .frame(maxHeight: .infinity)
-        .padding(.horizontal, 12)
+        .padding(.leading, 16)
+        .padding(.trailing, 12)
         .padding(.vertical, 8)
         .background(backgroundColorForStatus)
+        .overlay(alignment: .leading) { accentBar }
         .cornerRadius(12, antialiased: true)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
@@ -319,7 +334,7 @@ struct ScheduleCard: View {
             HStack(alignment: .top) {
                 Image(systemName: iconName)
                     .font(.title3)
-                    .foregroundColor(isCancelled ? .gray : themeColor.opacity(themeIconOpacity))
+                    .foregroundColor(isCancelled ? .gray : themeColor.opacity(0.85))
 
                 Spacer()
 
@@ -333,7 +348,7 @@ struct ScheduleCard: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.headline)
-                    .foregroundColor(isCancelled ? .secondary : themeColor.opacity(themeTitleOpacity))
+                    .foregroundColor(isCancelled ? .secondary : .primary)
                     .strikethrough(isCancelled)
                     .minimumScaleFactor(0.9)
                     .lineLimit(2)
@@ -341,15 +356,18 @@ struct ScheduleCard: View {
                 if !subtitle.isEmpty {
                     Text(subtitle)
                         .font(.subheadline)
-                        .foregroundColor(isCancelled ? .secondary : themeColor.opacity(themeSubtitleOpacity))
+                        .foregroundColor(.secondary)
                         .minimumScaleFactor(0.9)
                         .lineLimit(1)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
-        .padding(12)
+        .padding(.leading, 16)
+        .padding(.trailing, 12)
+        .padding(.vertical, 12)
         .background(backgroundColorForStatus)
+        .overlay(alignment: .leading) { accentBar }
         .cornerRadius(16, antialiased: true)
         .overlay(
             RoundedRectangle(cornerRadius: 16)
@@ -376,24 +394,19 @@ struct ScheduleCard: View {
     private func teacherBadge(initials: String, size: CGFloat) -> some View {
         Text(initials)
             .font(.system(size: size * 0.4, weight: .semibold, design: .rounded))
-            .foregroundColor(.white)
+            .foregroundColor(.secondary)
             .frame(width: size, height: size)
-            .background(themeColor.opacity(colorScheme == .dark ? 0.72 : 0.6))
+            .background(Color(UIColor.tertiarySystemFill))
             .clipShape(Circle())
     }
-
-    private var themeIconOpacity: Double { colorScheme == .dark ? 0.78 : 0.6 }
-    private var themeTitleOpacity: Double { colorScheme == .dark ? 0.95 : 0.9 }
-    private var themeSubtitleOpacity: Double { colorScheme == .dark ? 0.82 : 0.7 }
 
     private var backgroundColorForStatus: Color {
         switch status {
         case .cancelled:
             return Color(UIColor.secondarySystemBackground).opacity(0.4)
-        case .changed, .moved:
-            return themeColor.opacity(colorScheme == .dark ? 0.28 : 0.15)
-        case .normal:
-            return themeColor.opacity(colorScheme == .dark ? 0.22 : 0.1)
+        case .changed, .moved, .normal:
+            let surface = Color(colorScheme == .dark ? UIColor.systemGray6 : UIColor.systemBackground)
+            return surface.tinted(with: themeColor, amount: colorScheme == .dark ? 0.24 : 0.18)
         }
     }
 
@@ -402,9 +415,9 @@ struct ScheduleCard: View {
         case .cancelled:
             return Color.secondary.opacity(0.3)
         case .changed, .moved:
-            return themeColor.opacity(colorScheme == .dark ? 0.55 : 0.4)
+            return themeColor.opacity(colorScheme == .dark ? 0.55 : 0.35)
         case .normal:
-            return themeColor.opacity(colorScheme == .dark ? 0.38 : 0.2)
+            return Color(UIColor.separator).opacity(colorScheme == .dark ? 0.5 : 0.35)
         }
     }
 }

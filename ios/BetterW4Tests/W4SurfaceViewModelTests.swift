@@ -507,7 +507,11 @@ final class W4SurfaceViewModelTests: XCTestCase {
         await viewModel.refresh()
         XCTAssertTrue(viewModel.hasUnread)
         XCTAssertFalse(viewModel.taskGroups.isEmpty)
-        XCTAssertFalse(viewModel.emailGroups.isEmpty)
+        if MailFeatureFlags.visible {
+            XCTAssertFalse(viewModel.emailGroups.isEmpty)
+        } else {
+            XCTAssertTrue(viewModel.emailGroups.isEmpty)
+        }
 
         await viewModel.markAllRead()
         XCTAssertEqual(viewModel.unreadCount, 0)

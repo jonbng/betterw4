@@ -160,4 +160,4 @@ list with file and line references in **`docs/W4_PORT_PLAN.md` §0.3**.
 | `docs/RELEASE.md` | App Store submission: the review path, the privacy answer, entitlements, and what still blocks a submission. |
 | `docs/spec/parsers.md` | Every selector, with a bug register of places the Android port is wrong. |
 | `docs/spec/reviewer-notes.md` | Verified versus assumed, in more detail than this page. |
-| `../README.md` | The W4 protocol brief — routes, the login flow, cookies, session-death rules. Shared with the Android app. |
+| `../PROTOCOL.md` | The W4 protocol brief — routes, the login flow, cookies, session-death rules. Shared with the Android app. |

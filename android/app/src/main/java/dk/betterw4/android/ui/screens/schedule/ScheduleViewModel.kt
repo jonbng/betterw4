@@ -18,7 +18,14 @@ import dk.betterw4.android.feature.notifications.W4NotificationItem
 import dk.betterw4.android.feature.notifications.W4NotificationRepository
 import dk.betterw4.android.feature.review.ReviewPromptCoordinator
 import dk.betterw4.android.feature.review.ReviewTrigger
+import dk.betterw4.android.feature.directory.DirectoryEntity
+import dk.betterw4.android.feature.directory.DirectoryPinRepository
+import dk.betterw4.android.feature.directory.DirectoryRepository
+import dk.betterw4.android.feature.directory.HouseRepository
+import dk.betterw4.android.feature.directory.RoomScheduleRepository
+import dk.betterw4.android.feature.directory.StudentProfile
 import dk.betterw4.android.feature.schedule.LessonDetail
+import dk.betterw4.android.feature.schedule.PersonClasses
 import dk.betterw4.android.feature.schedule.PrivateEventDraft
 import dk.betterw4.android.feature.schedule.PrivateEventIds
 import dk.betterw4.android.feature.schedule.ScheduleDay
@@ -40,6 +47,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -63,6 +72,14 @@ data class ScheduleUiState(
     val selectedEvent: ScheduleEvent? = null,
     val lessonDetail: LessonDetail? = null,
     val detailLoading: Boolean = false,
+    /** Person opened from the class roster in the lesson sheet. */
+    val selectedPerson: DirectoryEntity? = null,
+    val studentProfile: StudentProfile? = null,
+    val personSchedule: ScheduleWeek? = null,
+    val personWeekYear: Int = IsoDateUtils.isoWeekYear(),
+    val personWeek: Int = IsoDateUtils.isoWeek(),
+    val personLoading: Boolean = false,
+    val pinnedIds: Set<String> = emptySet(),
     val showPrivateEvent: Boolean = false,
     /** Non-null when editing an existing private event. */
     val editingPrivateEventId: String? = null,
@@ -83,6 +100,10 @@ data class ScheduleUiState(
 @HiltViewModel
 class ScheduleViewModel @Inject constructor(
     private val repository: ScheduleRepository,
+    private val roomScheduleRepo: RoomScheduleRepository,
+    private val houseRepo: HouseRepository,
+    private val directoryRepo: DirectoryRepository,
+    private val pinRepo: DirectoryPinRepository,
     private val campusStatus: CampusStatusRepository,
     private val notificationsRepo: W4NotificationRepository,
     private val liveLessonNotifier: LiveLessonNotifier,
@@ -398,10 +419,31 @@ class ScheduleViewModel @Inject constructor(
 
     fun selectEvent(event: ScheduleEvent?) {
         if (event == null) {
-            _state.update { it.copy(selectedEvent = null, lessonDetail = null, detailLoading = false) }
+            _state.update {
+                it.copy(
+                    selectedEvent = null,
+                    lessonDetail = null,
+                    detailLoading = false,
+                    selectedPerson = null,
+                    studentProfile = null,
+                    personSchedule = null,
+                    personLoading = false,
+                )
+            }
             return
         }
-        _state.update { it.copy(selectedEvent = event, detailLoading = true, lessonDetail = null) }
+        _state.update {
+            it.copy(
+                selectedEvent = event,
+                detailLoading = true,
+                lessonDetail = null,
+                selectedPerson = null,
+                studentProfile = null,
+                personSchedule = null,
+                personLoading = false,
+                pinnedIds = pinRepo.pinnedIds(),
+            )
+        }
         viewModelScope.launch {
             when (val res = repository.loadLessonDetail(event)) {
                 is AppResult.Success -> _state.update {
@@ -419,6 +461,107 @@ class ScheduleViewModel @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    fun openPerson(entity: DirectoryEntity) = viewModelScope.launch {
+        val year = IsoDateUtils.isoWeekYear()
+        val week = IsoDateUtils.isoWeek()
+        _state.update {
+            it.copy(
+                selectedPerson = entity,
+                studentProfile = StudentProfile.from(entity, null),
+                personSchedule = null,
+                personWeekYear = year,
+                personWeek = week,
+                personLoading = true,
+                pinnedIds = pinRepo.pinnedIds(),
+            )
+        }
+        coroutineScope {
+            val weekDeferred = async { roomScheduleRepo.loadPersonWeek(entity, year, week) }
+            val placementDeferred = async {
+                if (entity.kind == dk.betterw4.android.feature.directory.DirectoryEntityKind.TEACHER) {
+                    null
+                } else {
+                    houseRepo.findPlacement(entity.id)
+                }
+            }
+            val profileDeferred = async { directoryRepo.loadProfile(entity) }
+            val weekRes = weekDeferred.await()
+            val placement = placementDeferred.await()
+            val parsed = (profileDeferred.await() as? AppResult.Success)?.data
+            val classes = when (weekRes) {
+                is AppResult.Success -> PersonClasses.fromWeek(weekRes.data)
+                is AppResult.Failure -> emptyList()
+            }
+            _state.update {
+                it.copy(
+                    personLoading = false,
+                    personSchedule = (weekRes as? AppResult.Success)?.data,
+                    studentProfile = StudentProfile.from(entity, placement, classes, parsed),
+                )
+            }
+        }
+    }
+
+    fun closePerson() {
+        _state.update {
+            it.copy(
+                selectedPerson = null,
+                studentProfile = null,
+                personSchedule = null,
+                personLoading = false,
+            )
+        }
+    }
+
+    fun togglePersonPin() {
+        val entity = _state.value.selectedPerson ?: return
+        pinRepo.toggle(entity.id)
+        _state.update { it.copy(pinnedIds = pinRepo.pinnedIds()) }
+    }
+
+    fun shiftPersonWeek(delta: Int) {
+        val currentStart = IsoDateUtils.weekStart(
+            _state.value.personWeekYear,
+            _state.value.personWeek,
+        )
+        loadPersonWeekForDate(currentStart.plusWeeks(delta.toLong()))
+    }
+
+    fun goToPersonToday() {
+        loadPersonWeekForDate(W4Dates.today())
+    }
+
+    fun loadPersonWeekForDate(date: LocalDate) = viewModelScope.launch {
+        val entity = _state.value.selectedPerson ?: return@launch
+        val year = IsoDateUtils.isoWeekYear(date)
+        val week = IsoDateUtils.isoWeek(date)
+        if (year == _state.value.personWeekYear &&
+            week == _state.value.personWeek &&
+            _state.value.personSchedule != null
+        ) {
+            return@launch
+        }
+        _state.update { it.copy(personLoading = true) }
+        when (val res = roomScheduleRepo.loadPersonWeek(entity, year, week)) {
+            is AppResult.Success -> _state.update {
+                val merged = PersonClasses.merge(
+                    it.studentProfile?.classes.orEmpty(),
+                    PersonClasses.fromWeek(res.data),
+                )
+                it.copy(
+                    personLoading = false,
+                    personWeekYear = year,
+                    personWeek = week,
+                    personSchedule = res.data,
+                    studentProfile = (it.studentProfile
+                        ?: StudentProfile(id = entity.id, name = entity.name, kind = entity.kind))
+                        .copy(classes = merged),
+                )
+            }
+            is AppResult.Failure -> _state.update { it.copy(personLoading = false) }
         }
     }
 

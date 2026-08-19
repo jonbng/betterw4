@@ -40,7 +40,7 @@ for (const [index, panel] of panels.entries()) {
   if (index > 0) {
     const guide = document.createElement("span");
     guide.className = "guide";
-    guide.dataset.label = `snit ${index + 1}`;
+    guide.dataset.label = `cut ${index + 1}`;
     guide.style.left = `${index * panelWidth}px`;
     guideRoot.append(guide);
   }

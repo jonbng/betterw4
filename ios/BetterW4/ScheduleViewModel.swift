@@ -231,9 +231,9 @@ final class ScheduleViewModel: ObservableObject {
 
     // MARK: - Loading
 
-    /// First paint for the tab.
+    /// First paint for the tab — always today's week, not whichever day was last on screen.
     func onAppear() async {
-        await load(weekContaining: selectedDate)
+        await goToToday()
     }
 
     /// Pull-to-refresh: always go to W4, and keep the current week on screen if it fails.

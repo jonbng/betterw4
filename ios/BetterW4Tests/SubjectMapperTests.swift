@@ -354,6 +354,26 @@ final class SubjectMapperTests: XCTestCase {
         XCTAssertEqual(SubjectMapper.defaultColor(for: "biology"), SubjectMapper.color(hue: 108))
     }
 
+    /// Yellow swatches at S 0.62 / V 0.88 fail WCAG on white; the readable variant must not.
+    func testReadableSubjectColourMeetsContrastOnWhite() {
+        let white = Color(red: 1, green: 1, blue: 1)
+        let yellow = SubjectMapper.color(hue: 60)
+        XCTAssertLessThan(yellow.contrastRatio(against: white), 4.5)
+
+        let readable = yellow.ensuringContrast(against: white)
+        XCTAssertGreaterThanOrEqual(readable.contrastRatio(against: white), 4.5)
+
+        for hue in stride(from: 0, to: 360, by: 15) {
+            let swatch = SubjectMapper.color(hue: hue)
+            let text = swatch.ensuringContrast(against: white)
+            XCTAssertGreaterThanOrEqual(
+                text.contrastRatio(against: white),
+                4.5,
+                "hue \(hue) stayed too light as text"
+            )
+        }
+    }
+
     /// [I] The tokeniser must be idempotent, or feeding a canonical key back through the
     /// mapper would drift.
     func testLookupTokenIsIdempotent() {

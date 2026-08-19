@@ -1,5 +1,6 @@
 package dk.betterw4.android.feature.messages
 
+import dk.betterw4.android.core.FeatureFlags
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -20,6 +21,7 @@ class MessageListPrefetcher @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     fun schedulePrefetch() {
+        if (!FeatureFlags.MAIL_ENABLED) return
         scope.launch {
             try {
                 repository.loadFolder(MessageFolder.INBOX, forceRefresh = true)

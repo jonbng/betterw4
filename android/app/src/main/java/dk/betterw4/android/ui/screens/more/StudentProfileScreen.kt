@@ -2,21 +2,17 @@ package dk.betterw4.android.ui.screens.more
 
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,12 +22,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Message
-import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.automirrored.filled.DirectionsBike
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.MeetingRoom
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.outlined.PushPin
@@ -56,8 +53,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -72,7 +67,8 @@ import dagger.hilt.android.EntryPointAccessors
 import dk.betterw4.android.R
 import dk.betterw4.android.core.util.IsoDateUtils
 import dk.betterw4.android.feature.directory.DirectoryEntity
-import dk.betterw4.android.feature.directory.InstagramHandles
+import dk.betterw4.android.feature.directory.DirectoryEntityKind
+import dk.betterw4.android.feature.directory.StaffActivity
 import dk.betterw4.android.feature.directory.StudentProfile
 import dk.betterw4.android.feature.schedule.EventStatus
 import dk.betterw4.android.feature.schedule.ScheduleEvent
@@ -80,7 +76,15 @@ import dk.betterw4.android.feature.schedule.ScheduleWeek
 import dk.betterw4.android.feature.schedule.statusLabelText
 import dk.betterw4.android.feature.schedule.timeLabelText
 import dk.betterw4.android.feature.settings.CalendarStyle
+import dk.betterw4.android.core.FeatureFlags
+import dk.betterw4.android.feature.directory.houseFlagLabel
+import dk.betterw4.android.feature.schedule.PersonClass
+import dk.betterw4.android.ui.components.AppListDivider
+import dk.betterw4.android.ui.components.AppListPrimary
+import dk.betterw4.android.ui.components.AppListRow
+import dk.betterw4.android.ui.components.AppListSecondary
 import dk.betterw4.android.ui.components.AvatarRepositoryEntryPoint
+import dk.betterw4.android.ui.components.SectionHeader
 import dk.betterw4.android.ui.components.DateStrip
 import dk.betterw4.android.ui.components.DateStripDay
 import dk.betterw4.android.ui.components.DetailSheetHeader
@@ -105,63 +109,427 @@ fun StudentProfileScreen(
     weekNumber: Int,
     weekYear: Int,
     pinned: Boolean,
+    tab: PersonProfileTab = PersonProfileTab.SCHEDULE,
     defaultCalendarStyle: CalendarStyle,
     displayTitle: (ScheduleEvent) -> String,
     accentFor: (ScheduleEvent) -> Color,
     onWriteMessage: () -> Unit,
     onTogglePin: () -> Unit,
-    onViewClass: () -> Unit,
+    onSelectTab: (PersonProfileTab) -> Unit = {},
+    onOpenHouse: () -> Unit = {},
+    onOpenRoom: () -> Unit = {},
+    onOpenClass: (PersonClass) -> Unit = {},
     onPrevWeek: () -> Unit,
     onNextWeek: () -> Unit,
     onGoToToday: () -> Unit,
     onLoadWeekForDate: (LocalDate) -> Unit,
 ) {
-    if (loading && week == null) {
+    if (loading && week == null && profile == null) {
         LoadingBox()
         return
     }
 
-    val hasBetterW4 = profile?.hasBetterW4 == true
     val displayName = profile?.displayName(entity.name) ?: entity.name
-    val classLabel = profile?.className?.takeIf { it.isNotBlank() }
-        ?: entity.subtitle?.takeIf { it.isNotBlank() }
+    val subtitle = profile?.subtitle ?: entity.subtitle?.takeIf { it.isNotBlank() }
+    var selectedTab by remember(entity.id) { mutableStateOf(tab) }
+    LaunchedEffect(tab) { selectedTab = tab }
 
     Column(Modifier.fillMaxSize()) {
         StudentProfileHero(
             entity = entity,
             profile = profile,
             displayName = displayName,
-            classLabel = classLabel,
-            hasBetterW4 = hasBetterW4,
+            subtitle = subtitle,
             pinned = pinned,
             onWriteMessage = onWriteMessage,
             onTogglePin = onTogglePin,
-            onViewClass = onViewClass,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 6.dp),
         )
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            FilterChip(
+                selected = selectedTab == PersonProfileTab.SCHEDULE,
+                onClick = {
+                    selectedTab = PersonProfileTab.SCHEDULE
+                    onSelectTab(PersonProfileTab.SCHEDULE)
+                },
+                label = { Text(stringResource(R.string.student_profile_tab_schedule)) },
+            )
+            FilterChip(
+                selected = selectedTab == PersonProfileTab.ABOUT,
+                onClick = {
+                    selectedTab = PersonProfileTab.ABOUT
+                    onSelectTab(PersonProfileTab.ABOUT)
+                },
+                label = { Text(stringResource(R.string.student_profile_tab_about)) },
+            )
+        }
         HorizontalDivider(
             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
             thickness = 0.5.dp,
         )
-        PersonSchedulePane(
-            loading = loading,
-            week = week,
-            weekNumber = weekNumber,
-            weekYear = weekYear,
-            defaultCalendarStyle = defaultCalendarStyle,
-            displayTitle = displayTitle,
-            accentFor = accentFor,
-            onPrevWeek = onPrevWeek,
-            onNextWeek = onNextWeek,
-            onGoToToday = onGoToToday,
-            onLoadWeekForDate = onLoadWeekForDate,
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-        )
+        when (selectedTab) {
+            PersonProfileTab.SCHEDULE -> PersonSchedulePane(
+                loading = loading,
+                week = week,
+                weekNumber = weekNumber,
+                weekYear = weekYear,
+                defaultCalendarStyle = defaultCalendarStyle,
+                displayTitle = displayTitle,
+                accentFor = accentFor,
+                onPrevWeek = onPrevWeek,
+                onNextWeek = onNextWeek,
+                onGoToToday = onGoToToday,
+                onLoadWeekForDate = onLoadWeekForDate,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            )
+            PersonProfileTab.ABOUT -> StudentAboutPane(
+                kind = profile?.kind ?: entity.kind,
+                profile = profile,
+                onOpenHouse = onOpenHouse,
+                onOpenRoom = onOpenRoom,
+                onOpenClass = onOpenClass,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            )
+        }
     }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun StudentAboutPane(
+    kind: DirectoryEntityKind,
+    profile: StudentProfile?,
+    onOpenHouse: () -> Unit,
+    onOpenRoom: () -> Unit,
+    onOpenClass: (PersonClass) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (kind == DirectoryEntityKind.TEACHER) {
+        StaffAboutPane(
+            profile = profile,
+            onOpenClass = onOpenClass,
+            modifier = modifier,
+        )
+        return
+    }
+
+    val house = profile?.house?.takeIf { it.isNotBlank() }
+    val houseId = profile?.houseId
+    val room = profile?.room?.takeIf { it.isNotBlank() }
+    val classes = profile?.classes.orEmpty()
+    val year = profile?.year
+    val country = profile?.country
+
+    LazyColumn(modifier = modifier.fillMaxSize()) {
+        item { SectionHeader(stringResource(R.string.student_profile_section_house)) }
+        if (house == null && room == null) {
+            item {
+                AppListRow {
+                    AppListSecondary(stringResource(R.string.student_profile_house_unknown))
+                }
+                AppListDivider()
+            }
+        } else {
+            house?.let {
+                item {
+                    AppListRow(
+                        onClick = houseId?.let { { onOpenHouse() } },
+                        leading = {
+                            Icon(
+                                Icons.Default.Home,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        },
+                    ) {
+                        AppListPrimary(
+                            houseFlagLabel(it, houseId),
+                            emphasized = true,
+                        )
+                        AppListSecondary(stringResource(R.string.student_profile_open_house))
+                    }
+                    AppListDivider()
+                }
+            }
+            room?.let {
+                item {
+                    AppListRow(
+                        onClick = houseId?.let { { onOpenRoom() } },
+                        leading = {
+                            Icon(
+                                Icons.Default.MeetingRoom,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        },
+                    ) {
+                        AppListPrimary(it, emphasized = true)
+                        AppListSecondary(
+                            house?.let { name ->
+                                stringResource(R.string.student_profile_room_in_house, name)
+                            } ?: stringResource(R.string.student_profile_open_house),
+                        )
+                    }
+                    AppListDivider()
+                }
+            }
+        }
+
+        item { SectionHeader(stringResource(R.string.student_profile_section_classes)) }
+        if (classes.isEmpty()) {
+            item {
+                AppListRow {
+                    AppListSecondary(stringResource(R.string.student_profile_classes_unknown))
+                }
+                AppListDivider()
+            }
+        } else {
+            items(classes, key = { it.id ?: it.name }) { item ->
+                ClassRow(item, onOpenClass)
+            }
+        }
+
+        if (year != null || country != null) {
+            item { SectionHeader(stringResource(R.string.student_profile_section_more)) }
+            year?.let {
+                item {
+                    AppListRow {
+                        AppListPrimary(stringResource(R.string.student_profile_year, it))
+                    }
+                    AppListDivider()
+                }
+            }
+            country?.let {
+                item {
+                    AppListRow {
+                        AppListPrimary(it)
+                    }
+                    AppListDivider()
+                }
+            }
+        }
+        item { Spacer(Modifier.height(24.dp)) }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun StaffAboutPane(
+    profile: StudentProfile?,
+    onOpenClass: (PersonClass) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val positions = profile?.positions.orEmpty()
+    val email = profile?.email?.takeIf { it.isNotBlank() }
+    val officeTel = profile?.officeTel?.takeIf { it.isNotBlank() }
+    val mobile = profile?.mobile?.takeIf { it.isNotBlank() }
+    val classes = profile?.classes.orEmpty()
+    val activities = profile?.activities.orEmpty()
+    val country = profile?.country?.takeIf { it.isNotBlank() }
+    val birthday = profile?.birthday?.takeIf { it.isNotBlank() }
+
+    fun openUri(uri: Uri) {
+        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
+    }
+
+    LazyColumn(modifier = modifier.fillMaxSize()) {
+        if (positions.isNotEmpty()) {
+            item { SectionHeader(stringResource(R.string.student_profile_section_roles)) }
+            item {
+                FlowRow(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    positions.forEach { role ->
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                        ) {
+                            Text(
+                                role,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        item { SectionHeader(stringResource(R.string.student_profile_section_contact)) }
+        if (email == null && officeTel == null && mobile == null) {
+            item {
+                AppListRow {
+                    AppListSecondary(stringResource(R.string.student_profile_email))
+                }
+                AppListDivider()
+            }
+        } else {
+            email?.let { address ->
+                item {
+                    AppListRow(
+                        onClick = { openUri(Uri.parse("mailto:$address")) },
+                        leading = {
+                            Icon(
+                                Icons.Default.Email,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        },
+                    ) {
+                        AppListPrimary(address, emphasized = true)
+                        AppListSecondary(stringResource(R.string.student_profile_email))
+                    }
+                    AppListDivider()
+                }
+            }
+            officeTel?.let { tel ->
+                item {
+                    AppListRow(
+                        leading = {
+                            Icon(
+                                Icons.Default.Phone,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        },
+                    ) {
+                        AppListPrimary(tel, emphasized = true)
+                        AppListSecondary(stringResource(R.string.student_profile_office))
+                    }
+                    AppListDivider()
+                }
+            }
+            mobile?.let { number ->
+                val dial = phoneUri(number)
+                item {
+                    AppListRow(
+                        onClick = dial?.let { uri -> { openUri(uri) } },
+                        leading = {
+                            Icon(
+                                Icons.Default.Phone,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        },
+                    ) {
+                        AppListPrimary(number, emphasized = true)
+                        AppListSecondary(stringResource(R.string.student_profile_mobile))
+                    }
+                    AppListDivider()
+                }
+            }
+        }
+
+        item { SectionHeader(stringResource(R.string.student_profile_section_taught)) }
+        if (classes.isEmpty()) {
+            item {
+                AppListRow {
+                    AppListSecondary(stringResource(R.string.student_profile_classes_none))
+                }
+                AppListDivider()
+            }
+        } else {
+            items(classes, key = { it.id ?: it.name }) { item ->
+                ClassRow(item, onOpenClass)
+            }
+        }
+
+        item { SectionHeader(stringResource(R.string.student_profile_section_activities)) }
+        if (activities.isEmpty()) {
+            item {
+                AppListRow {
+                    AppListSecondary(stringResource(R.string.student_profile_activities_none))
+                }
+                AppListDivider()
+            }
+        } else {
+            items(activities, key = { it.name + (it.dates ?: "") }) { activity ->
+                ActivityRow(activity)
+            }
+        }
+
+        if (country != null || birthday != null) {
+            item { SectionHeader(stringResource(R.string.student_profile_section_more)) }
+            country?.let {
+                item {
+                    AppListRow { AppListPrimary(it) }
+                    AppListDivider()
+                }
+            }
+            birthday?.let {
+                item {
+                    AppListRow { AppListPrimary(it) }
+                    AppListDivider()
+                }
+            }
+        }
+        item { Spacer(Modifier.height(24.dp)) }
+    }
+}
+
+@Composable
+private fun ClassRow(
+    item: PersonClass,
+    onOpenClass: (PersonClass) -> Unit,
+) {
+    AppListRow(
+        onClick = if (item.canOpen) {{ onOpenClass(item) }} else null,
+        leading = {
+            Icon(
+                Icons.Default.School,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        },
+    ) {
+        AppListPrimary(item.name, emphasized = true)
+        val secondary = item.subtitle
+            ?: if (item.canOpen) stringResource(R.string.student_profile_open_class) else null
+        secondary?.let { AppListSecondary(it) }
+    }
+    AppListDivider()
+}
+
+@Composable
+private fun ActivityRow(activity: StaffActivity) {
+    AppListRow(
+        leading = {
+            Icon(
+                Icons.AutoMirrored.Filled.DirectionsBike,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        },
+    ) {
+        AppListPrimary(activity.name, emphasized = true)
+        val meta = listOfNotNull(
+            activity.category?.replaceFirstChar { it.uppercase() },
+            activity.dates,
+        ).joinToString(" · ")
+        if (meta.isNotBlank()) AppListSecondary(meta)
+    }
+    AppListDivider()
+}
+
+private fun phoneUri(raw: String): Uri? {
+    val digits = raw.filter { it.isDigit() || it == '+' }
+    if (digits.count { it.isDigit() } < 8) return null
+    return Uri.parse("tel:$digits")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -192,8 +560,13 @@ fun PersonSchedulePane(
         if (days.isEmpty()) return@LaunchedEffect
         val inWeek = days.any { it.date == selectedDate }
         if (!inWeek) {
+            // Prefer today. Otherwise keep the same weekday in the newly
+            // loaded week so prev/next-week does not leave the pager on a
+            // date that is no longer in [week]. Never jump to "first day
+            // with lessons" — that used to open the timetable on a random
+            // weekday.
             selectedDate = days.firstOrNull { it.date == today }?.date
-                ?: days.firstOrNull { it.events.isNotEmpty() }?.date
+                ?: days.firstOrNull { it.date.dayOfWeek == selectedDate.dayOfWeek }?.date
                 ?: days.first().date
         }
     }
@@ -373,18 +746,15 @@ fun PersonSchedulePane(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StudentProfileHero(
     entity: DirectoryEntity,
     profile: StudentProfile?,
     displayName: String,
-    classLabel: String?,
-    hasBetterW4: Boolean,
+    subtitle: String?,
     pinned: Boolean,
     onWriteMessage: () -> Unit,
     onTogglePin: () -> Unit,
-    onViewClass: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -407,20 +777,6 @@ private fun StudentProfileHero(
         )
     }
     var showPhotoPreview by remember { mutableStateOf(false) }
-    // Prefer schedule space; auto-expand once when a rich BL profile loads.
-    var expanded by remember(entity.id) { mutableStateOf(false) }
-    var userCollapsed by remember(entity.id) { mutableStateOf(false) }
-    var collapseDrag by remember { mutableFloatStateOf(0f) }
-
-    val hasRichProfile = hasBetterW4 && (
-        !profile?.description.isNullOrBlank() ||
-            profile?.formattedBirthday() != null ||
-            InstagramHandles.format(profile?.instagram).isNotEmpty()
-        )
-
-    LaunchedEffect(entity.id, hasRichProfile) {
-        if (hasRichProfile && !userCollapsed) expanded = true
-    }
 
     LaunchedEffect(entity.id, preferredUrl, entity.avatarUrl) {
         if (!preferredUrl.isNullOrBlank()) {
@@ -441,72 +797,19 @@ private fun StudentProfileHero(
     }
 
     Surface(
-        modifier = modifier
-            .pointerInput(expanded) {
-                if (!expanded) return@pointerInput
-                detectVerticalDragGestures(
-                    onDragEnd = {
-                        if (collapseDrag < -48f) {
-                            userCollapsed = true
-                            expanded = false
-                        }
-                        collapseDrag = 0f
-                    },
-                    onDragCancel = { collapseDrag = 0f },
-                    onVerticalDrag = { _, dragAmount ->
-                        collapseDrag += dragAmount
-                        if (collapseDrag < -72f) {
-                            userCollapsed = true
-                            expanded = false
-                            collapseDrag = 0f
-                        }
-                    },
-                )
-            },
+        modifier = modifier,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
         shape = RoundedCornerShape(16.dp),
     ) {
-        AnimatedContent(
-            targetState = expanded,
-            transitionSpec = {
-                fadeIn() togetherWith fadeOut() using SizeTransform(clip = true)
-            },
-            label = "student-profile-hero",
-        ) { isExpanded ->
-            if (isExpanded) {
-                ExpandedStudentProfile(
-                    displayName = displayName,
-                    classLabel = classLabel,
-                    hasBetterW4 = hasBetterW4,
-                    profile = profile,
-                    resolvedUrl = resolvedUrl,
-                    pinned = pinned,
-                    onWriteMessage = onWriteMessage,
-                    onTogglePin = onTogglePin,
-                    onViewClass = onViewClass,
-                    onCollapse = {
-                        userCollapsed = true
-                        expanded = false
-                    },
-                    onPhotoClick = openPreview,
-                )
-            } else {
-                CollapsedStudentProfile(
-                    displayName = displayName,
-                    classLabel = classLabel,
-                    hasBetterW4 = hasBetterW4,
-                    resolvedUrl = resolvedUrl,
-                    pinned = pinned,
-                    onWriteMessage = onWriteMessage,
-                    onTogglePin = onTogglePin,
-                    onExpand = {
-                        userCollapsed = false
-                        expanded = true
-                    },
-                    onPhotoClick = openPreview,
-                )
-            }
-        }
+        CollapsedStudentProfile(
+            displayName = displayName,
+            subtitle = subtitle,
+            resolvedUrl = resolvedUrl,
+            pinned = pinned,
+            onWriteMessage = onWriteMessage,
+            onTogglePin = onTogglePin,
+            onPhotoClick = openPreview,
+        )
     }
 
     if (showPhotoPreview) {
@@ -524,19 +827,16 @@ private fun StudentProfileHero(
 @Composable
 private fun CollapsedStudentProfile(
     displayName: String,
-    classLabel: String?,
-    hasBetterW4: Boolean,
+    subtitle: String?,
     resolvedUrl: String?,
     pinned: Boolean,
     onWriteMessage: () -> Unit,
     onTogglePin: () -> Unit,
-    onExpand: () -> Unit,
     onPhotoClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onExpand)
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -544,7 +844,6 @@ private fun CollapsedStudentProfile(
         StudentPortrait(
             url = resolvedUrl,
             displayName = displayName,
-            hasBetterW4 = hasBetterW4,
             width = 36.dp,
             height = 48.dp,
             corner = 10.dp,
@@ -558,14 +857,7 @@ private fun CollapsedStudentProfile(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            val subtitle = buildString {
-                classLabel?.let { append(it) }
-                if (hasBetterW4) {
-                    if (isNotEmpty()) append(" · ")
-                    append(stringResource(R.string.student_profile_bl_badge))
-                }
-            }
-            if (subtitle.isNotEmpty()) {
+            if (!subtitle.isNullOrBlank()) {
                 Text(
                     subtitle,
                     style = MaterialTheme.typography.labelMedium,
@@ -575,15 +867,17 @@ private fun CollapsedStudentProfile(
                 )
             }
         }
-        IconButton(
-            onClick = onWriteMessage,
-            modifier = Modifier.size(40.dp),
-        ) {
-            Icon(
-                Icons.AutoMirrored.Filled.Message,
-                contentDescription = stringResource(R.string.directory_write_message),
-                tint = MaterialTheme.colorScheme.primary,
-            )
+        if (FeatureFlags.MAIL_ENABLED) {
+            IconButton(
+                onClick = onWriteMessage,
+                modifier = Modifier.size(40.dp),
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Message,
+                    contentDescription = stringResource(R.string.directory_write_message),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
         }
         IconButton(
             onClick = onTogglePin,
@@ -601,188 +895,14 @@ private fun CollapsedStudentProfile(
                 },
             )
         }
-        Icon(
-            Icons.Default.KeyboardArrowDown,
-            contentDescription = stringResource(R.string.student_profile_expand_cd),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp),
-        )
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun ExpandedStudentProfile(
-    displayName: String,
-    classLabel: String?,
-    hasBetterW4: Boolean,
-    profile: StudentProfile?,
-    resolvedUrl: String?,
-    pinned: Boolean,
-    onWriteMessage: () -> Unit,
-    onTogglePin: () -> Unit,
-    onViewClass: () -> Unit,
-    onCollapse: () -> Unit,
-    onPhotoClick: () -> Unit,
-) {
-    val context = LocalContext.current
-    val bio = profile?.description?.takeIf { it.isNotBlank() }.takeIf { hasBetterW4 }
-    val birthday = profile?.formattedBirthday().takeIf { hasBetterW4 }
-    val igHandle = InstagramHandles.format(profile?.instagram).takeIf { hasBetterW4 && it.isNotEmpty() }
-    val igUrl = InstagramHandles.profileUrl(profile?.instagram).takeIf { igHandle != null }
-
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            StudentPortrait(
-                url = resolvedUrl,
-                displayName = displayName,
-                hasBetterW4 = hasBetterW4,
-                width = 52.dp,
-                height = 68.dp,
-                corner = 12.dp,
-                onClick = onPhotoClick,
-            )
-
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(
-                    displayName,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    classLabel?.let {
-                        Text(
-                            it,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
-                    }
-                    if (hasBetterW4) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.14f),
-                            shape = RoundedCornerShape(6.dp),
-                        ) {
-                            Text(
-                                stringResource(R.string.student_profile_bl_badge),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.tertiary,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
-                            )
-                        }
-                    }
-                }
-            }
-
-            IconButton(
-                onClick = onWriteMessage,
-                modifier = Modifier.size(40.dp),
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.Message,
-                    contentDescription = stringResource(R.string.directory_write_message),
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-            }
-            IconButton(
-                onClick = onTogglePin,
-                modifier = Modifier.size(40.dp),
-            ) {
-                Icon(
-                    imageVector = if (pinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
-                    contentDescription = stringResource(
-                        if (pinned) R.string.directory_unpin else R.string.directory_pin,
-                    ),
-                    tint = if (pinned) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                )
-            }
-            IconButton(
-                onClick = onCollapse,
-                modifier = Modifier.size(40.dp),
-            ) {
-                Icon(
-                    Icons.Default.KeyboardArrowUp,
-                    contentDescription = stringResource(R.string.student_profile_collapse_cd),
-                )
-            }
-        }
-
-        if (bio != null) {
-            Text(
-                bio,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-
-        if (birthday != null || igHandle != null || !classLabel.isNullOrBlank()) {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                birthday?.let {
-                    ProfileInfoChip(
-                        icon = Icons.Default.Cake,
-                        label = it,
-                        contentDescription = stringResource(R.string.student_profile_birthday_cd),
-                    )
-                }
-                if (igHandle != null && igUrl != null) {
-                    ProfileInfoChip(
-                        icon = Icons.Default.Link,
-                        label = igHandle,
-                        contentDescription = stringResource(R.string.student_profile_instagram_cd),
-                        onClick = {
-                            context.startActivity(
-                                Intent(Intent.ACTION_VIEW, Uri.parse(igUrl)),
-                            )
-                        },
-                    )
-                }
-                classLabel?.let { label ->
-                    ProfileInfoChip(
-                        icon = Icons.Default.School,
-                        label = label,
-                        contentDescription = stringResource(R.string.directory_view_class),
-                        onClick = onViewClass,
-                    )
-                }
-            }
-        }
-    }
-}
 
 @Composable
 private fun StudentPortrait(
     url: String?,
     displayName: String,
-    hasBetterW4: Boolean,
     width: Dp,
     height: Dp,
     corner: Dp,
@@ -795,12 +915,8 @@ private fun StudentPortrait(
             .size(width = width, height = height)
             .clip(shape)
             .border(
-                width = if (hasBetterW4) 1.5.dp else 1.dp,
-                color = if (hasBetterW4) {
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
-                } else {
-                    MaterialTheme.colorScheme.outlineVariant
-                },
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant,
                 shape = shape,
             )
             .background(MaterialTheme.colorScheme.surfaceVariant)
@@ -884,42 +1000,5 @@ fun PersonWeekHeader(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun ProfileInfoChip(
-    icon: ImageVector,
-    label: String,
-    contentDescription: String?,
-    onClick: (() -> Unit)? = null,
-) {
-    val shape = RoundedCornerShape(10.dp)
-    Row(
-        modifier = Modifier
-            .clip(shape)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
-            .then(
-                if (onClick != null) {
-                    Modifier.clickable(onClick = onClick)
-                } else {
-                    Modifier
-                },
-            )
-            .padding(horizontal = 8.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            modifier = Modifier.size(14.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
     }
 }

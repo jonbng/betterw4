@@ -7,8 +7,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material3.Button
@@ -31,7 +33,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -54,12 +55,13 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dk.betterw4.android.R
+import dk.betterw4.android.core.FeatureFlags
 import dk.betterw4.android.core.i18n.asString
 import dk.betterw4.android.feature.live.LiveLessonBoundary
 import dk.betterw4.android.feature.directory.DirectoryEntityKind
 import dk.betterw4.android.feature.schedule.EventStatus
 import dk.betterw4.android.feature.schedule.LessonParticipant
-import dk.betterw4.android.feature.schedule.ScheduleDay
+import dk.betterw4.android.ui.screens.more.StudentProfileScreen
 import dk.betterw4.android.feature.schedule.ScheduleEvent
 import dk.betterw4.android.feature.schedule.SchoolCalendar
 import dk.betterw4.android.feature.schedule.statusLabelText
@@ -106,17 +108,17 @@ fun ScheduleScreen(
     val now = rememberW4Now()
     val today = now.toLocalDate()
 
-    // Scroll-to-top: jump to today
+    // Opening the tab (and re-tapping it) always shows today, not the last
+    // day the student browsed. `today` is also a key so a midnight rollover
+    // while the tab is open follows the new Oslo day.
     LaunchedEffect(scrollToTopToken, today) {
-        if (scrollToTopToken > 0) {
-            viewModel.selectDate(today)
-        }
+        viewModel.selectDate(today)
     }
     LaunchedEffect(state.pendingNotificationHref) {
         val href = state.pendingNotificationHref ?: return@LaunchedEffect
         viewModel.consumeNotificationHref()
         when {
-            href.contains("mailer", ignoreCase = true) -> onOpenMail()
+            FeatureFlags.MAIL_ENABLED && href.contains("mailer", ignoreCase = true) -> onOpenMail()
             href.contains("deadline", ignoreCase = true) ||
                 href.contains("assessment", ignoreCase = true) -> onOpenAssessments()
         }
@@ -181,7 +183,8 @@ fun ScheduleScreen(
                         onNotificationHref = { href ->
                             when {
                                 href.isNullOrBlank() -> Unit
-                                href.contains("mailer", ignoreCase = true) -> onOpenMail()
+                                FeatureFlags.MAIL_ENABLED &&
+                                    href.contains("mailer", ignoreCase = true) -> onOpenMail()
                                 href.contains("deadline", ignoreCase = true) ||
                                     href.contains("assessment", ignoreCase = true) -> onOpenAssessments()
                             }
@@ -284,8 +287,6 @@ fun ScheduleScreen(
                             DayPageContent(
                                 date = date,
                                 events = viewModel.visibleEvents(events),
-                                day = state.daysByDate[date]
-                                    ?: state.week?.days?.find { it.date == date },
                                 calendarStyle = calendarStyle,
                                 viewModel = viewModel,
                                 now = now,
@@ -306,8 +307,41 @@ fun ScheduleScreen(
             EventStatus.NORMAL -> extended.statusNormal
         }
         val sheetSnackbar = remember { SnackbarHostState() }
-        ModalBottomSheet(onDismissRequest = { viewModel.selectEvent(null) }) {
-            Box(Modifier.fillMaxWidth()) {
+        ModalBottomSheet(onDismissRequest = {
+            if (state.selectedPerson != null) viewModel.closePerson()
+            else viewModel.selectEvent(null)
+        }) {
+            val person = state.selectedPerson
+            if (person != null) {
+                BackHandler { viewModel.closePerson() }
+                Column(Modifier.fillMaxWidth().fillMaxHeight(0.92f)) {
+                    TextButton(onClick = { viewModel.closePerson() }) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.cd_back),
+                        )
+                        Text(stringResource(R.string.cd_back))
+                    }
+                    StudentProfileScreen(
+                        loading = state.personLoading,
+                        entity = person,
+                        profile = state.studentProfile,
+                        week = state.personSchedule,
+                        weekNumber = state.personWeek,
+                        weekYear = state.personWeekYear,
+                        pinned = state.pinnedIds.contains(person.id),
+                        defaultCalendarStyle = calendarStyle,
+                        displayTitle = viewModel::displayTitle,
+                        accentFor = { Color(viewModel.accentArgbFor(it)) },
+                        onWriteMessage = {},
+                        onTogglePin = viewModel::togglePersonPin,
+                        onPrevWeek = { viewModel.shiftPersonWeek(-1) },
+                        onNextWeek = { viewModel.shiftPersonWeek(1) },
+                        onGoToToday = viewModel::goToPersonToday,
+                        onLoadWeekForDate = viewModel::loadPersonWeekForDate,
+                    )
+                }
+            } else Box(Modifier.fillMaxWidth()) {
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -350,12 +384,10 @@ fun ScheduleScreen(
                         val hasNote = !detail.note.isNullOrBlank()
                         val hasBody = homeworkBlocks.isNotEmpty() || otherBlocks.isNotEmpty()
                         val teachers = detail.participants.filter {
-                            it.kind == DirectoryEntityKind.TEACHER ||
-                                it.role.equals("Lærer", ignoreCase = true)
+                            it.kind == DirectoryEntityKind.TEACHER
                         }
                         val students = detail.participants.filter {
-                            it.kind == DirectoryEntityKind.STUDENT ||
-                                it.role.equals("Elev", ignoreCase = true)
+                            it.kind == DirectoryEntityKind.STUDENT
                         }
                         val otherParticipants = detail.participants.filter { p ->
                             teachers.none { it.id == p.id } && students.none { it.id == p.id }
@@ -408,7 +440,9 @@ fun ScheduleScreen(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.padding(bottom = 4.dp),
                                     )
-                                    teachers.forEach { p -> LessonParticipantRow(p) }
+                                    teachers.forEach { p ->
+                                        LessonParticipantRow(p) { viewModel.openPerson(p.toEntity()) }
+                                    }
                                 }
                                 if (students.isNotEmpty()) {
                                     if (teachers.isNotEmpty()) Spacer(Modifier.height(8.dp))
@@ -418,9 +452,13 @@ fun ScheduleScreen(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.padding(bottom = 4.dp),
                                     )
-                                    students.forEach { p -> LessonParticipantRow(p) }
+                                    students.forEach { p ->
+                                        LessonParticipantRow(p) { viewModel.openPerson(p.toEntity()) }
+                                    }
                                 }
-                                otherParticipants.forEach { p -> LessonParticipantRow(p) }
+                                otherParticipants.forEach { p ->
+                                    LessonParticipantRow(p) { viewModel.openPerson(p.toEntity()) }
+                                }
                             }
                         }
                     }
@@ -514,79 +552,28 @@ fun ScheduleScreen(
 private fun DayPageContent(
     date: LocalDate,
     events: List<ScheduleEvent>,
-    day: ScheduleDay?,
     calendarStyle: CalendarStyle,
     viewModel: ScheduleViewModel,
     now: LocalDateTime,
 ) {
-    Column(Modifier.fillMaxSize()) {
-        DayContextRow(day)
-        if (calendarStyle == CalendarStyle.PROFESSIONAL) {
-            TimelineDayView(
-                date = date,
-                events = events,
-                displayTitle = { viewModel.displayTitle(it) },
-                accentFor = { Color(viewModel.accentArgbFor(it)) },
-                onEventClick = { viewModel.selectEvent(it) },
-                modifier = Modifier.weight(1f),
-                now = now,
-            )
-        } else {
-            StandardDayList(
-                events = events,
-                displayTitle = { viewModel.displayTitle(it) },
-                accentFor = { Color(viewModel.accentArgbFor(it)) },
-                onEventClick = { viewModel.selectEvent(it) },
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
-}
-
-@Composable
-private fun DayContextRow(day: ScheduleDay?) {
-    if (day == null) return
-    val rotation = day.rotationDay?.takeIf { it.isNotBlank() }
-    val eaNote = day.eaNote?.takeIf { it.isNotBlank() }
-    if (rotation == null && eaNote == null && !day.isNoClasses) return
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp)
-            .padding(top = 10.dp, bottom = 2.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (rotation != null) {
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-            ) {
-                Text(
-                    rotation,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                )
-            }
-        }
-        if (day.isNoClasses) {
-            Text(
-                stringResource(R.string.schedule_no_classes),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFFEA580C),
-            )
-        }
-        if (eaNote != null) {
-            Text(
-                eaNote,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-            )
-        }
+    if (calendarStyle == CalendarStyle.PROFESSIONAL) {
+        TimelineDayView(
+            date = date,
+            events = events,
+            displayTitle = { viewModel.displayTitle(it) },
+            accentFor = { Color(viewModel.accentArgbFor(it)) },
+            onEventClick = { viewModel.selectEvent(it) },
+            modifier = Modifier.fillMaxSize(),
+            now = now,
+        )
+    } else {
+        StandardDayList(
+            events = events,
+            displayTitle = { viewModel.displayTitle(it) },
+            accentFor = { Color(viewModel.accentArgbFor(it)) },
+            onEventClick = { viewModel.selectEvent(it) },
+            modifier = Modifier.fillMaxSize(),
+        )
     }
 }
 
@@ -693,8 +680,12 @@ private fun LiveLessonHeader(header: LiveHeaderUi?) {
 }
 
 @Composable
-private fun LessonParticipantRow(participant: LessonParticipant) {
+private fun LessonParticipantRow(
+    participant: LessonParticipant,
+    onClick: () -> Unit,
+) {
     AppListRow(
+        onClick = onClick,
         leading = {
             PersonAvatar(
                 name = participant.name,

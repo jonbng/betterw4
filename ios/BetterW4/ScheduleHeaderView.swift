@@ -31,7 +31,7 @@ struct ScheduleHeaderView: View {
                         Text(subjectName)
                             .font(.title3)
                             .fontWeight(.bold)
-                            .foregroundColor(accent)
+                            .foregroundColor(.primary)
                             .lineLimit(1)
 
                         if let room, !room.isEmpty {
@@ -64,7 +64,7 @@ struct ScheduleHeaderView: View {
                     GeometryReader { geometry in
                         ZStack(alignment: .leading) {
                             Capsule()
-                                .fill(accent.opacity(0.15))
+                                .fill(accent.opacity(0.18))
                                 .frame(height: 6)
 
                             Capsule()

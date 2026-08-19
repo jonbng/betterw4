@@ -23,11 +23,11 @@ class AvatarRepositoryTest {
     }
 
     @Test
-    fun peek_derives_w4_thumb_from_uwc_id() {
+    fun peek_derives_w4_portrait_from_uwc_id() {
         val index = AvatarIndex()
         val url = index.peek(teacherNumericId = "nc16jmac")
         assertEquals(
-            "https://w4.uwcrcn.no/files/user_photos/nc16jmac_thumb.jpg",
+            "https://w4.uwcrcn.no/files/user_photos/nc16jmac_photo.jpg",
             url,
         )
     }
@@ -50,13 +50,13 @@ class AvatarRepositoryTest {
 
         val url = index.peek(name = "István Poór")
         assertEquals(
-            "https://w4.uwcrcn.no/files/user_photos/nc16ipoo_thumb.jpg",
+            "https://w4.uwcrcn.no/files/user_photos/nc16ipoo_photo.jpg",
             url,
         )
     }
 
     @Test
-    fun ingest_guesses_thumb_when_directory_row_has_no_photo() {
+    fun ingest_guesses_portrait_when_directory_row_has_no_photo() {
         val index = AvatarIndex()
         index.ingest(
             listOf(
@@ -69,7 +69,7 @@ class AvatarRepositoryTest {
             ),
         )
         val url = index.peek(name = "Jane MacLeod")
-        assertTrue(url!!.contains("/files/user_photos/nc16jmac_thumb.jpg"))
+        assertTrue(url!!.contains("/files/user_photos/nc16jmac_photo.jpg"))
     }
 
     @Test
@@ -81,7 +81,7 @@ class AvatarRepositoryTest {
             name = "Elena Rossi",
         )
         assertEquals(
-            "https://w4.uwcrcn.no/files/user_photos/nc25eros_thumb.jpg",
+            "https://w4.uwcrcn.no/files/user_photos/nc25eros_photo.jpg",
             index.peek(name = "Elena Rossi"),
         )
     }

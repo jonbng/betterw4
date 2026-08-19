@@ -903,7 +903,7 @@ schemes; every swipe action has a non-swipe equivalent.
 
 **10.5 — Docs** · files: `docs/W4_PORT_PLAN.md` (this file — mark waves done),
 `docs/BUILD.md`, `docs/spec/*.md` (append a "superseded by plan §2" note where §2 overrode them),
-`../README.md` (update §10 unknowns with what the captures resolved).
+`../PROTOCOL.md` (update §10 unknowns with what the captures resolved).
 **Done:** a new engineer can go from clone to running app using `docs/BUILD.md` alone.
 
 **10.6 — Release hygiene** · files: `BetterW4/Info.plist`, `BetterW4/BetterW4.entitlements`,

@@ -559,7 +559,8 @@ fun NotificationsSurface(
     chrome: W4ChromeViewModel = hiltViewModel(),
 ) {
     val snapshot by chrome.notificationSnapshot.collectAsStateWithLifecycle()
-    if (snapshot.isEmpty) {
+    val visible = snapshot.forDisplay()
+    if (visible.isEmpty) {
         EmptyBox(
             text = stringResource(R.string.notif_empty),
             modifier = Modifier.padding(padding),
@@ -571,7 +572,7 @@ fun NotificationsSurface(
             .padding(padding)
             .fillMaxSize(),
     ) {
-        snapshot.taskGroups.forEach { group ->
+        visible.taskGroups.forEach { group ->
             item { SectionHeader(group.title) }
             items(group.items, key = { it.id }) { item ->
                 ListItem(
@@ -582,7 +583,7 @@ fun NotificationsSurface(
                 )
             }
         }
-        snapshot.emailGroups.forEach { group ->
+        visible.emailGroups.forEach { group ->
             item { SectionHeader(group.title.ifBlank { stringResource(R.string.notif_emails) }) }
             items(group.items, key = { it.id }) { item ->
                 ListItem(

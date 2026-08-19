@@ -63,18 +63,6 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
     }
 }
 
-/// How long before a lesson its reminder fires.
-enum LessonReminderLead: Int, CaseIterable, Identifiable {
-    case five = 5
-    case ten = 10
-    case fifteen = 15
-    case thirty = 30
-
-    var id: Int { rawValue }
-
-    var displayName: String { "\(rawValue) min" }
-}
-
 /// Manages user preferences, their persistence, and cache teardown.
 final class SettingsStore: ObservableObject {
     static let shared = SettingsStore()
@@ -90,11 +78,9 @@ final class SettingsStore: ObservableObject {
     private enum Keys {
         static let lessonMappingCache = "w4.settings.subjectMappings"
         static let notificationsEnabled = "notificationsEnabled"
-        static let notifyNewMail = "w4.notify.newMail"
         static let notifyAssessments = "w4.notify.assessments"
         static let notifyTimetableChanges = "w4.notify.timetableChanges"
-        static let notifyLessonReminder = "w4.notify.lessonReminder"
-        static let lessonReminderMinutes = "w4.notify.lessonReminderMinutes"
+        static let notifyTrips = "w4.notify.trips"
         static let calendarStyle = "calendarStyle"
         static let appearanceMode = "appearanceMode"
         static let useSubjectColors = "useSubjectColors"
@@ -112,18 +98,18 @@ final class SettingsStore: ObservableObject {
 
     /// Master switch. Every per-type toggle below is only honoured while this is on.
     @Published var notificationsEnabled: Bool = false
-    @Published var notifyNewMail: Bool = true
     @Published var notifyAssessments: Bool = true
     @Published var notifyTimetableChanges: Bool = true
-    @Published var notifyLessonReminder: Bool = false
-    @Published var lessonReminderMinutes: LessonReminderLead = .ten
+    @Published var notifyTrips: Bool = true
 
     private var cachedLessonMappingsByScope: [String: [String: SubjectMapper.ResolvedLessonMapping]] = [:]
     private var currentStudentId: String?
 
     // MARK: - Initialization
     private init() {
-        self.userDefaults = UserDefaults(suiteName: Self.appGroupIdentifier)
+        // The app-group suite has no entitlement, so it does not persist. Standard
+        // defaults are what the background refresh reads.
+        self.userDefaults = .standard
         loadSettings()
 
         SubjectMapper.mappingProvider = { [weak self] canonicalKey in
@@ -159,15 +145,9 @@ final class SettingsStore: ObservableObject {
         }
 
         notificationsEnabled = bool(Keys.notificationsEnabled, default: false)
-        notifyNewMail = bool(Keys.notifyNewMail, default: true)
         notifyAssessments = bool(Keys.notifyAssessments, default: true)
         notifyTimetableChanges = bool(Keys.notifyTimetableChanges, default: true)
-        notifyLessonReminder = bool(Keys.notifyLessonReminder, default: false)
-
-        if let raw = userDefaults?.object(forKey: Keys.lessonReminderMinutes) as? Int,
-           let lead = LessonReminderLead(rawValue: raw) {
-            lessonReminderMinutes = lead
-        }
+        notifyTrips = bool(Keys.notifyTrips, default: true)
 
         if let raw = userDefaults?.string(forKey: Keys.calendarStyle),
            let style = CalendarStyle(rawValue: raw) {
@@ -200,11 +180,6 @@ final class SettingsStore: ObservableObject {
         userDefaults?.set(enabled, forKey: Keys.notificationsEnabled)
     }
 
-    func saveNotifyNewMail(_ enabled: Bool) {
-        notifyNewMail = enabled
-        userDefaults?.set(enabled, forKey: Keys.notifyNewMail)
-    }
-
     func saveNotifyAssessments(_ enabled: Bool) {
         notifyAssessments = enabled
         userDefaults?.set(enabled, forKey: Keys.notifyAssessments)
@@ -215,14 +190,9 @@ final class SettingsStore: ObservableObject {
         userDefaults?.set(enabled, forKey: Keys.notifyTimetableChanges)
     }
 
-    func saveNotifyLessonReminder(_ enabled: Bool) {
-        notifyLessonReminder = enabled
-        userDefaults?.set(enabled, forKey: Keys.notifyLessonReminder)
-    }
-
-    func saveLessonReminderMinutes(_ lead: LessonReminderLead) {
-        lessonReminderMinutes = lead
-        userDefaults?.set(lead.rawValue, forKey: Keys.lessonReminderMinutes)
+    func saveNotifyTrips(_ enabled: Bool) {
+        notifyTrips = enabled
+        userDefaults?.set(enabled, forKey: Keys.notifyTrips)
     }
 
     func saveCalendarStyle(_ style: CalendarStyle) {
@@ -530,5 +500,112 @@ extension Color {
         }
 
         return Int(round(hue * 359.0)) % 360
+    }
+
+    /// WCAG relative luminance of this colour in sRGB, or 0 if it cannot be read.
+    var relativeLuminance: CGFloat {
+        guard let rgb = srgbComponents else { return 0 }
+        func lin(_ c: CGFloat) -> CGFloat {
+            c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * lin(rgb.r) + 0.7152 * lin(rgb.g) + 0.0722 * lin(rgb.b)
+    }
+
+    func contrastRatio(against background: Color) -> CGFloat {
+        let l1 = relativeLuminance
+        let l2 = background.relativeLuminance
+        let light = max(l1, l2)
+        let dark = min(l1, l2)
+        return (light + 0.05) / (dark + 0.05)
+    }
+
+    /// Darken on light surfaces (or lighten on dark ones) so this colour is usable as
+    /// text / icon. Fills should keep the original swatch from `lessonMappingHue`.
+    func ensuringContrast(against background: Color, minRatio: CGFloat = 4.5) -> Color {
+        if contrastRatio(against: background) >= minRatio { return self }
+        guard var hsv = hsvComponents else { return self }
+        let darken = background.relativeLuminance > 0.5
+        if darken {
+            hsv.s = min(hsv.s * 1.15, 0.88)
+        }
+
+        var lo: CGFloat
+        var hi: CGFloat
+        var best: Color
+        if darken {
+            lo = 0.18
+            hi = hsv.v
+            best = Color(hue: hsv.h, saturation: hsv.s, brightness: lo)
+        } else {
+            lo = hsv.v
+            hi = 1
+            best = Color(hue: hsv.h, saturation: hsv.s, brightness: hi)
+        }
+        for _ in 0..<12 {
+            let mid = (lo + hi) / 2
+            let candidate = Color(hue: hsv.h, saturation: hsv.s, brightness: mid)
+            if candidate.contrastRatio(against: background) >= minRatio {
+                best = candidate
+                if darken { lo = mid } else { hi = mid }
+            } else {
+                if darken { hi = mid } else { lo = mid }
+            }
+        }
+        return best
+    }
+
+    /// Subject/status accent that stays readable as text on the current surface.
+    func readableAccent(colorScheme: ColorScheme) -> Color {
+        ensuringContrast(
+            against: colorScheme == .dark
+                ? Color(red: 0.07, green: 0.07, blue: 0.07)
+                : Color(red: 1, green: 1, blue: 1)
+        )
+    }
+
+    /// Mix [amount] of [accent] into this surface. ~0.18 is a quiet wash that still reads as colour.
+    func tinted(with accent: Color, amount: CGFloat = 0.18) -> Color {
+        let base = UIColor(self)
+        let tint = UIColor(accent)
+        var r1: CGFloat = 0, g1: CGFloat = 0, b1: CGFloat = 0, a1: CGFloat = 0
+        var r2: CGFloat = 0, g2: CGFloat = 0, b2: CGFloat = 0, a2: CGFloat = 0
+        base.getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
+        tint.getRed(&r2, green: &g2, blue: &b2, alpha: &a2)
+        let a = min(max(amount, 0), 1)
+        return Color(
+            red: Double(r1 + (r2 - r1) * a),
+            green: Double(g1 + (g2 - g1) * a),
+            blue: Double(b1 + (b2 - b1) * a),
+            opacity: 1
+        )
+    }
+
+    /// Foreground that sits on this colour (white on dark jewel tones, near-black on yellows).
+    var onColor: Color {
+        relativeLuminance > 0.22 ? Color.black.opacity(0.88) : Color.white
+    }
+
+    private var srgbComponents: (r: CGFloat, g: CGFloat, b: CGFloat)? {
+        let ui = UIColor(self)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        if ui.getRed(&r, green: &g, blue: &b, alpha: &a) {
+            return (r, g, b)
+        }
+        guard let converted = ui.cgColor.converted(
+            to: CGColorSpaceCreateDeviceRGB(),
+            intent: .defaultIntent,
+            options: nil
+        ), let comps = converted.components, comps.count >= 3 else {
+            return nil
+        }
+        return (comps[0], comps[1], comps[2])
+    }
+
+    private var hsvComponents: (h: CGFloat, s: CGFloat, v: CGFloat)? {
+        guard let rgb = srgbComponents else { return nil }
+        var h: CGFloat = 0, s: CGFloat = 0, v: CGFloat = 0, a: CGFloat = 0
+        UIColor(red: rgb.r, green: rgb.g, blue: rgb.b, alpha: 1)
+            .getHue(&h, saturation: &s, brightness: &v, alpha: &a)
+        return (h, s, v)
     }
 }

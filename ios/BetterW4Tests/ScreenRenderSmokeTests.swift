@@ -54,6 +54,18 @@ final class ScreenRenderSmokeTests: XCTestCase {
         assertRenders("ScheduleView", NavigationStack { ScheduleView(student: student) })
     }
 
+    func testLessonDetailSheetRenders() {
+        let event = TimetableEvent(
+            id: "ac-demo-0",
+            title: "Biology HL",
+            source: .academics,
+            date: TimeProvider.now,
+            teacher: "A. Nordby",
+            room: "Lab 2"
+        )
+        assertRenders("LessonDetailSheet", LessonDetailSheet(event: event))
+    }
+
     func testStudentsTabRenders() {
         let path = Binding.constant(NavigationPath())
         assertRenders(
@@ -89,6 +101,10 @@ final class ScreenRenderSmokeTests: XCTestCase {
 
     func testTripsRenders() {
         assertRenders("TripsView", NavigationStack { TripsView() })
+    }
+
+    func testOnDutyRenders() {
+        assertRenders("OnDutyView", NavigationStack { OnDutyView() })
     }
 
     func testExtraAcademicsRenders() {
@@ -134,6 +150,10 @@ final class ScreenRenderSmokeTests: XCTestCase {
 
     func testSettingsRenders() {
         assertRenders("SettingsView", NavigationStack { SettingsView(student: student) })
+    }
+
+    func testHousesRenders() {
+        assertRenders("HousesView", NavigationStack { HousesView() })
     }
 
     // MARK: - Auth

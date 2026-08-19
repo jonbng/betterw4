@@ -250,14 +250,14 @@ private fun DayCell(
         selected -> onPrimary
         isToday -> primary
         hasEvents -> onSurface
-        else -> onSurfaceVariant.copy(alpha = 0.40f)
+        else -> onSurfaceVariant.copy(alpha = 0.62f)
     }
 
     val labelColor: Color = when {
         selected -> onPrimary.copy(alpha = 0.90f)
         isToday -> primary.copy(alpha = 0.85f)
         hasEvents -> onSurfaceVariant
-        else -> onSurfaceVariant.copy(alpha = 0.35f)
+        else -> onSurfaceVariant.copy(alpha = 0.55f)
     }
 
     Column(

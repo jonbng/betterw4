@@ -149,40 +149,26 @@ struct SettingsView: View {
                     settingsStore.saveNotificationsEnabled(newValue)
                     if newValue {
                         requestNotificationPermission()
+                    } else {
+                        NotificationBackgroundRefresh.cancel()
                     }
                 }
 
             if settingsStore.notificationsEnabled {
-                Toggle("New mail", isOn: $settingsStore.notifyNewMail)
-                    .onChange(of: settingsStore.notifyNewMail) { _, value in
-                        settingsStore.saveNotifyNewMail(value)
-                    }
-
-                Toggle("Assessments due", isOn: $settingsStore.notifyAssessments)
-                    .onChange(of: settingsStore.notifyAssessments) { _, value in
-                        settingsStore.saveNotifyAssessments(value)
-                    }
-
                 Toggle("Timetable changes", isOn: $settingsStore.notifyTimetableChanges)
                     .onChange(of: settingsStore.notifyTimetableChanges) { _, value in
                         settingsStore.saveNotifyTimetableChanges(value)
                     }
 
-                Toggle("Lesson reminder", isOn: $settingsStore.notifyLessonReminder)
-                    .onChange(of: settingsStore.notifyLessonReminder) { _, value in
-                        settingsStore.saveNotifyLessonReminder(value)
+                Toggle("Assessments", isOn: $settingsStore.notifyAssessments)
+                    .onChange(of: settingsStore.notifyAssessments) { _, value in
+                        settingsStore.saveNotifyAssessments(value)
                     }
 
-                if settingsStore.notifyLessonReminder {
-                    Picker("Remind me", selection: $settingsStore.lessonReminderMinutes) {
-                        ForEach(LessonReminderLead.allCases) { lead in
-                            Text(lead.displayName).tag(lead)
-                        }
+                Toggle("Trips", isOn: $settingsStore.notifyTrips)
+                    .onChange(of: settingsStore.notifyTrips) { _, value in
+                        settingsStore.saveNotifyTrips(value)
                     }
-                    .onChange(of: settingsStore.lessonReminderMinutes) { _, value in
-                        settingsStore.saveLessonReminderMinutes(value)
-                    }
-                }
             }
 
             LabeledContent("System permission") {
@@ -198,7 +184,7 @@ struct SettingsView: View {
         } header: {
             Text("Notifications")
         } footer: {
-            Text("BetterW4 checks W4 in the background and notifies you on this device only. Nothing is sent to a server.")
+            Text("BetterW4 checks W4 in the background while Background App Refresh is on, and notifies you on this device only. Mail is your Gmail — it is not notified here.")
         }
     }
 
@@ -347,11 +333,7 @@ struct SettingsView: View {
     /// never at launch (features.md §5.2).
     private func requestNotificationPermission() {
         Task {
-            let granted = (try? await UNUserNotificationCenter.current()
-                .requestAuthorization(options: [.alert, .badge, .sound])) ?? false
-            await MainActor.run {
-                settingsStore.saveNotificationsEnabled(granted)
-            }
+            await NotificationRefresh.requestAuthorizationIfNeeded()
             await refreshNotificationAuthorization()
         }
     }

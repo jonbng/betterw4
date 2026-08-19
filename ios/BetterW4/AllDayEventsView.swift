@@ -58,28 +58,29 @@ private struct AllDayEventChip: View {
         if isCancelled {
             return Color(colorScheme == .dark ? UIColor.systemGray4 : UIColor.systemGray6)
         }
-        return themeColor.opacity(colorScheme == .dark ? 0.32 : 0.18)
+        let surface = Color(colorScheme == .dark ? UIColor.systemGray6 : UIColor.systemBackground)
+        return surface.tinted(with: themeColor, amount: colorScheme == .dark ? 0.24 : 0.18)
     }
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: event.iconName)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.primary.opacity(0.55))
+            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                .fill(isCancelled ? Color.clear : themeColor)
+                .frame(width: 3, height: 14)
 
             Text(event.displayTitle)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(.primary.opacity(0.85))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.primary)
                 .strikethrough(isCancelled)
                 .lineLimit(1)
 
             if let room = event.room, !room.isEmpty {
                 Text("•")
                     .font(.system(size: 13))
-                    .foregroundColor(.primary.opacity(0.4))
+                    .foregroundColor(.secondary)
                 Text(room)
                     .font(.system(size: 12))
-                    .foregroundColor(.primary.opacity(0.55))
+                    .foregroundColor(.secondary)
                     .lineLimit(1)
             }
 
@@ -92,7 +93,7 @@ private struct AllDayEventChip: View {
             if event.source == .extraAcademics {
                 Image(systemName: "sparkles")
                     .font(.system(size: 10))
-                    .foregroundColor(.primary.opacity(0.45))
+                    .foregroundColor(.secondary)
             }
         }
         .padding(.horizontal, 10)
