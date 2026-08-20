@@ -1,15 +1,12 @@
 import { render } from 'preact';
 import { AppOverlays } from '@/components/AppOverlays';
-import { AppSidebar } from '@/components/AppSidebar';
+import { Topbar, type AccountLinks } from '@/components/Topbar';
 import { Toaster } from '@/components/ui/sonner';
-import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { disableBypass, getBypassRemainingMs, isBypassActive } from '@/lib/bypass-redesigns';
-import { updatePageTitle } from '@/lib/page-titles';
-import { getCachedProfile, updateLoginState, updateProfileCache } from '@/lib/profile-cache';
+import { updateLoginState, updateProfileCache } from '@/lib/profile-cache';
 import { getSettings } from '@/lib/settings-storage';
 import { applyTheme } from '@/lib/theme-storage';
-import { parseW4Navigation } from '@/lib/w4-navigation';
-import { isLoginPage } from '@/lib/w4-url';
+import { isLoginPage, w4Url } from '@/lib/w4-url';
 import '@/styles/globals.css';
 
 export default defineContentScript({
@@ -22,9 +19,9 @@ export default defineContentScript({
     });
 
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initLayout);
+      document.addEventListener('DOMContentLoaded', init);
     } else {
-      initLayout();
+      init();
     }
   },
 });
@@ -55,16 +52,59 @@ function replaceFavicon() {
   document.head.appendChild(favicon);
 }
 
-function DashboardLayout() {
+function polishMainMenu(): void {
+  const menu = document.getElementById('main_menu');
+  if (!menu || menu.dataset.bwPolished) return;
+  menu.dataset.bwPolished = '1';
+  for (const node of Array.from(menu.childNodes)) {
+    if (node.nodeType === Node.TEXT_NODE && (node.textContent ?? '').includes('|')) {
+      node.textContent = '';
+    }
+  }
+}
+
+function accountLinks(): AccountLinks {
+  const panel = document.getElementById('user-panel');
+  const href = (selector: string, fallback: string) =>
+    panel?.querySelector<HTMLAnchorElement>(selector)?.href || w4Url(fallback);
+  return {
+    profile: href('a[href*="site/profile"]', 'site/profile'),
+    password: href('a[href*="site/password"]', 'site/password'),
+    logout: href('a[href*="site/logout"]', 'site/logout'),
+  };
+}
+
+function mountTopbar(): void {
+  const header = document.getElementById('header');
+  if (!header || document.getElementById('bw-topbar-root')) return;
+
+  const root = document.createElement('div');
+  root.id = 'bw-topbar-root';
+  header.insertBefore(root, header.firstChild);
+
+  render(
+    <Topbar profile={updateProfileCache()} account={accountLinks()} />,
+    root,
+  );
+
+  for (const child of Array.from(header.children)) {
+    if (child.id === 'bw-topbar-root') continue;
+    if (child.classList.contains('notifications')) continue;
+    if (child.classList.contains('status-dropdown')) continue;
+    if (child.classList.contains('selection-box')) continue;
+    (child as HTMLElement).hidden = true;
+  }
+
+  const panel = document.getElementById('user-panel');
+  if (panel) panel.hidden = true;
+}
+
+function Overlays() {
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <div id="bw-w4-content" />
-      </SidebarInset>
+    <>
       <AppOverlays />
       <Toaster position="bottom-right" />
-    </SidebarProvider>
+    </>
   );
 }
 
@@ -72,75 +112,36 @@ function injectBypassReenableButton(): void {
   if (document.getElementById('bw-bypass-reenable')) return;
 
   const mount = () => {
-    if (document.getElementById('bw-bypass-reenable')) return;
-    if (!document.body) {
-      document.addEventListener('DOMContentLoaded', mount, { once: true });
-      return;
-    }
-
-    const wrap = document.createElement('div');
-    wrap.id = 'bw-bypass-reenable';
-    wrap.setAttribute(
-      'style',
-      [
-        'position:fixed',
-        'right:16px',
-        'bottom:16px',
-        'z-index:2147483647',
-        'font-family:Geist,Inter,system-ui,sans-serif',
-        'font-size:13px',
-      ].join(';'),
-    );
-
+    if (document.getElementById('bw-bypass-reenable') || !document.body) return;
     const btn = document.createElement('button');
+    btn.id = 'bw-bypass-reenable';
     btn.type = 'button';
     btn.textContent = 'Re-enable BetterW4';
-    btn.setAttribute(
-      'style',
-      [
-        'all:unset',
-        'box-sizing:border-box',
-        'display:inline-flex',
-        'align-items:center',
-        'padding:10px 14px',
-        'border-radius:10px',
-        'background:oklch(0.48 0.12 210)',
-        'color:#fff',
-        'font-weight:500',
-        'cursor:pointer',
-        'box-shadow:0 8px 24px oklch(0 0 0 / 0.25)',
-      ].join(';'),
-    );
     btn.addEventListener('click', () => {
       disableBypass();
       window.location.reload();
     });
-
-    const checkExpiry = () => {
+    const timer = window.setInterval(() => {
       if (getBypassRemainingMs() <= 0) {
-        wrap.remove();
+        btn.remove();
         clearInterval(timer);
       }
-    };
-    const timer = window.setInterval(checkExpiry, 1000);
-
-    wrap.appendChild(btn);
-    document.body.appendChild(wrap);
+    }, 1000);
+    document.body.appendChild(btn);
   };
 
-  mount();
+  if (document.body) mount();
+  else document.addEventListener('DOMContentLoaded', mount, { once: true });
 }
 
-function initLayout() {
+function init() {
   if (isBypassActive()) {
     document.documentElement.classList.add('bw-ready');
     injectBypassReenableButton();
     return;
   }
 
-  if (isLoginPage()) {
-    return;
-  }
+  if (isLoginPage()) return;
 
   const hasUserPanel = Boolean(document.querySelector('#user-panel'));
   if (!hasUserPanel) {
@@ -153,37 +154,20 @@ function initLayout() {
   document.documentElement.classList.toggle('dark', settings.visual.darkMode);
   applyTheme();
   updateLoginState();
-  const profile = updateProfileCache();
-  (window as unknown as { __BW_CACHED_PROFILE__?: typeof profile }).__BW_CACHED_PROFILE__ =
-    profile ?? getCachedProfile();
+  updateProfileCache();
 
-  updatePageTitle();
   replaceFavicon();
   injectFont();
-  parseW4Navigation(document);
+  polishMainMenu();
+  document.body.classList.add('bw-themed');
+  mountTopbar();
 
-  const originalNodes: Node[] = [];
-  while (document.body.firstChild) {
-    originalNodes.push(document.body.removeChild(document.body.firstChild));
+  if (!document.getElementById('bw-root')) {
+    const root = document.createElement('div');
+    root.id = 'bw-root';
+    document.body.appendChild(root);
+    render(<Overlays />, root);
   }
 
-  document.body.classList.add('bw-dashboard-active');
-  document.body.classList.toggle('bw-hide-native-chrome', settings.behavior.hideNativeChrome);
-
-  const root = document.createElement('div');
-  root.id = 'bw-root';
-  document.body.appendChild(root);
-
-  render(<DashboardLayout />, root);
-
-  requestAnimationFrame(() => {
-    const contentContainer = document.getElementById('bw-w4-content');
-    if (contentContainer) {
-      const wrapper = document.createElement('div');
-      wrapper.id = 'bw-original-content';
-      for (const node of originalNodes) wrapper.appendChild(node);
-      contentContainer.appendChild(wrapper);
-    }
-    document.documentElement.classList.add('bw-ready');
-  });
+  document.documentElement.classList.add('bw-ready');
 }

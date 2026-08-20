@@ -14,12 +14,10 @@ Not made by, endorsed by, or affiliated with the college.
 
 ## Features
 
-- **Modern sidebar** — Home, combined-style timetable, assessments, mail, documents, plus Academics / Extra Academics / School
-- **Campus status** — set on/off campus from the sidebar
-- **Login** — restyled W4 username / password / 2FA, still posted as the native Yii form
-- **Dark mode** and colour presets
-- **No flash of unstyled W4** — original CSS is layered under the new shell
-- **Original pages still work** — W4 DOM is moved, not cloned
+- **Same navigation as W4** — top menu and sdmenu stay; they are just restyled
+- **Login / 2FA** — restyled native Yii forms (the POST is still W4's)
+- **Dark mode** and colour presets (BetterW4 in the user panel)
+- **No flash of unstyled W4** — original CSS is layered under the restyle
 
 ## Installation
 

@@ -3,7 +3,7 @@ import { LoginPage } from '@/components/LoginPage';
 import { getCachedProfile } from '@/lib/profile-cache';
 import { getSettings } from '@/lib/settings-storage';
 import { applyTheme } from '@/lib/theme-storage';
-import { getRoute, isLoginPage } from '@/lib/w4-url';
+import { getRoute, isLoginPage, isOtpRoute } from '@/lib/w4-url';
 import '@/styles/globals.css';
 
 export default defineContentScript({
@@ -35,11 +35,115 @@ function injectFont() {
 function loginMode(): 'login' | 'otp' | 'forgot' {
   const route = getRoute();
   if (route === 'site/forgotpass') return 'forgot';
-  if (route === 'site/verify2fa' || route === 'site/otp') return 'otp';
-  if (document.querySelector('input[name*="code" i], input[name*="otp" i], input[name*="token" i]')) {
+  if (isOtpRoute(route)) return 'otp';
+  if (
+    document.querySelector(
+      '#otp-form, input[name^="OtpModel"], input[name*="otp" i], input[name*="code" i], input[name*="token" i]',
+    )
+  ) {
     return 'otp';
   }
+  if (/additional verification/i.test(document.title)) return 'otp';
   return 'login';
+}
+
+function findAuthForm(): HTMLFormElement | null {
+  return (
+    document.querySelector<HTMLFormElement>('#otp-form') ??
+    document.querySelector<HTMLFormElement>('form[action*="verify2fa"]') ??
+    document.querySelector<HTMLFormElement>('form[action*="otp"]') ??
+    document.querySelector<HTMLFormElement>('form:has(input[name^="OtpModel"])') ??
+    document.querySelector<HTMLFormElement>('form:has(input[name^="LoginForm"])') ??
+    document.querySelector<HTMLFormElement>('form:has(input[name^="ForgotPassForm"])') ??
+    document.querySelector<HTMLFormElement>('form')
+  );
+}
+
+function collectAuthExtras(form: HTMLFormElement): Node[] {
+  const extras: Node[] = [];
+  const error = document.querySelector('.errorSummary, .errorMessage, .flash-error');
+  if (error && !form.contains(error)) extras.push(error);
+
+  const parent = form.parentElement;
+  if (parent) {
+    for (const child of Array.from(parent.children)) {
+      if (child === form) continue;
+      if (child.tagName === 'P' || child.tagName === 'A' || child.querySelector?.('a[href*="otp"]')) {
+        extras.push(child);
+      }
+    }
+  }
+  return extras;
+}
+
+/**
+ * Only flatten W4's dedicated 200px `#login_table`. The 2FA page is Yii
+ * `div.form > .row` (and may sit inside layout tables from main.css) — never
+ * strip those.
+ */
+function normalizeLoginForm(form: HTMLFormElement): void {
+  const table = form.querySelector<HTMLTableElement>('table#login_table');
+  if (table) {
+    const pieces: Node[] = [];
+    table.querySelectorAll('tr').forEach((row) => {
+      const submit = row.querySelector<HTMLInputElement>('input[type="submit"]');
+      if (submit) {
+        styleSubmit(submit);
+        pieces.push(submit);
+        return;
+      }
+
+      const input = row.querySelector<HTMLInputElement>(
+        'input[type="text"], input[type="password"], input:not([type="hidden"]):not([type="submit"]):not([type="checkbox"])',
+      );
+      if (!input) return;
+
+      const label = row.querySelector('label');
+      const wrap = document.createElement('div');
+      wrap.className = 'bw-login-field';
+      if (label) wrap.appendChild(label);
+      styleField(input, label?.textContent);
+      wrap.appendChild(input);
+      pieces.push(wrap);
+    });
+    table.remove();
+    for (const piece of pieces) form.appendChild(piece);
+    return;
+  }
+
+  form
+    .querySelectorAll<HTMLInputElement>(
+      'input[type="text"], input[type="password"], input[type="tel"], input[type="number"]',
+    )
+    .forEach((input) => styleField(input));
+  form.querySelectorAll<HTMLInputElement>('input[type="submit"]').forEach(styleSubmit);
+}
+
+function styleField(input: HTMLInputElement, labelText?: string | null): void {
+  input.classList.add('bw-login-input');
+  input.removeAttribute('size');
+  input.removeAttribute('style');
+
+  const name = (input.getAttribute('name') ?? '').toLowerCase();
+  const type = (input.getAttribute('type') ?? 'text').toLowerCase();
+  if (type === 'password' && !name.includes('otp') && !name.includes('code')) {
+    input.autocomplete = 'current-password';
+    if (!input.placeholder) input.placeholder = 'Password';
+  } else if (name.includes('username') || name.includes('[user')) {
+    input.autocomplete = 'username';
+    if (!input.placeholder) input.placeholder = 'Username';
+  } else if (name.includes('otp') || name.includes('code') || name.includes('token') || name.includes('verify')) {
+    input.autocomplete = 'one-time-code';
+    input.inputMode = 'numeric';
+    if (!input.placeholder) input.placeholder = labelText?.trim() || 'Verification code';
+  } else if (labelText && !input.placeholder) {
+    input.placeholder = labelText.trim();
+  }
+}
+
+function styleSubmit(input: HTMLInputElement): void {
+  input.classList.add('bw-login-submit');
+  input.removeAttribute('style');
 }
 
 function initLoginPage() {
@@ -48,7 +152,11 @@ function initLoginPage() {
   applyTheme();
   injectFont();
 
-  const nativeForm = document.querySelector<HTMLFormElement>('form');
+  const mode = loginMode();
+  const nativeForm = findAuthForm();
+  if (nativeForm) normalizeLoginForm(nativeForm);
+  const extras = nativeForm ? collectAuthExtras(nativeForm) : [];
+
   const originalNodes: Node[] = [];
   while (document.body.firstChild) {
     originalNodes.push(document.body.removeChild(document.body.firstChild));
@@ -61,15 +169,16 @@ function initLoginPage() {
   document.body.appendChild(root);
 
   const profile = getCachedProfile();
-  render(<LoginPage mode={loginMode()} userName={profile?.fullName} />, root);
+  render(
+    <LoginPage
+      mode={mode}
+      userName={profile?.fullName}
+      form={nativeForm}
+      extras={extras}
+      fallbackNodes={nativeForm ? [] : originalNodes}
+    />,
+    root,
+  );
 
-  requestAnimationFrame(() => {
-    const slot = document.getElementById('bw-login-form-slot');
-    if (slot && nativeForm) {
-      slot.appendChild(nativeForm);
-    } else if (slot) {
-      for (const node of originalNodes) slot.appendChild(node);
-    }
-    document.documentElement.classList.add('bw-ready');
-  });
+  document.documentElement.classList.add('bw-ready');
 }

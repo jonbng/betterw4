@@ -35,6 +35,7 @@ function interceptW4CSS() {
     ) {
       const href = node.href;
       node.media = 'not all';
+      node.setAttribute('data-bw-layered', 'link');
       const layered = document.createElement('style');
       layered.setAttribute('data-bw-layered', 'link');
       layered.textContent = `@import url("${href}") layer(w4);`;
@@ -52,7 +53,8 @@ function interceptW4CSS() {
         text.includes('@layer') ||
         text.includes('--tw-') ||
         text.includes('@theme') ||
-        text.includes('tailwind')
+        text.includes('tailwind') ||
+        text.includes('data-sonner')
       ) {
         return;
       }

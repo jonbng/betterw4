@@ -28,18 +28,24 @@ export function routeMatches(route: string | null, prefix: string): boolean {
   return route === prefix || route.startsWith(`${prefix}/`) || route.startsWith(`${prefix}&`);
 }
 
+export function isOtpRoute(route: string | null = getRoute()): boolean {
+  if (!route) return false;
+  const value = route.toLowerCase();
+  if (value === 'site/verify2fa' || value === 'site/otp') return true;
+  if (!value.startsWith('site/')) return false;
+  return value.includes('otp') || value.includes('2fa') || value.includes('verify');
+}
+
 export function isLoginRoute(route: string | null = getRoute()): boolean {
-  return (
-    route === 'site/login' ||
-    route === 'site/verify2fa' ||
-    route === 'site/otp' ||
-    route === 'site/forgotpass'
-  );
+  const value = route?.toLowerCase() ?? null;
+  return value === 'site/login' || value === 'site/forgotpass' || isOtpRoute(value);
 }
 
 export function isLoginPage(doc: Document = document, url: URL | Location = window.location): boolean {
   if (isLoginRoute(getRoute(url))) return true;
-  if (doc.querySelector('input[name="LoginForm[username]"]')) return true;
-  if (/login site/i.test(doc.title)) return true;
+  if (doc.querySelector('#otp-form, input[name^="OtpModel"], input[name="LoginForm[username]"]')) {
+    return true;
+  }
+  if (/login site|additional verification/i.test(doc.title)) return true;
   return false;
 }

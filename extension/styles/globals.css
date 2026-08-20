@@ -1,10 +1,10 @@
-/* Pre-declare w4 layer so it has lowest cascade priority.
-   Layer order: w4 < theme < base < components < utilities
-   W4's CSS is wrapped in @layer w4 by hide-flash.content.ts,
-   so all our styles automatically win without needing !important. */
-@layer w4;
+/* Skip Tailwind preflight so W4's own layout (top nav, sdmenu, floats)
+   keeps working. Theme + utilities are for injected Preact UI only.
+   W4 CSS is wrapped in @layer w4 by hide-flash.content.ts. */
+@layer w4, theme, base, components, utilities;
 
-@import "tailwindcss";
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
@@ -107,8 +107,9 @@ html {
 }
 
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
+  #bw-root *,
+  #bw-login-form-slot * {
+    border-color: var(--border);
   }
 }
 
@@ -210,44 +211,16 @@ html {
   --sidebar: oklch(0.13 0.01 25);
 }
 
-@layer base {
-  /* Isolate native W4 DOM from Tailwind preflight. Injected Preact UI lives
-     outside #bw-original-content and still gets Tailwind's base. */
-  #bw-original-content :where(*) {
-    all: revert-layer;
-  }
-  #bw-original-content :where(*)::before,
-  #bw-original-content :where(*)::after {
-    all: revert-layer;
-  }
 
-  #bw-original-content :where(*) {
-    scrollbar-width: thin;
-    scrollbar-color: var(--scrollbar-thumb) transparent;
-  }
-}
 
 @layer components {
-  html {
-    height: 100% !important;
-  }
-
-  body.bw-dashboard-active {
-    height: 100% !important;
-    min-height: 100vh !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: hidden !important;
-    background: var(--background) !important;
-  }
-
   body.bw-login-active {
     margin: 0 !important;
     min-height: 100vh !important;
     background: var(--background) !important;
   }
 
-  #bw-root {
+  body.bw-login-active #bw-root {
     height: 100vh;
     width: 100%;
     font-family: "Geist", sans-serif;
@@ -256,223 +229,646 @@ html {
     color: var(--foreground);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    text-align: left;
-    letter-spacing: normal;
-    word-spacing: normal;
   }
 
-  [data-slot="sidebar-wrapper"] {
-    display: flex;
-    flex-direction: row;
-    min-height: 100vh;
-    width: 100%;
+  body.bw-themed > #bw-root {
+    position: static;
+    height: 0;
+    width: 0;
+    overflow: visible;
+    font-family: "Geist", sans-serif;
   }
 
-  [data-slot="sidebar-inset"] {
-    min-width: 0;
-    overflow: hidden;
+  /* ── Native W4 chrome (full viewport) ──────────────────────── */
+  html:has(body.bw-themed) {
+    height: 100%;
+  }
+
+  body.bw-themed {
+    background: var(--background) !important;
+    background-image: none !important;
+    color: var(--foreground);
+    font-family: "Geist", sans-serif !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 100%;
+    height: 100%;
+  }
+
+  body.bw-themed #main {
+    background: var(--background) !important;
+    background-image: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    color: var(--foreground);
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 100%;
+    height: 100%;
+    margin: 0 !important;
+    padding: 0 !important;
     display: flex;
     flex-direction: column;
-    flex: 1;
-    height: 100vh;
+    box-sizing: border-box;
   }
 
-  .settings-modal[data-slot="sidebar-wrapper"] {
-    min-height: 0;
-    height: 100%;
-  }
-
-  [data-slot="sidebar"].hidden {
-    display: block !important;
-  }
-
-  [data-slot="sidebar"] {
-    display: block !important;
-    height: 100vh;
-  }
-
-  .settings-modal [data-slot="sidebar"] {
-    height: 100%;
-  }
-
-  .settings-modal [data-slot="sidebar-gap"] {
+  body.bw-themed #main > .clear {
     display: none;
   }
 
-  .settings-modal [data-slot="sidebar-container"] {
-    position: static;
-    height: 100%;
-  }
-
-  .settings-modal .settings-modal-main {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-
-  .settings-modal .settings-modal-scroll {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto;
-  }
-
-  [data-slot="sidebar-container"] {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    position: fixed !important;
-    left: 0;
-    top: 0;
-    z-index: 50 !important;
-    width: var(--sidebar-width, 16rem);
-    background-color: var(--sidebar);
-    border-right: 1px solid var(--sidebar-border);
-    overflow: hidden;
-  }
-
-  [data-sidebar="sidebar"] {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    width: 100%;
-    background-color: var(--sidebar);
-  }
-
-  [data-slot="sidebar-gap"] {
+  body.bw-themed #main #header {
+    height: 52px !important;
+    min-height: 52px !important;
     flex-shrink: 0;
-    width: var(--sidebar-width, 16rem);
+    font-size: inherit !important;
+    color: var(--foreground) !important;
+    font-family: inherit !important;
+    font-weight: 400 !important;
+    display: flex !important;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0;
+    padding: 0 !important;
+    border-bottom: 1px solid var(--border);
+    background: var(--card) !important;
+    position: relative;
+    z-index: 40;
   }
 
-  #bw-w4-content {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-width: 0;
-    height: 100%;
-    overflow-y: auto;
-    overflow-x: hidden;
-    background: var(--background);
-  }
-
-  #bw-original-content {
-    flex: 1 0 auto;
-    min-width: 0;
-    min-height: 100%;
-    padding: 1.25rem 1.5rem 2rem;
-  }
-
-  /* Hide native W4 chrome — the sidebar replaces it. */
-  body.bw-hide-native-chrome #header,
-  body.bw-hide-native-chrome #main_menu,
-  body.bw-hide-native-chrome #user-panel,
-  body.bw-hide-native-chrome .sdmenu,
-  body.bw-hide-native-chrome #footer,
-  body.bw-hide-native-chrome #breadcrumb,
-  body.bw-hide-native-chrome .selection-box,
-  body.bw-hide-native-chrome #help_display,
-  body.bw-hide-native-chrome .help-icon {
+  body.bw-themed #header #version,
+  body.bw-themed #user-panel {
     display: none !important;
   }
 
-  body.bw-dashboard-active #main,
-  body.bw-dashboard-active #content,
-  body.bw-dashboard-active #content_frame,
-  body.bw-dashboard-active #content_main,
-  body.bw-dashboard-active #content_inner {
-    width: auto !important;
-    max-width: none !important;
-    float: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    background: transparent !important;
+  body.bw-themed #header > .notifications {
+    position: absolute !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
   }
 
-  /* ── W4 modernizer ─────────────────────────────────────────── */
-  #bw-original-content table {
-    border-collapse: collapse;
+  #bw-topbar-root,
+  .bw-topbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     width: 100%;
+    min-width: 0;
+    height: 52px;
+    padding: 0 12px;
+    box-sizing: border-box;
   }
 
-  #bw-original-content table td,
-  #bw-original-content table th {
-    padding: 0.4rem 0.6rem;
-    border-color: var(--border) !important;
+  .bw-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    color: var(--foreground) !important;
+    font-size: 0.95rem;
+    font-weight: 650;
+    text-decoration: none !important;
+    letter-spacing: -0.02em;
   }
 
-  #bw-original-content a {
+  .bw-topbar-nav,
+  body.bw-themed #main #main_menu {
+    float: none !important;
+    width: auto !important;
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center;
+    gap: 2px;
+    padding: 0 !important;
+    overflow-x: auto;
+    scrollbar-width: none;
+    font-family: inherit !important;
+    font-size: 0.875rem !important;
+  }
+
+  .bw-topbar-nav::-webkit-scrollbar,
+  body.bw-themed #main #main_menu::-webkit-scrollbar {
+    display: none;
+  }
+
+  body.bw-themed #main #main_menu a {
+    flex-shrink: 0;
+    color: var(--muted-foreground) !important;
+    font-weight: 500 !important;
+    padding: 6px 10px;
+    border-radius: 8px;
+    white-space: nowrap;
+  }
+
+  body.bw-themed #main #main_menu a.active,
+  body.bw-themed #main #main_menu a:hover {
+    color: var(--foreground) !important;
+    background: var(--accent);
+  }
+
+  .bw-topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+
+  .bw-campus-slot {
+    position: relative;
+  }
+
+  body.bw-themed .status-dropdown {
+    float: none !important;
+    width: auto !important;
+    margin: 0 !important;
+    position: relative;
+  }
+
+  body.bw-themed .status-dropdown .status {
+    font-size: 0.7rem !important;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 5px 10px !important;
+    border-radius: 999px !important;
+    min-width: 0;
+  }
+
+  body.bw-themed .status-dropdown .location {
+    display: none;
+  }
+
+  body.bw-themed .selection-box {
+    z-index: 50;
+    width: min(360px, 90vw) !important;
+    max-height: 70vh;
+    border: 1px solid var(--border) !important;
+    background: var(--popover) !important;
+    color: var(--popover-foreground) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 12px 40px oklch(0 0 0 / 0.18);
+    padding: 12px 14px !important;
+  }
+
+  .bw-icon-btn,
+  .bw-profile-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 34px;
+    border: none;
+    background: transparent;
+    color: var(--foreground);
+    cursor: pointer;
+    border-radius: 8px;
+    padding: 0 8px;
+    position: relative;
+  }
+
+  .bw-icon-btn {
+    width: 34px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .bw-icon-btn:hover,
+  .bw-profile-btn:hover {
+    background: var(--accent);
+  }
+
+  .bw-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-size: 10px;
+    font-weight: 650;
+    line-height: 16px;
+    text-align: center;
+  }
+
+  .bw-badge-new {
+    background: oklch(0.62 0.16 145);
+  }
+
+  .bw-badge-overdue {
+    background: var(--destructive);
+    color: var(--destructive-foreground);
+  }
+
+  .bw-popover {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 80;
+    width: 220px;
+    border: 1px solid var(--border);
+    background: var(--popover);
+    color: var(--popover-foreground);
+    border-radius: 10px;
+    box-shadow: 0 12px 40px oklch(0 0 0 / 0.18);
+    overflow: hidden;
+    transform-origin: top right;
+  }
+
+  .bw-popover-notify {
+    width: min(360px, 90vw);
+  }
+
+  .bw-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    font-size: 0.875rem;
+    color: var(--foreground) !important;
+    text-decoration: none !important;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .bw-menu-item:hover {
+    background: var(--accent);
+  }
+
+  body.bw-themed #main #content {
+    background: var(--card) !important;
+    color: var(--foreground) !important;
+    font-family: inherit !important;
+    border-radius: 0 !important;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    width: 100% !important;
+  }
+
+  body.bw-themed #main #content #content_frame {
+    display: flex !important;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100% !important;
+  }
+
+  body.bw-themed #main #content #content_main {
+    display: block !important;
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto !important;
+    overflow: auto;
+  }
+
+  body.bw-themed #main #content #content_inner {
+    padding: 16px 20px;
+  }
+
+  body.bw-themed #main #content #breadcrumb {
+    flex-shrink: 0;
+    border-bottom-color: var(--border) !important;
+    color: var(--muted-foreground);
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  body.bw-themed .sdmenu {
+    display: block !important;
+    flex: 0 0 220px;
+    width: 220px !important;
+    min-width: 220px !important;
+    align-self: stretch;
+    overflow: auto;
+    border-right: 1px solid var(--border) !important;
+    color: var(--foreground) !important;
+    font-size: 0.8125rem !important;
+    padding: 8px 6px !important;
+  }
+
+  body.bw-themed .sdmenu div {
+    background: none !important;
+    border-radius: 8px;
+    margin-bottom: 6px;
+  }
+
+  body.bw-themed .sdmenu div span {
+    background-image: none !important;
+    color: var(--muted-foreground) !important;
+    font-size: 0.6875rem !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 8px 10px !important;
+    border-bottom: none !important;
+  }
+
+  body.bw-themed .sdmenu div a {
+    background: transparent !important;
+    color: var(--foreground) !important;
+    border-bottom: none !important;
+    border-radius: 6px;
+    margin: 1px 4px;
+  }
+
+  body.bw-themed .sdmenu div a.current,
+  body.bw-themed .sdmenu div a:hover {
+    background: var(--accent) !important;
+    color: var(--foreground) !important;
+  }
+
+  body.bw-themed #footer {
+    flex-shrink: 0;
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    padding: 10px 16px;
+  }
+
+  body.bw-themed a:link,
+  body.bw-themed a:visited,
+  body.bw-themed a:active {
     color: var(--primary);
   }
 
-  #bw-original-content input[type="text"],
-  #bw-original-content input[type="password"],
-  #bw-original-content input[type="email"],
-  #bw-original-content select,
-  #bw-original-content textarea {
-    border: 1px solid var(--border) !important;
-    border-radius: calc(var(--radius) - 2px) !important;
-    background: var(--card) !important;
-    color: var(--foreground) !important;
-    padding: 0.35rem 0.6rem !important;
-  }
-
-  #bw-original-content input[type="submit"],
-  #bw-original-content input[type="button"],
-  #bw-original-content button {
-    border-radius: calc(var(--radius) - 2px) !important;
-    border: 1px solid var(--border) !important;
-    background: var(--secondary) !important;
-    color: var(--secondary-foreground) !important;
-    padding: 0.35rem 0.75rem !important;
-    cursor: pointer;
-  }
-
-  #bw-original-content h1,
-  #bw-original-content h2,
-  #bw-original-content h3 {
-    color: var(--foreground) !important;
-    font-family: "Geist", sans-serif !important;
-  }
-
-  .dark #bw-original-content {
+  body.bw-themed a:hover {
     color: var(--foreground);
   }
 
-  /* Login form, restyled after being moved into the Preact shell. */
-  #bw-login-form-slot form {
+  body.bw-themed input[type="text"],
+  body.bw-themed input[type="password"],
+  body.bw-themed select,
+  body.bw-themed textarea {
+    background: var(--card) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--foreground) !important;
+    border-radius: 6px;
+  }
+
+  body.bw-themed input[type="text"]:hover,
+  body.bw-themed input[type="password"]:hover,
+  body.bw-themed select:hover {
+    background: var(--card) !important;
+    border-color: var(--ring) !important;
+  }
+
+  body.bw-themed input[type="button"],
+  body.bw-themed input[type="submit"] {
+    background: var(--secondary) !important;
+    background-image: none !important;
+    border: 1px solid var(--border) !important;
+    color: var(--secondary-foreground) !important;
+    border-radius: 6px !important;
+    text-shadow: none !important;
+  }
+
+  body.bw-themed input[type="button"]:hover,
+  body.bw-themed input[type="submit"]:hover {
+    color: var(--foreground) !important;
+    border-color: var(--ring) !important;
+  }
+
+  body.bw-themed #bw-bypass-reenable {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 2147483647;
+    padding: 10px 14px;
+    border: none;
+    border-radius: 10px;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font: 500 13px Geist, sans-serif;
+    cursor: pointer;
+  }
+
+  /* Login form — native Yii table is flattened in login.content.tsx.
+     !important beats leftover W4 rules (#submit_button, .text_input, login.css). */
+  #bw-login-form-slot {
+    font-family: "Geist", sans-serif;
+  }
+
+  #bw-login-form-slot form,
+  #bw-login-form-slot .form,
+  #bw-login-form-slot .main {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    float: none !important;
+  }
+
+  #bw-login-form-slot table#login_table,
+  #bw-login-form-slot table#login_table tbody,
+  #bw-login-form-slot table#login_table tr,
+  #bw-login-form-slot table#login_table td {
+    display: contents;
+  }
+
+  #bw-login-form-slot .bw-login-field,
+  #bw-login-form-slot .row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    width: 100% !important;
+    margin: 0 !important;
+    float: none !important;
+    clear: none !important;
+  }
+
+  #bw-login-form-slot .row:has(> input[type="checkbox"]),
+  #bw-login-form-slot .row:has(> input[type="hidden"] + input[type="checkbox"]) {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  #bw-login-form-slot p {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: var(--muted-foreground);
+  }
+
+  #bw-login-form-slot a {
+    color: var(--primary);
+    text-underline-offset: 4px;
+  }
+
+  #bw-login-form-slot a:hover {
+    text-decoration: underline;
+  }
+
+  #bw-login-form-slot .center {
+    width: 100% !important;
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
   }
 
-  #bw-login-form-slot label,
+  #bw-login-form-slot h2,
+  #bw-login-form-slot h3 {
+    display: none;
+  }
+
+  #bw-login-form-slot input[type="checkbox"] {
+    appearance: auto;
+    width: 1rem;
+    height: 1rem;
+    margin: 0;
+    accent-color: var(--primary);
+    flex-shrink: 0;
+  }
+
+  #bw-login-form-slot .row:has(input[type="checkbox"]) label {
+    display: inline !important;
+    font-size: 0.875rem;
+    font-weight: 450;
+    color: var(--foreground);
+  }
+
+  #bw-login-form-slot label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--foreground);
+    letter-spacing: 0.01em;
+  }
+
   #bw-login-form-slot .errorMessage,
   #bw-login-form-slot .errorSummary {
-    font-size: 0.875rem;
+    margin: 0 0 0.25rem;
+    border-radius: calc(var(--radius) - 2px);
+    border: 1px solid color-mix(in oklch, var(--destructive) 35%, var(--border));
+    background: color-mix(in oklch, var(--destructive) 8%, var(--card));
+    padding: 0.625rem 0.75rem;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--destructive);
+    float: none !important;
+    width: auto !important;
   }
 
+  #bw-login-form-slot .errorSummary ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  #bw-login-form-slot .bw-login-input,
+  #bw-login-form-slot input.text_input,
   #bw-login-form-slot input[type="text"],
   #bw-login-form-slot input[type="password"] {
-    height: 2.25rem;
-    width: 100%;
-    border: 1px solid var(--input);
-    border-radius: calc(var(--radius) - 2px);
-    background: transparent;
-    color: var(--foreground);
-    padding: 0 0.75rem;
-    font-size: 0.875rem;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    box-sizing: border-box !important;
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 2.75rem !important;
+    margin: 0 !important;
+    padding: 0 0.875rem !important;
+    border: 1px solid var(--input) !important;
+    border-radius: calc(var(--radius) - 2px) !important;
+    background: var(--background) !important;
+    background-image: none !important;
+    color: var(--foreground) !important;
+    font-family: inherit !important;
+    font-size: 0.9375rem !important;
+    font-weight: 450 !important;
+    line-height: 1.4 !important;
+    box-shadow: none !important;
+    outline: none !important;
+    transition:
+      border-color 160ms var(--ease-out),
+      box-shadow 160ms var(--ease-out),
+      background-color 160ms var(--ease-out) !important;
   }
 
+  #bw-login-form-slot .bw-login-input::placeholder,
+  #bw-login-form-slot input[type="text"]::placeholder,
+  #bw-login-form-slot input[type="password"]::placeholder {
+    color: var(--muted-foreground);
+    opacity: 1;
+  }
+
+  #bw-login-form-slot .bw-login-input:hover,
+  #bw-login-form-slot input[type="text"]:hover,
+  #bw-login-form-slot input[type="password"]:hover {
+    background: var(--background) !important;
+    border-color: color-mix(in oklch, var(--ring) 45%, var(--input)) !important;
+  }
+
+  #bw-login-form-slot .bw-login-input:focus,
+  #bw-login-form-slot .bw-login-input:focus-visible,
+  #bw-login-form-slot input[type="text"]:focus,
+  #bw-login-form-slot input[type="password"]:focus {
+    background: var(--background) !important;
+    border-color: var(--ring) !important;
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 22%, transparent) !important;
+  }
+
+  #bw-login-form-slot .bw-login-submit,
+  #bw-login-form-slot #submit_button,
   #bw-login-form-slot input[type="submit"] {
-    height: 2.25rem;
-    border-radius: calc(var(--radius) - 2px);
-    background: var(--primary);
-    color: var(--primary-foreground);
-    border: none;
-    font-weight: 500;
-    cursor: pointer;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    height: 2.75rem !important;
+    margin: 0.25rem 0 0 !important;
+    padding: 0 1rem !important;
+    float: none !important;
+    border: none !important;
+    border-radius: calc(var(--radius) - 2px) !important;
+    background: var(--primary) !important;
+    background-image: none !important;
+    color: var(--primary-foreground) !important;
+    font-family: inherit !important;
+    font-size: 0.9375rem !important;
+    font-weight: 550 !important;
+    letter-spacing: 0.01em !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+    cursor: pointer !important;
+    transition:
+      transform 160ms var(--ease-out),
+      background-color 160ms var(--ease-out) !important;
   }
 
-  #bw-login-form-slot input[type="submit"]:hover {
-    filter: brightness(1.05);
+  @media (hover: hover) and (pointer: fine) {
+    #bw-login-form-slot .bw-login-submit:hover,
+    #bw-login-form-slot #submit_button:hover,
+    #bw-login-form-slot input[type="submit"]:hover {
+      background: color-mix(in oklch, var(--primary) 88%, black) !important;
+      background-image: none !important;
+      color: var(--primary-foreground) !important;
+    }
+  }
+
+  #bw-login-form-slot .bw-login-submit:focus-visible,
+  #bw-login-form-slot #submit_button:focus-visible,
+  #bw-login-form-slot input[type="submit"]:focus-visible {
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 28%, transparent) !important;
+  }
+
+  #bw-login-form-slot .bw-login-submit:active,
+  #bw-login-form-slot #submit_button:active,
+  #bw-login-form-slot input[type="submit"]:active {
+    transform: scale(0.97);
+    background-image: none !important;
   }
 }

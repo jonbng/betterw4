@@ -59,42 +59,49 @@ export function clearLoginState(): void {
   }
 }
 
-function parseWelcomeName(text: string | null | undefined): string | null {
-  if (!text) return null;
-  const match = text.replace(/\s+/g, ' ').trim().match(/^Welcome,\s*(.+)$/i);
-  return match?.[1]?.trim() || null;
+/** First text node of `#user-panel .right` is `Welcome, {name}` — before <br> and the links. */
+export function parseWelcomeName(doc: Document = document): string | null {
+  const panel = doc.querySelector('#user-panel .right');
+  if (!panel) return null;
+  for (const node of Array.from(panel.childNodes)) {
+    if (node.nodeType !== Node.TEXT_NODE) continue;
+    const text = (node.textContent ?? '').replace(/\s+/g, ' ').trim();
+    const match = text.match(/^Welcome,\s*(.+)$/i);
+    if (match?.[1]) return match[1].trim();
+  }
+  return null;
 }
 
-function parseUwcId(doc: Document): string | null {
-  const hrefs = Array.from(doc.querySelectorAll<HTMLAnchorElement>('a[href*="uwc_id="]'));
-  for (const anchor of hrefs) {
-    try {
-      const id = new URL(anchor.href, window.location.origin).searchParams.get('uwc_id');
-      if (id) return id;
-    } catch {
-      // Ignore malformed hrefs
-    }
+/**
+ * Own UWC id comes from Home's `#hello` public-profile link.
+ * Do not scrape birthday thumbs or other people links — those are other students.
+ */
+export function parseOwnUwcId(doc: Document = document): string | null {
+  const hello = doc.querySelector('#hello a[href*="uwc_id="]');
+  if (!hello) return null;
+  try {
+    return new URL((hello as HTMLAnchorElement).href, window.location.origin).searchParams.get('uwc_id');
+  } catch {
+    return null;
   }
-  const img = doc.querySelector<HTMLImageElement>('img[src*="_thumb."], img[src*="/photos/"]');
-  const src = img?.getAttribute('src') ?? '';
-  const fileMatch = src.match(/\/([a-z]{2}\d{2}[a-z]+)_thumb\./i);
-  return fileMatch?.[1] ?? null;
+}
+
+export function photoUrlForUwcId(uwcId: string): string {
+  return new URL(`/files/user_photos/${uwcId}_thumb.jpg`, window.location.origin).href;
 }
 
 export function extractProfileFromDocument(doc: Document = document): UserProfile | null {
-  const panel = doc.querySelector('#user-panel');
-  const fullName = parseWelcomeName(panel?.textContent);
+  const fullName = parseWelcomeName(doc);
   if (!fullName) return null;
 
-  const pictureUrl =
-    doc.querySelector<HTMLImageElement>('#user-panel img, .user-photo img, img[src*="_thumb."]')
-      ?.src ?? null;
+  const cached = getCachedProfile();
+  const uwcId = parseOwnUwcId(doc) ?? cached?.uwcId ?? null;
 
   return {
     name: fullName.split(' ')[0] ?? fullName,
     fullName,
-    uwcId: parseUwcId(doc),
-    pictureUrl,
+    uwcId,
+    pictureUrl: uwcId ? photoUrlForUwcId(uwcId) : cached?.pictureUrl ?? null,
     cachedAt: Date.now(),
   };
 }
@@ -106,11 +113,10 @@ export function updateProfileCache(doc: Document = document): UserProfile | null
 }
 
 export function updateLoginState(doc: Document = document): LoginState {
-  const loggedIn = Boolean(doc.querySelector('#user-panel') && !doc.querySelector('input[name="LoginForm[username]"]'));
+  const loggedIn = Boolean(
+    doc.querySelector('#user-panel') && !doc.querySelector('input[name="LoginForm[username]"]'),
+  );
   const state: LoginState = { isLoggedIn: loggedIn, lastChecked: Date.now() };
   saveLoginState(state);
-  if (!loggedIn) {
-    // Keep the last known profile so the login screen can greet by name.
-  }
   return state;
 }
