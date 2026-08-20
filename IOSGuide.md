@@ -12,6 +12,7 @@ Two companion documents, both still current:
 | | |
 |---|---|
 | `ios/docs/RELEASE.md` | The *reference*: why each privacy answer is what it is, the exact review-note wording, the entitlement trap. This guide tells you what to do; that one tells you why. |
+| `ios/docs/TESTFLIGHT.md` | Running the beta: internal vs external testers, the sign-up form, Beta App Review, and what to ask testers for. |
 | `ios/docs/W4_PORT_PLAN.md` §0 | What is actually built, wave by wave, including what is verified against the real server and what is not. Read §0.3 before you promise anyone a date. |
 
 ---
@@ -543,9 +544,11 @@ tests verify the parser, not W4.
 Nothing about that blocks an App Store submission — the app renders, and empty states are handled.
 But the first time a student opens BetterW4 in term time is the first time anyone finds out whether
 the timetable parser works on a real timetable, and that is a bad moment to discover in production.
-**Strongly consider a TestFlight round with two or three students during a normal school week before
-you release publicly.** TestFlight is in the same App Store Connect record and needs no extra
-review for internal testers.
+**Strongly consider a TestFlight round during a normal school week before you release publicly** —
+not over a break, which would reproduce exactly the blind spot that created the problem.
+[`ios/docs/TESTFLIGHT.md`](ios/docs/TESTFLIGHT.md) is the runbook, and
+`ios/scripts/create-tester-form.gs` builds the sign-up form. Use **external** testers for students:
+internal testing grants each person a role in your Apple Developer account.
 
 **Two write surfaces ship disabled**, and should stay that way until a real round trip is captured:
 `AssessmentFeatureFlags.writesEnabled` and `MailFeatureFlags.composeEnabled`, both `false`. A wrong
