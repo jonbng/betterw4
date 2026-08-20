@@ -1,0 +1,53 @@
+import { cn } from "@/lib/utils"
+
+/**
+ * Shared Tailwind class helpers for the marketing site's reused primitives.
+ * The bespoke `.site-*` CSS lives in `app/globals.css`; these primitives are
+ * used across many surfaces, so they live here to stay DRY and consistent.
+ */
+
+/** The shared max-width page gutter. */
+export const siteContainerClass =
+  "relative mx-auto w-full max-w-[1200px] px-[22px] min-[720px]:px-10"
+
+/** The `<main>` wrapper: sits above the diagonal wash, grows. */
+export const siteMainClass = "relative z-[1] flex-[1_0_auto]"
+
+/** Vertical rhythm for text/content pages. */
+export const sitePageClass = "pt-10 pb-[110px]"
+
+export type SiteButtonVariant = "primary" | "secondary" | "ghost"
+
+const BUTTON_BASE =
+  "inline-flex items-center justify-center gap-2.5 rounded-full border border-transparent px-[30px] py-3.5 text-base font-bold tracking-[-0.01em] no-underline transition-[transform,opacity,box-shadow,border-color] duration-300 [&_svg]:size-[18px] focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-brand motion-reduce:transition-none"
+
+const BUTTON_VARIANTS: Record<SiteButtonVariant, string> = {
+  primary:
+    "bg-ink text-white shadow-[0_12px_28px_-14px_rgba(0,0,0,0.55)] hover:-translate-y-px hover:scale-[1.01] hover:opacity-[0.92]",
+  secondary:
+    "border-line bg-white text-ink hover:-translate-y-px hover:scale-[1.01] hover:border-ink/25",
+  ghost:
+    "bg-white/[0.12] text-white hover:bg-white/[0.2] focus-visible:outline-white",
+}
+
+export function siteButton(
+  variant: SiteButtonVariant = "primary",
+  className?: string,
+) {
+  return cn(BUTTON_BASE, BUTTON_VARIANTS[variant], className)
+}
+
+export type SiteEyebrowTone = "muted" | "ink" | "white"
+
+const EYEBROW_BASE =
+  "inline-block font-mono text-xs uppercase tracking-[0.02em]"
+
+const EYEBROW_TONES: Record<SiteEyebrowTone, string> = {
+  muted: "text-ink-muted",
+  ink: "text-ink",
+  white: "text-white/85",
+}
+
+export function siteEyebrow(tone: SiteEyebrowTone = "muted", className?: string) {
+  return cn(EYEBROW_BASE, EYEBROW_TONES[tone], className)
+}
