@@ -1,0 +1,25 @@
+/* Critical CSS injected at document_start via manifest - no JS delay */
+/* This prevents FOUC by hiding the page until our UI is ready */
+
+html:not(.bw-ready):not(.bw-prerendered) {
+  visibility: hidden !important;
+}
+
+html.dark:not(.bw-ready):not(.bw-prerendered) {
+  background-color: oklch(0.16 0.012 220) !important;
+}
+
+html.bw-ready,
+html.bw-prerendered {
+  visibility: visible !important;
+}
+
+html.bw-ready body {
+  opacity: 1 !important;
+  transition: opacity 0.1s ease-out !important;
+}
+
+html.bw-prerendered body {
+  opacity: 1 !important;
+  transition: none !important;
+}
