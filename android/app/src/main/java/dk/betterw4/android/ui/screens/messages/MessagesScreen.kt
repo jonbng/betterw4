@@ -123,6 +123,7 @@ import dk.betterw4.android.ui.components.ErrorBox
 import dk.betterw4.android.ui.components.RemoteAsyncImage
 import dk.betterw4.android.ui.components.PersonAvatar
 import dk.betterw4.android.ui.components.HtmlBody
+import dk.betterw4.android.ui.components.W4ChromeActions
 import dk.betterw4.android.ui.components.ListSkeleton
 import dk.betterw4.android.ui.components.SectionHeader
 import dk.betterw4.android.ui.components.UnreadDot
@@ -147,6 +148,7 @@ private object MsgRoutes {
 fun MessagesScreen(
     viewModel: MessagesViewModel = hiltViewModel(),
     scrollToTopToken: Int = 0,
+    onBackToMore: (() -> Unit)? = null,
 ) {
     val navController = rememberNavController()
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -180,9 +182,13 @@ fun MessagesScreen(
         modifier = Modifier.fillMaxSize(),
     ) {
         composable(MsgRoutes.LIST) {
+            if (onBackToMore != null) {
+                BackHandler(onBack = onBackToMore)
+            }
             MessageListPane(
                 viewModel = viewModel,
                 scrollToTopToken = scrollToTopToken,
+                onBackToMore = onBackToMore,
                 onOpenThread = { thread ->
                     viewModel.openThread(thread)
                     // Digits-only id — full `$LB2$_MC_$_…` tokens break Navigation paths.
@@ -295,6 +301,7 @@ fun MessagesScreen(
 private fun MessageListPane(
     viewModel: MessagesViewModel,
     scrollToTopToken: Int,
+    onBackToMore: (() -> Unit)? = null,
     onOpenThread: (MessageThread) -> Unit,
     onCompose: () -> Unit,
 ) {
@@ -319,6 +326,17 @@ private fun MessageListPane(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.tab_messages)) },
+                navigationIcon = {
+                    if (onBackToMore != null) {
+                        IconButton(onClick = onBackToMore) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.cd_back),
+                            )
+                        }
+                    }
+                },
+                actions = { W4ChromeActions() },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                 ),

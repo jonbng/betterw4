@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!--
-      Cold-start splash (W4 mark on brand blue). Switches to Theme.BetterW4 after
+      Cold-start splash (UWC mark + W4 on UWC blue). Switches to Theme.BetterW4 after
       installSplashScreen() / first frame.
     -->
     <style name="Theme.BetterW4.Splash" parent="Theme.SplashScreen">

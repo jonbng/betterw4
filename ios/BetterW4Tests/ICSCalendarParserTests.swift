@@ -243,6 +243,27 @@ final class ICSCalendarParserTests: XCTestCase {
         XCTAssertNotEqual(first.first?.id, second.first?.id, "occurrence ids carry the start stamp")
     }
 
+    func testDescriptionHTMLBreaksBecomeNewlines() throws {
+        let ics = """
+            BEGIN:VCALENDAR
+            BEGIN:VEVENT
+            DTSTART;VALUE=DATE:20260818
+            DTEND;VALUE=DATE:20260819
+            SUMMARY:Economics
+            DESCRIPTION:Bring calculator&lt;br /&gt;Sit in A 1.2
+            UID:html-desc
+            END:VEVENT
+            END:VCALENDAR
+            """
+        let events = schoolCalendarEvents(
+            ics,
+            from: try oslo(2026, 8, 18),
+            toExclusive: try oslo(2026, 8, 19)
+        )
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?.notes, "Bring calculator\nSit in A 1.2")
+    }
+
     // MARK: - Overlay onto a ScheduleWeek
 
     /// [I] synthesized fixture — overlaying keeps the scraped events and adds
@@ -882,11 +903,45 @@ final class ICSCalendarParserTests: XCTestCase {
         XCTAssertEqual(PersonalFeedKind.allCases.filter(\.isCalendar).count, 4)
     }
 
-    /// The overlay ships off by default until OQ-8 is closed.
+    /// The overlay ships on by default, matching Android.
     func testSchoolCalendarConstants() {
-        XCTAssertFalse(SchoolCalendar.isEnabledByDefault)
+        XCTAssertTrue(SchoolCalendar.isEnabledByDefault)
         XCTAssertEqual(SchoolCalendar.idPrefix, "gcal-")
         XCTAssertEqual(SchoolCalendar.cacheTTL, 6 * 60 * 60)
         XCTAssertNotNil(SchoolCalendar.icsURL)
+    }
+
+    func testVisibleEventsHidesSchoolCalendarWhenToggledOff() throws {
+        let range = week(from: try oslo(2026, 8, 10))
+        let calendar = try XCTUnwrap(
+            schoolCalendarEvents(try fixture("school-calendar"), from: range.from, toExclusive: range.toExclusive)
+                .first { $0.title == "Year 1 arrival in Bergen" }
+        )
+        let lesson = TimetableEvent(
+            id: "ac-1",
+            title: "Biology HL",
+            subject: "Biology HL",
+            source: .academics,
+            start: calendar.start,
+            end: calendar.end,
+            date: calendar.date,
+            room: nil,
+            teacher: nil,
+            teacherUwcId: nil,
+            status: .normal,
+            attendance: nil,
+            isAllDay: false,
+            href: nil,
+            notes: nil,
+            rawTooltip: nil
+        )
+        let events = [lesson, calendar]
+        XCTAssertEqual(
+            SchoolCalendar.visibleEvents(events, showSchoolCalendar: true).map(\.id),
+            events.map(\.id)
+        )
+        let hidden = SchoolCalendar.visibleEvents(events, showSchoolCalendar: false)
+        XCTAssertEqual(hidden.map(\.id), [lesson.id])
+        XCTAssertFalse(hidden.contains(where: SchoolCalendar.isSchoolCalendarEvent))
     }
 }

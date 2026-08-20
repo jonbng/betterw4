@@ -41,6 +41,7 @@ import dk.betterw4.android.feature.schedule.EventStatus
 import dk.betterw4.android.ui.theme.BrandBlue
 import dk.betterw4.android.ui.theme.StatusCancelled
 import dk.betterw4.android.ui.theme.StatusChanged
+
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -257,7 +258,7 @@ private fun FeaturedLesson(
         modifier = GlanceModifier
             .fillMaxWidth()
             .cornerRadius(12.dp)
-            .background(DayNightColorProvider(accent.copy(alpha = 0.14f), accent.copy(alpha = 0.22f)))
+            .background(GlanceTheme.colors.surface)
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.Vertical.Top,
     ) {
@@ -275,7 +276,7 @@ private fun FeaturedLesson(
                 style = TextStyle(
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Medium,
-                    color = ColorProvider(accent),
+                    color = GlanceTheme.colors.onSurfaceVariant,
                 ),
             )
             Spacer(GlanceModifier.height(2.dp))

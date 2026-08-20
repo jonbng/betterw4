@@ -7,7 +7,7 @@ Companion documents:
 - `ios/docs/spec/reviewer-notes.md` — HTTP engine, cookies, redirects, session death, login/2FA, identity.
   That document wins on anything transport-shaped. This one starts *above* the client: it assumes a
   `W4Client` that returns `(body, finalUrl, statusCode, contentType, credentials)` and typed failures.
-- `README.md` (repo root) — the W4 protocol brief. Route strings quoted here are re-verified against the
+- `PROTOCOL.md` (repo root) — the W4 protocol brief. Route strings quoted here are re-verified against the
   saved pages in `references/pages/`, not taken from memory.
 
 Evidence rules used throughout: every selector, route and field name is either (a) quoted from a saved page

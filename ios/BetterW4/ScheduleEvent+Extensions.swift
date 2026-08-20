@@ -36,6 +36,9 @@ extension TimetableEvent {
     /// `SettingsStore.accentColor(for:)` still speaks the legacy Lectio event type, so the same
     /// rule is applied here against the W4 model rather than converting between the two.
     func accentColor(useSubjectColors: Bool) -> Color {
+        if SchoolCalendar.isSchoolCalendarEvent(self) {
+            return Color(red: 11 / 255, green: 128 / 255, blue: 67 / 255) // #0B8043
+        }
         if useSubjectColors {
             return SubjectMapper.color(for: subject)
         }
@@ -64,9 +67,20 @@ extension TimetableEvent {
         return max(0, endMinutes - startMinutes)
     }
 
+    /// True when this block is allowed to drive the header countdown.
+    /// Cancelled leftovers, all-day markers and the school-calendar overlay
+    /// still paint on the grid; they must never steal "ends in 4 min".
+    var drivesCountdown: Bool {
+        status != .cancelled
+            && !isAllDay
+            && start != nil
+            && end != nil
+            && !SchoolCalendar.isSchoolCalendarEvent(self)
+    }
+
     /// True when `instant` falls inside this lesson.
     func isLive(at instant: Date) -> Bool {
-        guard let start, let end else { return false }
+        guard drivesCountdown, let start, let end else { return false }
         return instant >= start && instant < end
     }
 
@@ -117,20 +131,37 @@ extension TimetableEvent {
         return timeRangeText
     }
 
-    /// `div.period`'s raw `title` attribute, but only when it adds something the card does not
-    /// already say. W4's tooltip plugin is the likeliest home of the full subject name and any
-    /// change note, so it is shown verbatim rather than guessed at (`parsers.md` bug B3).
+    /// Extra tooltip text after Class/Teacher/Room are pulled out. `<br>` becomes a newline;
+    /// tags are stripped so the sheet never shows raw W4 markup.
     var detailText: String? {
+        if let notes = notes?.trimmingCharacters(in: .whitespacesAndNewlines), !notes.isEmpty {
+            return nil
+        }
         guard let raw = rawTooltip?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
             return nil
         }
-        let alreadyShown = [title, subject, room, teacher, notes]
-            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        guard !alreadyShown.contains(where: { $0.caseInsensitiveCompare(raw) == .orderedSame }) else {
+        let tooltip = PeriodTooltip.parse(raw)
+        if let extra = tooltip.extraNotes?.trimmingCharacters(in: .whitespacesAndNewlines), !extra.isEmpty {
+            let alreadyShown = [title, subject, room, teacher]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            if alreadyShown.contains(where: { $0.caseInsensitiveCompare(extra) == .orderedSame }) {
+                return nil
+            }
+            return extra
+        }
+        if tooltip.className != nil || tooltip.teacher != nil || tooltip.room != nil || tooltip.blockName != nil {
             return nil
         }
-        return raw
+        let stripped = PeriodTooltip.plainText(raw)
+        let alreadyShown = [title, subject, room, teacher]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !stripped.isEmpty,
+              !alreadyShown.contains(where: { $0.caseInsensitiveCompare(stripped) == .orderedSame }) else {
+            return nil
+        }
+        return stripped
     }
 }
 

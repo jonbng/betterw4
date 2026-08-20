@@ -25,6 +25,9 @@ struct CalendarStripView: View {
 
     @State private var anchorWeekStart: Date
     @State private var scrolledID: Int?
+    /// `scrollPosition` reports the first week during layout. Swallow that so
+    /// opening the timetable cannot jump a year away from today.
+    @State private var acceptsUserScroll = false
 
     init(
         selectedDate: Date,
@@ -83,8 +86,13 @@ struct CalendarStripView: View {
                 }
                 .scrollTargetBehavior(.viewAligned)
                 .scrollPosition(id: $scrolledID)
+                .onAppear {
+                    DispatchQueue.main.async {
+                        acceptsUserScroll = true
+                    }
+                }
                 .onChange(of: scrolledID) { _, newID in
-                    guard let newID else { return }
+                    guard acceptsUserScroll, let newID else { return }
                     let newWeekStart = weekStart(for: newID)
                     let currentWeekStart = W4Dates.startOfWeek(containing: selectedDate)
                     guard !W4Dates.isSameDay(newWeekStart, currentWeekStart) else { return }
@@ -142,7 +150,7 @@ struct CalendarStripView: View {
                     .fill(dotColor(for: item.date, isSelected: isSelected))
                     .frame(width: 4, height: 4)
             }
-            .foregroundColor(isSelected ? .white : (isToday ? .blue : .primary.opacity(0.55)))
+            .foregroundColor(isSelected ? .white : (isToday ? .blue : .primary.opacity(0.82)))
             .frame(maxWidth: .infinity)
             .frame(maxHeight: .infinity, alignment: .center)
             .background(

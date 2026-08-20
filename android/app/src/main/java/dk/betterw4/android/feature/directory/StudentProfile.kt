@@ -1,33 +1,45 @@
 package dk.betterw4.android.feature.directory
 
-import java.time.Instant
-import java.util.concurrent.TimeUnit
+import dk.betterw4.android.feature.schedule.PersonClass
 
 /**
- * Rich BetterLectio student profile fields from Supabase `students`.
- * Lectio directory identity remains the fallback when this is null / inactive.
+ * One extra-academic activity a staff member leads, from their public
+ * `people/staff/staff` page.
+ */
+data class StaffActivity(
+    val name: String,
+    val dates: String? = null,
+    val category: String? = null,
+)
+
+/**
+ * What we know about a person on their profile screen.
+ *
+ * Students: boarding house + room from `people/students/byhouse`, classes
+ * from their public timetable, directory identity as a fallback.
+ *
+ * Staff: roles, real email, office/mobile, taught classes and EA activities
+ * from `people/staff/staff&uwc_id=`.
  */
 data class StudentProfile(
     val id: String,
     val name: String? = null,
-    val description: String? = null,
-    val instagram: String? = null,
-    val birthdate: String? = null,
-    val showBirthday: Boolean = false,
-    val customPfpUrl: String? = null,
-    val lectioPfpUrl: String? = null,
-    val className: String? = null,
-    val lastSeenAt: String? = null,
-    val extensionInstalledAt: String? = null,
-    val extensionUninstalledAt: String? = null,
-    val appInstalledAt: String? = null,
+    val kind: DirectoryEntityKind = DirectoryEntityKind.STUDENT,
+    val houseId: String? = null,
+    val house: String? = null,
+    val room: String? = null,
+    val year: String? = null,
+    val country: String? = null,
+    val email: String? = null,
+    val officeTel: String? = null,
+    val mobile: String? = null,
+    val birthday: String? = null,
+    val positions: List<String> = emptyList(),
+    val classes: List<PersonClass> = emptyList(),
+    val activities: List<StaffActivity> = emptyList(),
+    val photoUrl: String? = null,
 ) {
-    /** Matches extension ProfilePage: active heartbeat/install or app installed. */
-    val hasBetterLectio: Boolean
-        get() = isActiveStudent() || !appInstalledAt.isNullOrBlank()
-
-    /** W4 alias — same BetterLectio-network profile badge. */
-    val hasBetterW4: Boolean get() = hasBetterLectio
+    val isStaff: Boolean get() = kind == DirectoryEntityKind.TEACHER
 
     fun displayName(fallback: String): String {
         val preferred = name?.trim().orEmpty()
@@ -35,30 +47,92 @@ data class StudentProfile(
     }
 
     fun pictureUrl(fallback: String?): String? {
-        val custom = customPfpUrl?.trim().orEmpty()
+        val custom = photoUrl?.trim().orEmpty()
         if (custom.isNotEmpty()) return custom
-        val lectio = lectioPfpUrl?.trim().orEmpty()
-        if (lectio.isNotEmpty()) return lectio
         return fallback?.takeIf { it.isNotBlank() }
     }
 
-    fun formattedBirthday(): String? {
-        if (!showBirthday) return null
-        val raw = birthdate?.trim().orEmpty()
-        if (raw.isEmpty()) return null
-        return formatDanishBirthdate(raw)
-    }
-
-    private fun isActiveStudent(nowMs: Long = System.currentTimeMillis()): Boolean {
-        if (!extensionUninstalledAt.isNullOrBlank()) return false
-        val ts = lastSeenAt ?: extensionInstalledAt ?: return false
-        val parsed = runCatching { Instant.parse(ts).toEpochMilli() }.getOrNull() ?: return false
-        return nowMs - parsed <= ACTIVE_WINDOW_MS
-    }
+    val subtitle: String?
+        get() = if (isStaff) {
+            listOfNotNull(
+                positions.take(3).joinToString(" · ").ifBlank { null },
+                country?.takeIf { it.isNotBlank() },
+            ).joinToString(" · ").ifBlank { null }
+        } else {
+            listOfNotNull(
+                house?.takeIf { it.isNotBlank() },
+                room?.takeIf { it.isNotBlank() },
+                year?.let { label ->
+                    when (label) {
+                        "1" -> "Year 1"
+                        "2" -> "Year 2"
+                        else -> if (label.startsWith("Year", ignoreCase = true)) label else "Year $label"
+                    }
+                },
+                country?.takeIf { it.isNotBlank() },
+            ).joinToString(" · ").ifBlank { null }
+        }
 
     companion object {
-        const val ACTIVE_WINDOW_DAYS = 14L
-        private val ACTIVE_WINDOW_MS = TimeUnit.DAYS.toMillis(ACTIVE_WINDOW_DAYS)
+        fun from(
+            entity: DirectoryEntity,
+            placement: HousePlacement?,
+            classes: List<PersonClass> = emptyList(),
+            parsed: W4PersonProfile? = null,
+        ): StudentProfile {
+            val resident = placement?.resident
+            val mergedClasses = dk.betterw4.android.feature.schedule.PersonClasses.merge(
+                parsed?.classes.orEmpty(),
+                classes,
+            )
+            return StudentProfile(
+                id = entity.id,
+                name = parsed?.entity?.name?.takeIf { it.isNotBlank() } ?: entity.name,
+                kind = parsed?.entity?.kind ?: entity.kind,
+                houseId = placement?.house?.id,
+                house = placement?.house?.name ?: parsed?.house,
+                room = placement?.room?.name,
+                year = resident?.year ?: parsed?.year,
+                country = parsed?.country ?: resident?.country,
+                email = parsed?.email,
+                officeTel = parsed?.officeTel,
+                mobile = parsed?.mobile,
+                birthday = parsed?.birthday,
+                positions = parsed?.positions.orEmpty().ifEmpty {
+                    if (entity.kind == DirectoryEntityKind.TEACHER) {
+                        StaffRoles.parse(entity.subtitle)
+                    } else {
+                        emptyList()
+                    }
+                },
+                classes = mergedClasses,
+                activities = parsed?.activities.orEmpty(),
+                photoUrl = parsed?.entity?.avatarUrl ?: entity.avatarUrl,
+            )
+        }
+    }
+}
+
+/**
+ * Staff "Position" is a comma list that mixes jobs students care about
+ * (`Teacher`, `Advisor`, `Kitchen`) with internal mailing lists.
+ */
+object StaffRoles {
+    fun parse(raw: String?): List<String> {
+        if (raw.isNullOrBlank()) return emptyList()
+        val source = raw.split('·').map { it.trim() }
+            .lastOrNull { it.contains(',') }
+            ?: raw
+        return source.split(',')
+            .map { it.replace('\u00a0', ' ').trim() }
+            .filter { it.isNotEmpty() && !isMailingList(it) }
+            .distinct()
+    }
+
+    fun isMailingList(role: String): Boolean {
+        val n = role.trim().lowercase()
+        if (n.isEmpty()) return true
+        return n.contains("mail list") || n.endsWith(" mail") || n == "support staff mail"
     }
 }
 

@@ -10,10 +10,10 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dk.betterw4.android.core.w4.W4Dates
 import dk.betterw4.android.feature.schedule.ScheduleEvent
 import timber.log.Timber
 import java.time.LocalDateTime
-import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -27,7 +27,7 @@ class LiveLessonScheduler @Inject constructor(
 ) {
     fun scheduleBoundaries(
         events: List<ScheduleEvent>,
-        now: LocalDateTime = LocalDateTime.now(),
+        now: LocalDateTime = W4Dates.now(),
     ) {
         val next = LiveLessonBoundary.nextRefreshBoundary(events, now) ?: run {
             cancel()
@@ -57,7 +57,7 @@ class LiveLessonScheduler @Inject constructor(
         try {
             val am = context.getSystemService(AlarmManager::class.java) ?: return
             val pi = alarmIntent()
-            val triggerAt = next.at.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val triggerAt = next.at.atZone(W4Dates.ZONE).toInstant().toEpochMilli()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) {
                 am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
             } else {

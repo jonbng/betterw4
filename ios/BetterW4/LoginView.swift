@@ -7,14 +7,18 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct LoginView: View {
     @ObservedObject var viewModel: AuthenticationViewModel
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var username = ""
     @State private var password = ""
     @State private var oneTimeCode = ""
     @State private var isPasswordVisible = false
+    @State private var lastPasteboardChangeCount = UIPasteboard.general.changeCount
+    @State private var lastConsumedClipboardCode: String?
 
     @FocusState private var focusedField: Field?
 
@@ -62,14 +66,27 @@ struct LoginView: View {
         }
         .onChange(of: isVerifyingCode) { _, showingCode in
             oneTimeCode = ""
+            lastConsumedClipboardCode = nil
             if showingCode {
                 // The password is no longer needed: the challenge carries the half-finished
                 // session. Drop it rather than keep it in memory behind the code field.
                 password = ""
                 focusedField = .oneTimeCode
+                // Snapshot without reading so we only auto-fill after they copy a new code.
+                lastPasteboardChangeCount = UIPasteboard.general.changeCount
             } else {
                 focusedField = nil
             }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { consumeClipboardIfNeeded() }
+        }
+        .onChange(of: oneTimeCode) { _, value in
+            let cleaned = W4OtpCode.sanitizeInput(value)
+            if cleaned != value { oneTimeCode = cleaned }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIPasteboard.changedNotification)) { _ in
+            consumeClipboardIfNeeded()
         }
     }
 
@@ -187,7 +204,7 @@ struct LoginView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Two-factor authentication")
                     .font(.headline)
-                Text("W4 sent a one-time code. Enter it to finish signing in.")
+                Text("W4 emailed an 8-character code. Paste it here, or open Gmail to copy it.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -197,17 +214,19 @@ struct LoginView: View {
             VStack(alignment: .leading, spacing: 6) {
                 fieldLabel("One-time code")
 
-                TextField("123456", text: $oneTimeCode)
+                TextField("Verification code", text: $oneTimeCode)
                     .textContentType(.oneTimeCode)
-                    .keyboardType(.numberPad)
+                    .keyboardType(.asciiCapable)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled(true)
-                    .font(.title3.monospacedDigit())
+                    .font(.title3.monospaced())
+                    .submitLabel(.go)
                     .focused($focusedField, equals: .oneTimeCode)
+                    .onSubmit { Task { await submitOneTimeCode() } }
                     .padding(14)
                     .background(fieldBackground)
                     .accessibilityLabel("One-time code")
-                    .accessibilityHint("The code W4 just sent you.")
+                    .accessibilityHint("The 8-character code W4 emailed you. It includes letters.")
             }
 
             primaryButton(
@@ -217,6 +236,24 @@ struct LoginView: View {
             ) {
                 await submitOneTimeCode()
             }
+
+            Button {
+                openGmail()
+            } label: {
+                Label("Open Gmail", systemImage: "envelope")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+            .disabled(viewModel.isSubmitting)
+            .accessibilityHint("Opens Gmail so you can copy the W4 code.")
+
+            Text("Copy the 8-character code, then return here. We’ll paste it and sign you in.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             Button("Cancel") {
                 viewModel.cancelOTP()
@@ -321,14 +358,45 @@ struct LoginView: View {
         await viewModel.logIn(username: username, password: password)
     }
 
-    private func submitOneTimeCode() async {
-        guard canSubmitCode else { return }
+    private func submitOneTimeCode(_ code: String? = nil) async {
+        let value = W4OtpCode.sanitizeInput(code ?? oneTimeCode)
+        guard !viewModel.isSubmitting, !value.isEmpty else { return }
+        oneTimeCode = value
         focusedField = nil
-        await viewModel.submitOTP(code: oneTimeCode)
+        await viewModel.submitOTP(code: value)
         // Still on the code step ⇒ W4 rejected it. Clear the field for the next attempt.
         if viewModel.otpChallenge != nil {
             oneTimeCode = ""
             focusedField = .oneTimeCode
+        }
+    }
+
+    private func consumeClipboardIfNeeded() {
+        guard isVerifyingCode, !viewModel.isSubmitting, scenePhase == .active else { return }
+        let changeCount = UIPasteboard.general.changeCount
+        guard changeCount != lastPasteboardChangeCount else { return }
+        guard UIPasteboard.general.hasStrings else {
+            lastPasteboardChangeCount = changeCount
+            return
+        }
+        // Don't burn the change-count if the pasteboard is unreadable in the background;
+        // we'll try again the next time the scene is active.
+        guard let raw = UIPasteboard.general.string else { return }
+        lastPasteboardChangeCount = changeCount
+        guard let code = W4OtpCode.extract(raw), code != lastConsumedClipboardCode else { return }
+        if !oneTimeCode.isEmpty && oneTimeCode != code { return }
+        lastConsumedClipboardCode = code
+        oneTimeCode = code
+        Task { await submitOneTimeCode(code) }
+    }
+
+    private func openGmail() {
+        let gmail = URL(string: "googlegmail://")!
+        let web = URL(string: "https://mail.google.com")!
+        if UIApplication.shared.canOpenURL(gmail) {
+            UIApplication.shared.open(gmail)
+        } else {
+            UIApplication.shared.open(web)
         }
     }
 }

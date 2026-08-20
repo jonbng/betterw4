@@ -15,7 +15,8 @@
 //    3. **Demo makes no requests.** A demo session returns nil immediately and the UI draws
 //       initials (features.md §4).
 //
-//  W4 serves portraits at `https://w4.uwcrcn.no/files/user_photos/{uwc_id}_thumb.jpg`
+//  W4 list pages print `{uwc_id}_thumb.jpg`; we load the matching full portrait at
+//  `https://w4.uwcrcn.no/files/user_photos/{uwc_id}_photo.jpg`
 //  (`W4PeopleParser.photoURL(forUWCId:)` is the one place that URL is built).
 //
 
@@ -53,6 +54,7 @@ actor W4ImageLoader {
     }
 
     func loadImage(from url: URL) async -> UIImage? {
+        let url = W4PeopleParser.fullSizePhotoURL(from: url)
         guard Self.isW4URL(url) else {
             print("⚠️ [Photo] Refused to attach the W4 session cookie to a non-W4 URL")
             return nil

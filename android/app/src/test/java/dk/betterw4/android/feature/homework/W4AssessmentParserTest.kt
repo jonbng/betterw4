@@ -42,4 +42,13 @@ class W4AssessmentParserTest {
         )
         assertEquals("99", studentFields["student_assessment_id"])
     }
+
+    @Test
+    fun month_and_year_prefer_script_form() {
+        val html = """
+            <script>var month = 08 - 1; var year = 2026;</script>
+            <a href="/index.php?r=academics/deadlines&amp;month=01&amp;year=1999">prev</a>
+        """.trimIndent()
+        assertEquals(8 to 2026, W4AssessmentParser.monthAndYear(html))
+    }
 }

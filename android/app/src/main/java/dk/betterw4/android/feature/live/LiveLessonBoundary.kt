@@ -1,7 +1,9 @@
 package dk.betterw4.android.feature.live
 
+import dk.betterw4.android.core.w4.W4Dates
 import dk.betterw4.android.feature.schedule.EventStatus
 import dk.betterw4.android.feature.schedule.ScheduleEvent
+import dk.betterw4.android.feature.schedule.SchoolCalendar
 import java.time.Duration
 import java.time.LocalDateTime
 
@@ -34,7 +36,7 @@ object LiveLessonBoundary {
 
     fun project(
         events: List<ScheduleEvent>,
-        now: LocalDateTime = LocalDateTime.now(),
+        now: LocalDateTime = W4Dates.now(),
     ): Projection? {
         val timed = eligibleEvents(events)
         val current = timed
@@ -84,7 +86,7 @@ object LiveLessonBoundary {
 
     fun nextRefreshBoundary(
         events: List<ScheduleEvent>,
-        now: LocalDateTime = LocalDateTime.now(),
+        now: LocalDateTime = W4Dates.now(),
     ): Boundary? = eligibleEvents(events)
         .flatMap { event ->
             val start = event.start!!
@@ -107,7 +109,7 @@ object LiveLessonBoundary {
      */
     fun nextBoundary(
         events: List<ScheduleEvent>,
-        now: LocalDateTime = LocalDateTime.now(),
+        now: LocalDateTime = W4Dates.now(),
     ): Boundary? {
         val candidates = mutableListOf<Boundary>()
         for (e in eligibleEvents(events)) {
@@ -126,7 +128,7 @@ object LiveLessonBoundary {
     /** All boundaries in chronological order at/after [now]. */
     fun upcomingBoundaries(
         events: List<ScheduleEvent>,
-        now: LocalDateTime = LocalDateTime.now(),
+        now: LocalDateTime = W4Dates.now(),
         limit: Int = 8,
     ): List<Boundary> {
         val candidates = mutableListOf<Boundary>()
@@ -148,7 +150,7 @@ object LiveLessonBoundary {
 
     fun currentLesson(
         events: List<ScheduleEvent>,
-        now: LocalDateTime = LocalDateTime.now(),
+        now: LocalDateTime = W4Dates.now(),
     ): ScheduleEvent? = eligibleEvents(events).firstOrNull { e ->
         val s = e.start
         val en = e.end
@@ -161,6 +163,7 @@ object LiveLessonBoundary {
             val end = event.end
             event.status != EventStatus.CANCELLED &&
                 !event.isAllDay &&
+                !SchoolCalendar.isSchoolCalendarEvent(event) &&
                 start != null &&
                 end != null &&
                 end.isAfter(start)

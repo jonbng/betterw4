@@ -492,6 +492,86 @@ final class DirectoryViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isSearching)
     }
 
+    func testSwitchingToTeachersHidesStudentsAndKeepsTheCatalog() async {
+        let seeded = [
+            PeopleFixtures.person("nc00aaa", "Alex Andersen"),
+            PeopleFixtures.person("nc00ccc", "Chris Chen", kind: .staff)
+        ]
+        let page = PeopleFixtures.listHTML(seeded)
+        let viewModel = makeViewModel(
+            context: Self.context(uwcId: "nc99zzz"),
+            store: MemoryPeopleStore(seed: seeded),
+            fetcher: ScriptedPeopleFetcher { _, _ in page }
+        )
+        await viewModel.load(.full)
+
+        XCTAssertEqual(viewModel.visiblePeople.map(\.uwcId), ["nc00aaa"])
+        XCTAssertFalse(viewModel.sections.contains(where: { $0.id == "staff" }))
+
+        await viewModel.show(.teachers)
+
+        XCTAssertEqual(viewModel.presentation, .teachers)
+        XCTAssertEqual(viewModel.visiblePeople.map(\.uwcId), ["nc00ccc"])
+        XCTAssertEqual(viewModel.allPeople.map(\.uwcId).sorted(), ["nc00aaa", "nc00ccc"])
+
+        viewModel.searchQuery = "chris"
+        await waitUntil("teacher search") { !viewModel.searchResults.isEmpty }
+        XCTAssertEqual(viewModel.searchResults.map(\.uwcId), ["nc00ccc"])
+
+        viewModel.searchQuery = "alex"
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        XCTAssertTrue(
+            viewModel.searchResults.isEmpty,
+            "A student name must not appear while the Teachers slice is selected"
+        )
+    }
+
+    func testSwitchingYearFilterHidesTheOtherYear() async {
+        let seeded = [
+            PeopleFixtures.person("nc00aaa", "Alex Andersen", year: "1"),
+            PeopleFixtures.person("nc00bbb", "Bea Beltran", year: "2"),
+            PeopleFixtures.person("nc00ccc", "Chris Chen", kind: .staff)
+        ]
+        // W4 pre-filters these lists server-side: `people/students/firstyear` answers with the
+        // first years and nobody else. A stub that returns everybody regardless of route would be
+        // testing a server that does not exist, and would make this assertion pass or fail for
+        // reasons that have nothing to do with the year filter.
+        let fetcher = ScriptedPeopleFetcher { route, _ in
+            let slice: [DirectoryPerson]
+            switch route {
+            case let r where r.contains("firstyear"):
+                slice = seeded.filter { $0.year == "1" }
+            case let r where r.contains("secondyear"):
+                slice = seeded.filter { $0.year == "2" }
+            case let r where r.contains("staff"):
+                slice = seeded.filter { $0.kind == .staff }
+            default:
+                slice = seeded
+            }
+            return PeopleFixtures.listHTML(slice)
+        }
+        let viewModel = makeViewModel(
+            context: Self.context(uwcId: "nc99zzz"),
+            store: MemoryPeopleStore(seed: seeded),
+            fetcher: fetcher
+        )
+        await viewModel.load(.full)
+        await viewModel.show(.firstYear)
+
+        XCTAssertEqual(viewModel.presentation, .firstYear)
+        XCTAssertEqual(viewModel.visiblePeople.map(\.uwcId), ["nc00aaa"])
+
+        await viewModel.show(.teachers)
+        await viewModel.showStudents()
+
+        XCTAssertEqual(
+            viewModel.presentation,
+            .firstYear,
+            "Students should restore the last year filter after Teachers"
+        )
+        XCTAssertEqual(viewModel.visiblePeople.map(\.uwcId), ["nc00aaa"])
+    }
+
     func testRankingKeepsRepositoryOrderInsideEachBucket() {
         let people = [
             PeopleFixtures.person("nc00aaa", "Alex"),
@@ -541,8 +621,12 @@ final class DirectoryViewModelTests: XCTestCase {
 
         await viewModel.load(.classmates)
 
-        // The demo session is `nc00aaa`, a first year; `nc00ddd` is the other one.
-        XCTAssertEqual(viewModel.classmates.map(\.uwcId), ["nc00ddd"])
+        // The demo session is `nc00aaa`, a first year. Classmates are everyone else in year 1.
+        let ids = viewModel.classmates.map(\.uwcId)
+        XCTAssertFalse(ids.contains("nc00aaa"))
+        XCTAssertTrue(ids.contains("nc00ddd"))
+        XCTAssertGreaterThanOrEqual(ids.count, 4)
+        XCTAssertTrue(viewModel.classmates.allSatisfy { $0.year == "1" })
     }
 
     // MARK: - The composer bridge

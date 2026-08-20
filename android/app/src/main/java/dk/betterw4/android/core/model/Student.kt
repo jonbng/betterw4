@@ -22,9 +22,9 @@ data class Student(
         val Demo = Student(
             studentId = DEMO_STUDENT_ID,
             gymId = DEMO_GYM_ID,
-            name = "Demo Elev",
-            classLabel = "3.x",
-            schoolName = "Demo Gymnasium",
+            name = "Demo Student",
+            classLabel = "Year 1 · Haugland",
+            schoolName = W4School.NAME,
             isDemo = true,
         )
     }
@@ -42,6 +42,6 @@ data class School(
     val isDemo: Boolean = false,
 ) {
     companion object {
-        val Demo = School(id = Student.DEMO_GYM_ID, name = "Demo Gymnasium", isDemo = true)
+        val Demo = School(id = Student.DEMO_GYM_ID, name = W4School.NAME, isDemo = true)
     }
 }

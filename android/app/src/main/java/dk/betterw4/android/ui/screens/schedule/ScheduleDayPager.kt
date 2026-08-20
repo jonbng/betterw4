@@ -10,6 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import dk.betterw4.android.core.w4.W4Dates
 import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -29,7 +30,7 @@ fun ScheduleDayPager(
     modifier: Modifier = Modifier,
     content: @Composable (date: LocalDate) -> Unit,
 ) {
-    val dayAnchor = remember { LocalDate.now() }
+    val dayAnchor = remember { W4Dates.today() }
 
     fun dateForPage(page: Int): LocalDate =
         dayAnchor.plusDays((page - DAY_CENTER_PAGE).toLong())

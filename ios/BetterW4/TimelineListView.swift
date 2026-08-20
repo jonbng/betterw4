@@ -6,9 +6,9 @@
 //
 //  Blocks are positioned absolutely at one point per minute below the timeline's origin
 //  (`ScheduleTimelineGeometry`), which is derived from the week's own `tt_start_hour`. The now-line
-//  is drawn from `TimeProvider.now` read in Europe/Oslo — never from W4's `#current_time`, which
-//  was written by JavaScript in the browser before the page was captured and would pin the line to
-//  13:34 forever (plan D-10).
+//  is drawn from the same Oslo clock as the header countdown (`TimeProvider.now`, ticked on the
+//  minute) — never from W4's `#current_time`, which was written by JavaScript in the browser
+//  before the page was captured and would pin the line to 13:34 forever (plan D-10).
 //
 
 import SwiftUI
@@ -18,6 +18,9 @@ struct TimelineListView: View {
     let events: [TimetableEvent]
     /// `tt_start_hour` of the week this day belongs to.
     var gridStartHour: Int = W4TimetableGeometry.defaultStartHour
+    /// Shared Oslo clock with the header countdown. Must not be `TimelineView`'s
+    /// `context.date`, which ignores `SIMULATED_DATE` and can disagree by a minute.
+    var now: Date = TimeProvider.now
     var onEventTapped: ((TimetableEvent) -> Void)?
 
     @ObservedObject private var settingsStore = SettingsStore.shared
@@ -38,14 +41,12 @@ struct TimelineListView: View {
                         ))
 
                     ForEach(layouts) { layout in
-                        row(for: layout, origin: origin)
+                        row(for: layout, in: layouts, origin: origin)
                     }
 
                     // "Now" line — only on the day it is actually now.
-                    TimelineView(.periodic(from: TimeProvider.now, by: 60)) { context in
-                        nowLine(at: context.date, origin: origin)
-                    }
-                    .allowsHitTesting(false)
+                    nowLine(at: now, origin: origin)
+                        .allowsHitTesting(false)
                 }
 
                 Color.clear.frame(height: 80)
@@ -54,15 +55,17 @@ struct TimelineListView: View {
     }
 
     @ViewBuilder
-    private func row(for layout: EventLayoutInfo, origin: Int) -> some View {
+    private func row(for layout: EventLayoutInfo, in layouts: [EventLayoutInfo], origin: Int) -> some View {
         let event = layout.event
         let offsetFromTop = CGFloat(layout.startMinutes - origin) * ScheduleTimelineGeometry.pointsPerMinute
-        let height = max(
-            ScheduleTimelineGeometry.minimumBlockHeight,
-            CGFloat(layout.endMinutes - layout.startMinutes) * ScheduleTimelineGeometry.pointsPerMinute
-        )
-        let widthFraction = 1.0 / CGFloat(layout.totalColumns)
-        let horizontalOffset = CGFloat(layout.column) / CGFloat(layout.totalColumns)
+        let height = ScheduleTimelineGeometry.visualHeight(of: layout, among: layouts)
+        let widthFraction = layout.widthFraction
+        let horizontalOffset = layout.xFraction
+        let cardStyle: CardLayoutStyle = {
+            if height < 22 { return .micro }
+            if height < 80 { return .compact }
+            return .iconTopLeft
+        }()
 
         TimelineRow(
             startTime: event.start.map(W4Dates.formatTime) ?? "",
@@ -76,7 +79,7 @@ struct TimelineListView: View {
                 subtitle: event.subtitleLine ?? "",
                 iconName: event.iconName,
                 themeColor: event.accentColor(useSubjectColors: settingsStore.useSubjectColors),
-                layoutStyle: height < 80 ? .compact : .iconTopLeft,
+                layoutStyle: cardStyle,
                 status: event.status,
                 teacherInitials: Self.initials(from: event.teacher)
             )
@@ -210,6 +213,8 @@ enum CardLayoutStyle {
     case iconTopLeft
     /// Horizontal layout for short lessons.
     case compact
+    /// Title-only strip for 15-minute breaks that must keep their real height.
+    case micro
 }
 
 struct ScheduleCard: View {
@@ -227,24 +232,70 @@ struct ScheduleCard: View {
 
     var body: some View {
         Group {
-            if layoutStyle == .compact {
+            switch layoutStyle {
+            case .micro:
+                microBody
+            case .compact:
                 compactBody
-            } else {
+            case .standard, .iconTopLeft:
                 tallBody
             }
         }
+    }
+
+    @ViewBuilder
+    private var accentBar: some View {
+        if !isCancelled {
+            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                .fill(themeColor)
+                .frame(width: 3)
+                .padding(.vertical, layoutStyle == .micro ? 3 : 8)
+                .padding(.leading, 5)
+        }
+    }
+
+    private var microBody: some View {
+        HStack(alignment: .center, spacing: 6) {
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(isCancelled ? .secondary : .primary)
+                .strikethrough(isCancelled)
+                .minimumScaleFactor(0.75)
+                .lineLimit(1)
+
+            Spacer(minLength: 2)
+
+            if !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .minimumScaleFactor(0.75)
+                    .lineLimit(1)
+            }
+        }
+        .frame(maxHeight: .infinity)
+        .padding(.leading, 14)
+        .padding(.trailing, 10)
+        .padding(.vertical, 1)
+        .background(backgroundColorForStatus)
+        .overlay(alignment: .leading) { accentBar }
+        .cornerRadius(8, antialiased: true)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(borderColorForStatus, lineWidth: status == .changed ? 1.5 : 0.5)
+        )
     }
 
     private var compactBody: some View {
         HStack(alignment: .center, spacing: 8) {
             Image(systemName: iconName)
                 .font(.system(size: 18))
-                .foregroundColor(isCancelled ? .gray : themeColor.opacity(themeIconOpacity))
+                .foregroundColor(isCancelled ? .gray : themeColor.opacity(0.85))
                 .frame(width: 22)
 
             Text(title)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(isCancelled ? .secondary : themeColor.opacity(themeTitleOpacity))
+                .foregroundColor(isCancelled ? .secondary : .primary)
                 .strikethrough(isCancelled)
                 .minimumScaleFactor(0.85)
                 .lineLimit(1)
@@ -258,7 +309,7 @@ struct ScheduleCard: View {
             if !subtitle.isEmpty {
                 Text(subtitle)
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(isCancelled ? .secondary : themeColor.opacity(themeSubtitleOpacity))
+                    .foregroundColor(.secondary)
                     .minimumScaleFactor(0.85)
                     .lineLimit(1)
             }
@@ -266,9 +317,11 @@ struct ScheduleCard: View {
             statusBadge
         }
         .frame(maxHeight: .infinity)
-        .padding(.horizontal, 12)
+        .padding(.leading, 16)
+        .padding(.trailing, 12)
         .padding(.vertical, 8)
         .background(backgroundColorForStatus)
+        .overlay(alignment: .leading) { accentBar }
         .cornerRadius(12, antialiased: true)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
@@ -281,7 +334,7 @@ struct ScheduleCard: View {
             HStack(alignment: .top) {
                 Image(systemName: iconName)
                     .font(.title3)
-                    .foregroundColor(isCancelled ? .gray : themeColor.opacity(themeIconOpacity))
+                    .foregroundColor(isCancelled ? .gray : themeColor.opacity(0.85))
 
                 Spacer()
 
@@ -295,7 +348,7 @@ struct ScheduleCard: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.headline)
-                    .foregroundColor(isCancelled ? .secondary : themeColor.opacity(themeTitleOpacity))
+                    .foregroundColor(isCancelled ? .secondary : .primary)
                     .strikethrough(isCancelled)
                     .minimumScaleFactor(0.9)
                     .lineLimit(2)
@@ -303,15 +356,18 @@ struct ScheduleCard: View {
                 if !subtitle.isEmpty {
                     Text(subtitle)
                         .font(.subheadline)
-                        .foregroundColor(isCancelled ? .secondary : themeColor.opacity(themeSubtitleOpacity))
+                        .foregroundColor(.secondary)
                         .minimumScaleFactor(0.9)
                         .lineLimit(1)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
-        .padding(12)
+        .padding(.leading, 16)
+        .padding(.trailing, 12)
+        .padding(.vertical, 12)
         .background(backgroundColorForStatus)
+        .overlay(alignment: .leading) { accentBar }
         .cornerRadius(16, antialiased: true)
         .overlay(
             RoundedRectangle(cornerRadius: 16)
@@ -338,24 +394,19 @@ struct ScheduleCard: View {
     private func teacherBadge(initials: String, size: CGFloat) -> some View {
         Text(initials)
             .font(.system(size: size * 0.4, weight: .semibold, design: .rounded))
-            .foregroundColor(.white)
+            .foregroundColor(.secondary)
             .frame(width: size, height: size)
-            .background(themeColor.opacity(colorScheme == .dark ? 0.72 : 0.6))
+            .background(Color(UIColor.tertiarySystemFill))
             .clipShape(Circle())
     }
-
-    private var themeIconOpacity: Double { colorScheme == .dark ? 0.78 : 0.6 }
-    private var themeTitleOpacity: Double { colorScheme == .dark ? 0.95 : 0.9 }
-    private var themeSubtitleOpacity: Double { colorScheme == .dark ? 0.82 : 0.7 }
 
     private var backgroundColorForStatus: Color {
         switch status {
         case .cancelled:
             return Color(UIColor.secondarySystemBackground).opacity(0.4)
-        case .changed, .moved:
-            return themeColor.opacity(colorScheme == .dark ? 0.28 : 0.15)
-        case .normal:
-            return themeColor.opacity(colorScheme == .dark ? 0.22 : 0.1)
+        case .changed, .moved, .normal:
+            let surface = Color(colorScheme == .dark ? UIColor.systemGray6 : UIColor.systemBackground)
+            return surface.tinted(with: themeColor, amount: colorScheme == .dark ? 0.24 : 0.18)
         }
     }
 
@@ -364,9 +415,9 @@ struct ScheduleCard: View {
         case .cancelled:
             return Color.secondary.opacity(0.3)
         case .changed, .moved:
-            return themeColor.opacity(colorScheme == .dark ? 0.55 : 0.4)
+            return themeColor.opacity(colorScheme == .dark ? 0.55 : 0.35)
         case .normal:
-            return themeColor.opacity(colorScheme == .dark ? 0.38 : 0.2)
+            return Color(UIColor.separator).opacity(colorScheme == .dark ? 0.5 : 0.35)
         }
     }
 }

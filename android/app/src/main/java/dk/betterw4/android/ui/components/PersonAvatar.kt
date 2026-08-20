@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,7 +36,7 @@ interface AvatarRepositoryEntryPoint {
 /**
  * Circular person photo with initials fallback.
  *
- * Resolves W4 thumb URLs via [AvatarRepository] (cookie-aware Coil).
+ * Resolves W4 portrait URLs via [AvatarRepository] (cookie-aware Coil).
  */
 @Composable
 fun PersonAvatar(
@@ -55,6 +56,7 @@ fun PersonAvatar(
         ).avatarRepository()
     }
 
+    val indexEpoch by repo.indexEpoch.collectAsState()
     var url by remember(entityId, name, teacherNumericId, knownUrl) {
         mutableStateOf(
             repo.peekUrl(
@@ -66,7 +68,9 @@ fun PersonAvatar(
         )
     }
 
-    LaunchedEffect(entityId, name, teacherNumericId, knownUrl, kind) {
+    // Re-resolve when the people catalog lands so calendar bricks (name-only)
+    // pick up teacher thumbs after the post-login directory sync.
+    LaunchedEffect(entityId, name, teacherNumericId, knownUrl, kind, indexEpoch) {
         val resolved = repo.resolveUrl(
             entityId = entityId,
             name = name.takeIf { it.isNotBlank() },
@@ -89,7 +93,7 @@ fun PersonAvatar(
                 .build(),
             contentDescription = name,
             contentScale = ContentScale.Crop,
-            alignment = Alignment.TopCenter,
+            alignment = Alignment.Center,
             modifier = boxModifier,
             loading = { InitialsAvatar(label = name, modifier = boxModifier) },
             error = { InitialsAvatar(label = name, modifier = boxModifier) },

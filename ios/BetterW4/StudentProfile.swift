@@ -10,7 +10,7 @@
 //  all we have is a list row or a full `people/students/student&uwc_id=` page.
 //
 //  Nothing here fetches. The photo is derived from the UWC id — W4 serves
-//  `/files/user_photos/{uwc_id}_thumb.jpg` and there is no picture id to look up.
+//  `/files/user_photos/{uwc_id}_photo.jpg` and there is no picture id to look up.
 //
 
 import Foundation
@@ -25,12 +25,22 @@ struct StudentProfile: Equatable, Identifiable, Sendable {
     /// `"1"` / `"2"` where W4 states it.
     let year: String?
     let house: String?
+    /// W4 `house_id` slug (`denmark`) so the About tab can open the house page.
+    let houseId: String?
+    /// Boarding-house room heading from `people/students/byhouse` (`Room 101`).
+    let room: String?
+    /// Academic classes from the person's public timetable.
+    let classes: [PersonClass]
     let country: String?
     let pronouns: String?
     let birthday: String?
     let lastLogin: String?
     /// The address printed on the profile page, when there was one.
     let scrapedEmail: String?
+    let officeTel: String?
+    let mobile: String?
+    let positions: [String]
+    let activities: [StaffActivity]
     /// Everything the page carried that is not already one of the fields above, in document
     /// order, so a label this port has never seen still reaches the screen.
     let extraFields: [PersonProfileField]
@@ -38,6 +48,48 @@ struct StudentProfile: Equatable, Identifiable, Sendable {
     nonisolated var id: String { uwcId }
 
     // MARK: - Building
+
+    init(
+        uwcId: String,
+        name: String,
+        preferredName: String?,
+        kind: DirectoryPersonKind,
+        year: String?,
+        house: String?,
+        houseId: String?,
+        room: String?,
+        classes: [PersonClass],
+        country: String?,
+        pronouns: String?,
+        birthday: String?,
+        lastLogin: String?,
+        scrapedEmail: String?,
+        officeTel: String?,
+        mobile: String?,
+        positions: [String],
+        activities: [StaffActivity],
+        extraFields: [PersonProfileField]
+    ) {
+        self.uwcId = uwcId
+        self.name = name
+        self.preferredName = preferredName
+        self.kind = kind
+        self.year = year
+        self.house = house
+        self.houseId = houseId
+        self.room = room
+        self.classes = classes
+        self.country = country
+        self.pronouns = pronouns
+        self.birthday = birthday
+        self.lastLogin = lastLogin
+        self.scrapedEmail = scrapedEmail
+        self.officeTel = officeTel
+        self.mobile = mobile
+        self.positions = positions
+        self.activities = activities
+        self.extraFields = extraFields
+    }
 
     /// From a directory row — everything the list already knew, nothing more.
     init(person: DirectoryPerson) {
@@ -47,11 +99,18 @@ struct StudentProfile: Equatable, Identifiable, Sendable {
         self.kind = person.kind
         self.year = Self.nonEmpty(person.year)
         self.house = Self.nonEmpty(person.house)
+        self.houseId = nil
+        self.room = nil
+        self.classes = []
         self.country = Self.nonEmpty(person.country)
         self.pronouns = Self.nonEmpty(person.pronouns)
         self.birthday = nil
         self.lastLogin = nil
         self.scrapedEmail = nil
+        self.officeTel = nil
+        self.mobile = nil
+        self.positions = person.kind == .staff ? StaffRoles.parse(person.subtitle) : []
+        self.activities = []
         self.extraFields = []
     }
 
@@ -65,14 +124,23 @@ struct StudentProfile: Equatable, Identifiable, Sendable {
         self.kind = person.kind
         self.year = Self.nonEmpty(person.year)
         self.house = Self.nonEmpty(person.house)
+        self.houseId = nil
+        self.room = nil
+        self.classes = profile.taughtClasses
         self.country = Self.nonEmpty(person.country)
         self.pronouns = Self.nonEmpty(person.pronouns)
         self.birthday = Self.nonEmpty(profile.birthday)
         self.lastLogin = Self.nonEmpty(profile.lastLogin)
         self.scrapedEmail = Self.nonEmpty(profile.scrapedEmail)
+        self.officeTel = Self.nonEmpty(profile.officeTel)
+        self.mobile = Self.nonEmpty(profile.mobile)
+        self.positions = profile.positions
+        self.activities = profile.activities
         self.extraFields = profile.fields.filter { field in
             let label = PersonProfileField.normalizedLabel(field.label)
             guard !Self.knownLabels.contains(label) else { return false }
+            guard !label.contains("timetable") else { return false }
+            guard field.value.caseInsensitiveCompare("View") != .orderedSame else { return false }
             return Self.nonEmpty(field.value) != nil
         }
     }
@@ -80,8 +148,10 @@ struct StudentProfile: Equatable, Identifiable, Sendable {
     /// Labels rendered as their own row, so `extraFields` does not print them twice.
     private static let knownLabels: Set<String> = [
         "uwc id", "uwcid", "id", "name", "full name", "preferred name",
-        "year", "ib year", "house", "country", "pronouns", "email",
-        "e mail", "birthday", "date of birth", "last login"
+        "year", "ib year", "house", "room", "country", "pronouns", "email",
+        "e mail", "birthday", "date of birth", "birth date", "last login",
+        "position", "positions", "office tel", "office telephone", "mobile",
+        "advisees", "ac timetable", "ea timetable"
     ]
 
     // MARK: - Display
@@ -99,14 +169,50 @@ struct StudentProfile: Equatable, Identifiable, Sendable {
         return name
     }
 
-    /// `Year 1 · Haugland · Norway` — the subtitle shape W4's own people lists use.
+    /// Staff: `Teacher · Advisor · China`. Students: `Year 1 · Denmark · Room 101`.
     nonisolated var subtitle: String? {
+        if kind == .staff {
+            let parts = [
+                positions.prefix(3).joined(separator: " · ").nilIfEmpty,
+                country
+            ].compactMap { $0 }
+            return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        }
         let parts = [
-            year.map { "Year \($0)" },
+            year.map { $0.hasPrefix("Year") ? $0 : "Year \($0)" },
             house,
+            room,
             country
         ].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    func applying(placement: HousePlacement?, classes incoming: [PersonClass]) -> StudentProfile {
+        let placedHouse = kind == .staff ? house : (placement?.house.name ?? house)
+        let placedHouseId = kind == .staff ? houseId : (placement?.house.id ?? houseId)
+        let placedRoom = kind == .staff ? room : (placement?.room?.name ?? room)
+        let placedYear = kind == .staff ? year : (year ?? placement?.resident.year)
+        return StudentProfile(
+            uwcId: uwcId,
+            name: name,
+            preferredName: preferredName,
+            kind: kind,
+            year: placedYear,
+            house: placedHouse,
+            houseId: placedHouseId,
+            room: placedRoom,
+            classes: PersonClasses.merge(classes, incoming),
+            country: country ?? placement?.resident.country,
+            pronouns: pronouns,
+            birthday: birthday,
+            lastLogin: lastLogin,
+            scrapedEmail: scrapedEmail,
+            officeTel: officeTel,
+            mobile: mobile,
+            positions: positions,
+            activities: activities,
+            extraFields: extraFields
+        )
     }
 
     /// Derived, never scraped: every W4 account's address is `{uwc_id}@uwcrcn.no` (README §6).
@@ -121,7 +227,7 @@ struct StudentProfile: Equatable, Identifiable, Sendable {
 
     nonisolated var kindLabel: String { kind.displayName }
 
-    /// W4 serves member photos as `{uwc_id}_thumb.jpg`; views fall back to initials.
+    /// W4 serves member photos as `{uwc_id}.jpg`; views fall back to initials.
     nonisolated var photoURL: URL? {
         guard let id = Self.normalizedUWCID(uwcId) else { return nil }
         return W4PeopleParser.photoURL(forUWCId: id)
@@ -145,3 +251,7 @@ struct StudentProfile: Equatable, Identifiable, Sendable {
         return trimmed
     }
 }
+
+// `String.nilIfEmpty` lives in BaseParser.swift. A second, file-private copy here was an
+// invalid redeclaration rather than a shadow — Swift rejects it outright. The surviving one
+// trims before testing for empty, which is what the rest of this file already does by hand.

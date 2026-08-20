@@ -28,6 +28,7 @@ data class StudentCard(
     val house: String? = null,
     val country: String? = null,
     val pronouns: String? = null,
+    val year: String? = null,
 )
 
 @Singleton
@@ -76,6 +77,7 @@ class StudiekortRepository @Inject constructor(
                         house = parsed.house,
                         country = parsed.country,
                         pronouns = parsed.pronouns,
+                        year = parsed.year,
                     ),
                 )
             }
@@ -106,7 +108,7 @@ class StudiekortRepository @Inject constructor(
 
     private fun demoCard(student: Student) = StudentCard(
         student = student.copy(
-            name = student.name ?: "Demo Elev",
+            name = student.name ?: "Demo Student",
             classLabel = student.classLabel ?: "Year 1 · Haugland",
             schoolName = student.schoolName ?: W4School.NAME,
         ),
@@ -117,5 +119,6 @@ class StudiekortRepository @Inject constructor(
         house = "Haugland",
         country = "Denmark",
         pronouns = "they/them",
+        year = "1",
     )
 }

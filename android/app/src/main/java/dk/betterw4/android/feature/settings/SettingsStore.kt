@@ -7,6 +7,7 @@ import dk.betterw4.android.core.i18n.AppLocale
 import dk.betterw4.android.feature.schedule.EventStatus
 import dk.betterw4.android.feature.schedule.ScheduleEvent
 import dk.betterw4.android.feature.schedule.SchoolCalendar
+import dk.betterw4.android.feature.schedule.W4ClassId
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -54,6 +55,12 @@ class SettingsStore @Inject constructor(
     private val _useSubjectColors = MutableStateFlow(prefs.getBoolean(KEY_USE_SUBJECT_COLORS, true))
     val useSubjectColors: StateFlow<Boolean> = _useSubjectColors.asStateFlow()
 
+    /** When true, the public college Google Calendar is drawn on the timetable. */
+    private val _showSchoolCalendar = MutableStateFlow(
+        prefs.getBoolean(KEY_SHOW_SCHOOL_CALENDAR, true),
+    )
+    val showSchoolCalendar: StateFlow<Boolean> = _showSchoolCalendar.asStateFlow()
+
     private val _notifEvents = MutableStateFlow(prefs.getBoolean("notif_events", true))
     val notifEvents: StateFlow<Boolean> = _notifEvents.asStateFlow()
 
@@ -62,6 +69,9 @@ class SettingsStore @Inject constructor(
 
     private val _notifAssignments = MutableStateFlow(prefs.getBoolean("notif_assignments", true))
     val notifAssignments: StateFlow<Boolean> = _notifAssignments.asStateFlow()
+
+    private val _notifTrips = MutableStateFlow(prefs.getBoolean("notif_trips", true))
+    val notifTrips: StateFlow<Boolean> = _notifTrips.asStateFlow()
 
     /** When true, never append the BetterW4 signature on send/reply. */
     private val _disableSignature = MutableStateFlow(prefs.getBoolean("disable_signature", false))
@@ -73,6 +83,8 @@ class SettingsStore @Inject constructor(
 
     private val _lessonMappings = MutableStateFlow<Map<String, ResolvedLessonMapping>>(emptyMap())
     val lessonMappings: StateFlow<Map<String, ResolvedLessonMapping>> = _lessonMappings.asStateFlow()
+
+    private val _observedHolds = MutableStateFlow<Set<String>>(emptySet())
 
     private val _notificationHistory = MutableStateFlow(loadNotificationHistory())
     val notificationHistory: StateFlow<List<String>> = _notificationHistory.asStateFlow()
@@ -134,6 +146,11 @@ class SettingsStore @Inject constructor(
         _useSubjectColors.value = v
     }
 
+    fun setShowSchoolCalendar(v: Boolean) {
+        prefs.edit { putBoolean(KEY_SHOW_SCHOOL_CALENDAR, v) }
+        _showSchoolCalendar.value = v
+    }
+
     fun setNotifEvents(v: Boolean) {
         prefs.edit { putBoolean("notif_events", v) }
         _notifEvents.value = v
@@ -147,6 +164,11 @@ class SettingsStore @Inject constructor(
     fun setNotifAssignments(v: Boolean) {
         prefs.edit { putBoolean("notif_assignments", v) }
         _notifAssignments.value = v
+    }
+
+    fun setNotifTrips(v: Boolean) {
+        prefs.edit { putBoolean("notif_trips", v) }
+        _notifTrips.value = v
     }
 
     fun setDisableSignature(v: Boolean) {
@@ -210,6 +232,19 @@ class SettingsStore @Inject constructor(
         }
         val normalized = SubjectMapper.normalizedHold(rawHold)
         return if (normalized.isNotEmpty()) normalized else fallback
+    }
+
+    /**
+     * Name shown on a schedule brick: user alias, then W4's tooltip title, then the
+     * catalogue name. Compact class ids (`1EA16CECOX`) are never shown as the title.
+     */
+    fun displayTitleForEvent(event: ScheduleEvent): String {
+        if (SchoolCalendar.isSchoolCalendarEvent(event)) return event.title
+        val key = event.team.ifBlank { event.title }
+        customName(key)?.let { return it }
+        val title = event.title.trim()
+        if (title.isNotEmpty() && !W4ClassId.looksLike(title)) return title
+        return displayNameForSubject(key, title.ifBlank { key })
     }
 
     fun colorHueForSubject(rawHold: String): Int {
@@ -278,7 +313,7 @@ class SettingsStore @Inject constructor(
         val fromRemote = _lessonMappings.value.values.map {
             SubjectInfo(code = it.canonicalKey, name = it.displayName, mappingId = it.mappingId)
         }
-        val merged = SubjectMapper.allSubjects(including = extraHolds)
+        val merged = SubjectMapper.allSubjects(including = extraHolds + _observedHolds.value)
         val byCode = (fromRemote + merged).associateBy { it.code }.toMutableMap()
         // Prefer remote display names / mapping ids
         for (m in _lessonMappings.value.values) {
@@ -289,6 +324,14 @@ class SettingsStore @Inject constructor(
             )
         }
         return byCode.values.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
+    }
+
+    fun noteObservedHolds(holds: Collection<String>) {
+        val additions = holds.map { it.trim() }.filter { it.isNotEmpty() }
+        if (additions.isEmpty()) return
+        val next = _observedHolds.value.toMutableSet()
+        if (!next.addAll(additions)) return
+        _observedHolds.value = next
     }
 
     /** @deprecated Prefer [availableSubjects]. Kept for call-site compatibility during migration. */
@@ -406,6 +449,7 @@ class SettingsStore @Inject constructor(
         private const val KEY_LESSON_CACHE = "lessonMappingCacheV2"
         private const val KEY_ONBOARDING_COMPLETED = "onboarding_completed"
         private const val KEY_USE_SUBJECT_COLORS = "use_subject_colors"
+        private const val KEY_SHOW_SCHOOL_CALENDAR = "show_school_calendar"
 
         /** Status-mode schedule accents (blue / green / red). */
         private const val STATUS_NORMAL_ARGB = 0xFF3362E1L

@@ -28,6 +28,8 @@ enum W4Surface: String, CaseIterable, Sendable {
     case trips
     case travel
     case people
+    case classes
+    case onDuty
     case profile
     case extraAcademics
     case resources
@@ -47,9 +49,9 @@ enum CachePolicy {
             return 60                    // campus chip + bell, matching W4's own 60s poll
         case .mailInbox, .mailArchive:
             return 5 * 60
-        case .home, .assessments, .attendanceMeters:
+        case .home, .assessments, .attendanceMeters, .onDuty:
             return 15 * 60
-        case .timetableAcademics, .timetableExtraAcademics:
+        case .timetableAcademics, .timetableExtraAcademics, .classes:
             return 30 * 60
         case .attendanceAcademics, .attendanceExtraAcademics, .grades, .trips, .travel:
             return 30 * 60

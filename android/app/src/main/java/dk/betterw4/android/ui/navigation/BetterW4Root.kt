@@ -8,8 +8,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.TextAutoSize
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -44,7 +42,6 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import dk.betterw4.android.core.w4.session.AuthState
 import dk.betterw4.android.core.w4.session.SessionController
-import dk.betterw4.android.feature.messages.MessageRepository
 import dk.betterw4.android.feature.review.ReviewPromptCoordinator
 import dk.betterw4.android.feature.settings.SettingsStore
 import dk.betterw4.android.ui.auth.LoginScreen
@@ -52,7 +49,6 @@ import dk.betterw4.android.ui.components.LoadingBox
 import dk.betterw4.android.ui.onboarding.OnboardingOverlay
 import dk.betterw4.android.ui.review.ReviewPromptSheet
 import dk.betterw4.android.ui.screens.homework.HomeworkScreen
-import dk.betterw4.android.ui.screens.messages.MessagesScreen
 import dk.betterw4.android.ui.screens.more.MoreScreen
 import dk.betterw4.android.ui.screens.schedule.ScheduleScreen
 @Composable
@@ -95,10 +91,8 @@ private fun AuthenticatedShell() {
             AuthenticatedShellEntryPoint::class.java,
         )
     }
-    val messageRepository = remember { entryPoint.messageRepository() }
     val settingsStore = remember { entryPoint.settingsStore() }
     val reviewPromptCoordinator = remember { entryPoint.reviewPromptCoordinator() }
-    val unreadCount by messageRepository.unreadCount.collectAsStateWithLifecycle()
     val reviewPromptVisible by reviewPromptCoordinator.softPromptVisible.collectAsStateWithLifecycle()
 
     var showOnboarding by remember { mutableStateOf(settingsStore.shouldShowOnboarding()) }
@@ -115,9 +109,21 @@ private fun AuthenticatedShell() {
     // Same-tab reselect → bump scroll token for active route
     val scrollTokens = remember { mutableStateMapOf<String, Int>() }
     var scheduleScroll by remember { mutableIntStateOf(0) }
-    var messagesScroll by remember { mutableIntStateOf(0) }
+    var studentsScroll by remember { mutableIntStateOf(0) }
     var homeworkScroll by remember { mutableIntStateOf(0) }
     var moreScroll by remember { mutableIntStateOf(0) }
+    var openMailToken by remember { mutableIntStateOf(0) }
+
+    fun openMail() {
+        openMailToken++
+        navController.navigate(AppDestination.More.route) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
 
     // Zero content insets: child screens own status-bar handling via their TopAppBars.
     // Without this, the outer Scaffold (no topBar) pads the NavHost for the status bar,
@@ -145,7 +151,7 @@ private fun AuthenticatedShell() {
                             if (selected) {
                                 when (destination) {
                                     AppDestination.Schedule -> scheduleScroll++
-                                    AppDestination.Messages -> messagesScroll++
+                                    AppDestination.Students -> studentsScroll++
                                     AppDestination.Homework -> homeworkScroll++
                                     AppDestination.More -> Unit // already bumped above
                                 }
@@ -163,19 +169,7 @@ private fun AuthenticatedShell() {
                         },
                         icon = {
                             val icon = if (selected) destination.selectedIcon else destination.unselectedIcon
-                            if (destination == AppDestination.Messages && unreadCount > 0) {
-                                BadgedBox(
-                                    badge = {
-                                        Badge {
-                                            Text(if (unreadCount > 9) "9+" else "$unreadCount")
-                                        }
-                                    },
-                                ) {
-                                    Icon(icon, contentDescription = stringResource(destination.labelRes))
-                                }
-                            } else {
-                                Icon(icon, contentDescription = stringResource(destination.labelRes))
-                            }
+                            Icon(icon, contentDescription = stringResource(destination.labelRes))
                         },
                         // Keep labels on one line on narrow phones (e.g. "Assignments").
                         // Auto-size down a bit, then ellipsize rather than wrap to two lines.
@@ -214,15 +208,7 @@ private fun AuthenticatedShell() {
             composable(AppDestination.Schedule.route) {
                 ScheduleScreen(
                     scrollToTopToken = scheduleScroll,
-                    onOpenMail = {
-                        navController.navigate(AppDestination.Messages.route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
+                    onOpenMail = { openMail() },
                     onOpenAssessments = {
                         navController.navigate(AppDestination.Homework.route) {
                             popUpTo(navController.graph.findStartDestination().id) {
@@ -234,8 +220,13 @@ private fun AuthenticatedShell() {
                     },
                 )
             }
-            composable(AppDestination.Messages.route) {
-                MessagesScreen(scrollToTopToken = messagesScroll)
+            composable(AppDestination.Students.route) {
+                MoreScreen(
+                    scrollToTopToken = studentsScroll,
+                    isStudentsTab = true,
+                    onComposeToPerson = { openMail() },
+                    onOpenMail = { openMail() },
+                )
             }
             composable(AppDestination.Homework.route) {
                 HomeworkScreen(scrollToTopToken = homeworkScroll)
@@ -243,17 +234,7 @@ private fun AuthenticatedShell() {
             composable(AppDestination.More.route) {
                 MoreScreen(
                     scrollToTopToken = moreScroll,
-                    onComposeToPerson = {
-                        // PendingComposeRecipient is already offered by MoreViewModel;
-                        // switch tab so MessagesViewModel can open compose.
-                        navController.navigate(AppDestination.Messages.route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
+                    openMailToken = openMailToken,
                 )
             }
         }
@@ -261,7 +242,6 @@ private fun AuthenticatedShell() {
 
     if (showOnboarding) {
         OnboardingOverlay(
-            settingsStore = settingsStore,
             onComplete = {
                 settingsStore.markOnboardingCompleted()
                 showOnboarding = false
@@ -281,7 +261,6 @@ private fun AuthenticatedShell() {
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 interface AuthenticatedShellEntryPoint {
-    fun messageRepository(): MessageRepository
     fun settingsStore(): SettingsStore
     fun reviewPromptCoordinator(): ReviewPromptCoordinator
 }

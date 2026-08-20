@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>BetterW4 · Play feature graphic</title>
+    <style>
+      @font-face {
+        font-family: "Fraunces BL";
+        src: url("../app/src/main/res/font/fraunces.ttf") format("truetype");
+        font-style: normal;
+        font-weight: 100 900;
+      }
+      @font-face {
+        font-family: "Inter BL";
+        src: url("../app/src/main/res/font/inter.ttf") format("truetype");
+        font-style: normal;
+        font-weight: 100 900;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        width: 1024px;
+        height: 500px;
+        overflow: hidden;
+        background: #004a97;
+      }
+      .graphic {
+        position: relative;
+        width: 1024px;
+        height: 500px;
+        display: flex;
+        align-items: center;
+        padding: 0 88px;
+        gap: 36px;
+        background:
+          radial-gradient(520px 320px at 88% 110%, rgba(255,255,255,.10), transparent 70%),
+          #004a97;
+        color: #fff;
+        font-family: "Inter BL", sans-serif;
+      }
+      .mark {
+        width: 148px;
+        height: 148px;
+        border-radius: 34px;
+        flex: none;
+      }
+      .copy { min-width: 0; }
+      .kicker {
+        margin: 0 0 10px;
+        font-size: 18px;
+        font-weight: 760;
+        letter-spacing: .16em;
+        color: rgba(255,255,255,.72);
+      }
+      h1 {
+        margin: 0;
+        font-size: 72px;
+        font-weight: 790;
+        line-height: .96;
+        letter-spacing: -.055em;
+      }
+      h1 em {
+        display: block;
+        font-family: "Fraunces BL", serif;
+        font-size: 1.08em;
+        font-weight: 620;
+        font-style: italic;
+        font-variation-settings: "opsz" 80, "SOFT" 50, "WONK" 1;
+        letter-spacing: -.04em;
+        color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="graphic">
+      <img class="mark" src="../branding/betterw4.png" alt="" />
+      <div class="copy">
+        <p class="kicker">BETTERW4</p>
+        <h1>W4.<br><em>Now on mobile.</em></h1>
+      </div>
+    </main>
+    <script>
+      Promise.all([...document.images].map((image) => image.decode().catch(() => {})))
+        .then(() => document.fonts.ready)
+        .then(() => { document.documentElement.dataset.ready = "true"; });
+    </script>
+  </body>
+</html>

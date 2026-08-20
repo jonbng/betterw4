@@ -3,6 +3,7 @@ package dk.betterw4.android.feature.offline
 import dk.betterw4.android.feature.directory.DirectoryEntity
 import dk.betterw4.android.feature.directory.DirectoryEntityKind
 import dk.betterw4.android.feature.directory.DirectoryParser
+import dk.betterw4.android.feature.directory.DirectoryYear
 import dk.betterw4.android.feature.offline.OfflineDatabase
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -14,11 +15,11 @@ class OfflineDirectoryStore @Inject constructor(
     private val dao get() = db.directoryDao()
 
     suspend fun loadAll(studentId: String): List<DirectoryEntity> =
-        dao.loadAll(studentId).map { it.toModel() }
+        dao.loadAll(studentId).mapNotNull { it.toModel() }
 
     /**
-     * Upsert entities without removing other rows (e.g. hold-member bootstrap).
-     * Merges with existing rows so class-code / initials labels never overwrite real names,
+     * Upsert people without removing other rows.
+     * Merges with existing rows so id-column labels never overwrite real names,
      * and avatar URLs are preserved when the incoming row lacks one.
      */
     suspend fun saveAll(studentId: String, entities: List<DirectoryEntity>) {
@@ -82,12 +83,16 @@ class OfflineDirectoryStore @Inject constructor(
         )
     }
 
-    private fun DirectoryEntityRow.toModel() = DirectoryEntity(
-        id = entityId,
-        name = name,
-        kind = runCatching { DirectoryEntityKind.valueOf(kind) }
-            .getOrDefault(DirectoryEntityKind.OTHER),
-        subtitle = subtitle,
-        avatarUrl = DirectoryParser.pickAvatar(null, avatarUrl),
-    )
+    private fun DirectoryEntityRow.toModel(): DirectoryEntity? {
+        val parsedKind = runCatching { DirectoryEntityKind.valueOf(kind) }.getOrNull()
+            ?: return null
+        return DirectoryEntity(
+            id = entityId,
+            name = name,
+            kind = parsedKind,
+            subtitle = subtitle,
+            avatarUrl = DirectoryParser.pickAvatar(null, avatarUrl),
+            year = DirectoryYear.parse(subtitle),
+        )
+    }
 }

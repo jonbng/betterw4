@@ -14,7 +14,7 @@
 //       time and every one of its requests is `.opportunistic`. A greedy sweep would sit in front
 //       of the screen the student is actually looking at, because all W4 traffic shares a single
 //       serial gate.
-//    3. **Photos are derived, never fetched.** W4 serves `{uwc_id}_thumb.jpg`; there is no
+//    3. **Photos are derived, never fetched.** W4 serves `{uwc_id}.jpg`; there is no
 //       `pictureId` to look up and therefore no per-person request to make.
 //
 //  Cache: `W4Surface.people`, TTL 7 days — the number lives in `CachePolicy`, never here.
@@ -628,47 +628,45 @@ extension DirectoryRepository {
 
     /// Invented identities (`reviewer-notes.md` §8): `nc00…` ids that cannot collide with a real
     /// UWC id, and names that belong to nobody.
+    private static func demoStudent(
+        _ id: String,
+        _ name: String,
+        year: String,
+        house: String,
+        country: String,
+        status: String? = nil
+    ) -> DirectoryPerson {
+        DirectoryPerson(
+            uwcId: id,
+            name: name,
+            kind: .student,
+            year: year,
+            house: house,
+            country: country,
+            subtitle: "Year \(year) · \(house) · \(country)",
+            status: status,
+            photoURL: W4PeopleParser.photoURL(forUWCId: id)
+        )
+    }
+
     static let demoPeople: [DirectoryPerson] = [
-        DirectoryPerson(
-            uwcId: "nc00aaa",
-            name: "Alex Andersen",
-            kind: .student,
-            year: "1",
-            house: "Haugland",
-            country: "Denmark",
-            subtitle: "Year 1 · Haugland · Denmark",
-            photoURL: W4PeopleParser.photoURL(forUWCId: "nc00aaa")
-        ),
-        DirectoryPerson(
-            uwcId: "nc00bbb",
-            name: "Bea Beltran",
-            kind: .student,
-            year: "2",
-            house: "Fjaera",
-            country: "Italy",
-            subtitle: "Year 2 · Fjaera · Italy",
-            photoURL: W4PeopleParser.photoURL(forUWCId: "nc00bbb")
-        ),
-        DirectoryPerson(
-            uwcId: "nc00ddd",
-            name: "Dana Dlamini",
-            kind: .student,
-            year: "1",
-            house: "Vikja",
-            country: "South Africa",
-            subtitle: "Year 1 · Vikja · South Africa",
-            photoURL: W4PeopleParser.photoURL(forUWCId: "nc00ddd")
-        ),
-        DirectoryPerson(
-            uwcId: "nc00eee",
-            name: "Eli Eriksen",
-            kind: .student,
-            year: "2",
-            house: "Haugland",
-            country: "Norway",
-            subtitle: "Year 2 · Haugland · Norway",
-            photoURL: W4PeopleParser.photoURL(forUWCId: "nc00eee")
-        ),
+        demoStudent("nc00aaa", "Alex Andersen", year: "1", house: "Haugland", country: "Denmark"),
+        demoStudent("nc00bbb", "Bea Beltran", year: "2", house: "Fjaera", country: "Italy"),
+        demoStudent("nc00ddd", "Dana Dlamini", year: "1", house: "Vikja", country: "South Africa"),
+        demoStudent("nc00eee", "Eli Eriksen", year: "2", house: "Haugland", country: "Norway"),
+        demoStudent("nc00ggg", "Gita Ghosh", year: "1", house: "Finland", country: "India", status: "Off campus"),
+        demoStudent("nc00hhh", "Cara Cole", year: "2", house: "Finland", country: "Canada"),
+        demoStudent("nc00iii", "Mei Nakamura", year: "1", house: "Finland", country: "Japan"),
+        demoStudent("nc00jjj", "Luis Ortega", year: "2", house: "Iceland", country: "Mexico"),
+        demoStudent("nc00kkk", "Amara Okonkwo", year: "1", house: "Iceland", country: "Nigeria"),
+        demoStudent("nc00lll", "Noor Haddad", year: "1", house: "Denmark", country: "Jordan"),
+        demoStudent("nc00mmm", "Sofia Alvarez", year: "2", house: "Norway", country: "Argentina"),
+        demoStudent("nc00nnn", "Tomas Novak", year: "1", house: "Norway", country: "Czechia"),
+        demoStudent("nc00ppp", "Linh Nguyen", year: "1", house: "Norway", country: "Vietnam"),
+        demoStudent("nc00qqq", "Amina Diallo", year: "2", house: "Sweden", country: "Senegal"),
+        demoStudent("nc00rrr", "Hana Kim", year: "1", house: "Sweden", country: "South Korea"),
+        demoStudent("nc00sss", "Mateo Silva", year: "2", house: "Sweden", country: "Brazil"),
+        demoStudent("nc00ttt", "Jamal Farouk", year: "2", house: "Sweden", country: "Egypt"),
         DirectoryPerson(
             uwcId: "nc00ccc",
             name: "Chris Chen",

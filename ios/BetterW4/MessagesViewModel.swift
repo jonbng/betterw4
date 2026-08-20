@@ -2,7 +2,7 @@
 //  MessagesViewModel.swift
 //  BetterW4
 //
-//  State for the Mail tab (plan Wave 6 item 6.2, `docs/spec/ui.md` §4.2).
+//  State for the W4 mailer (plan Wave 6 item 6.2, `docs/spec/ui.md` §4.2).
 //
 //  W4's mailer is a FLAT LIST. There are no threads, no replies, no reactions, no message
 //  editing and no BBCode — every one of those was Lectio's and died with `MessageModels.swift`

@@ -130,8 +130,8 @@ class MessageRepository @Inject constructor(
         @Suppress("UNUSED_PARAMETER") recipientIdsForSignature: List<String> = emptyList(),
     ): AppResult<Unit> {
         if (session.currentStudent?.isDemo == true) {
-            val attNote = if (attachments.isEmpty()) "" else " (+${attachments.size} filer)"
-            settings.appendNotificationHistory("Svar sendt (demo): ${thread.topic}$attNote")
+            val attNote = if (attachments.isEmpty()) "" else " (+${attachments.size} files)"
+            settings.appendNotificationHistory("Reply sent (demo): ${thread.topic}$attNote")
             return AppResult.Success(Unit)
         }
         return unsupportedWrite()
@@ -228,7 +228,7 @@ class MessageRepository @Inject constructor(
                 " (+${draft.attachments.joinToString { it.displayName }})"
             }
             settings.appendNotificationHistory(
-                "Ny besked (demo) til ${draft.recipientNames.joinToString()}: ${draft.subject}$attNote",
+                "New message (demo) to ${draft.recipientNames.joinToString()}: ${draft.subject}$attNote",
             )
             return AppResult.Success(Unit)
         }

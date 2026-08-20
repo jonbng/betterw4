@@ -9,7 +9,12 @@ import dk.betterw4.android.core.w4.W4Urls
 import dk.betterw4.android.core.w4.model.FetchPriority
 import dk.betterw4.android.core.w4.session.SessionController
 import dk.betterw4.android.feature.campus.CampusStatusRepository
+import dk.betterw4.android.feature.classes.MyClass
+import dk.betterw4.android.feature.classes.MyClassRepository
 import dk.betterw4.android.feature.demo.DemoData
+import dk.betterw4.android.feature.directory.DirectoryEntityKind
+import dk.betterw4.android.feature.directory.W4PeopleParser
+import dk.betterw4.android.feature.settings.SettingsStore
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import javax.inject.Inject
@@ -22,6 +27,8 @@ class ScheduleRepository @Inject constructor(
     private val session: SessionController,
     private val campusStatus: CampusStatusRepository,
     private val schoolCalendar: SchoolCalendarRepository,
+    private val settings: SettingsStore,
+    private val myClasses: MyClassRepository,
 ) {
     /** Demo/local private events created this session (also used when Lectio POST is unavailable). */
     internal val localPrivate = LocalPrivateEvents()
@@ -63,7 +70,7 @@ class ScheduleRepository @Inject constructor(
                     priority = FetchPriority.Opportunistic,
                 )
             }
-            val gcal = async { schoolCalendar.eventsForWeek(year, week, forceRefresh) }
+            val gcal = async { schoolCalendarEvents(year, week, forceRefresh) }
             Triple(ac.await(), ea.await(), gcal.await())
         }
 
@@ -99,8 +106,17 @@ class ScheduleRepository @Inject constructor(
         weekNum: Int,
         forceRefresh: Boolean,
     ): ScheduleWeek {
-        val extra = schoolCalendar.eventsForWeek(year, weekNum, forceRefresh)
+        val extra = schoolCalendarEvents(year, weekNum, forceRefresh)
         return SchoolCalendar.mergeIntoWeek(week, extra)
+    }
+
+    private suspend fun schoolCalendarEvents(
+        year: Int,
+        week: Int,
+        forceRefresh: Boolean,
+    ): List<ScheduleEvent> {
+        if (!settings.showSchoolCalendar.value) return emptyList()
+        return schoolCalendar.eventsForWeek(year, week, forceRefresh)
     }
 
     suspend fun loadLessonDetail(event: ScheduleEvent): AppResult<LessonDetail> {
@@ -122,9 +138,23 @@ class ScheduleRepository @Inject constructor(
         }
 
         if (student.isDemo || event.id.startsWith("local-private")) {
-            return AppResult.Success(DemoData.lessonDetail(event))
+            val detail = DemoData.lessonDetail(event)
+            val people = peopleFromClass(demoClass(event))
+            return AppResult.Success(
+                detail.copy(
+                    participants = people.ifEmpty { detail.participants },
+                    holdId = ClassRoster.classId(event.href, event.team),
+                ),
+            )
         }
 
+        val classId = ClassRoster.classId(event.href, event.team)
+        val roster = if (classId != null) {
+            (myClasses.loadClass(classId) as? AppResult.Success)?.data
+        } else {
+            null
+        }
+        val participants = peopleFromClass(roster).ifEmpty { teacherFallback(event) }
         val detail = LessonDetail(
             eventId = event.id,
             title = event.title,
@@ -136,8 +166,34 @@ class ScheduleRepository @Inject constructor(
                 event.notes?.let { LessonContentBlock("note", it) },
                 event.homework?.let { LessonContentBlock("paragraph", it, isHomework = true) },
             ),
+            participants = participants,
+            holdId = classId,
         )
         return AppResult.Success(detail)
+    }
+
+    private fun demoClass(event: ScheduleEvent): MyClass? {
+        val classId = ClassRoster.classId(event.href, event.team) ?: return null
+        return DemoData.myClasses.firstOrNull { it.id.equals(classId, ignoreCase = true) }
+    }
+
+    /** People enrolled in this class. Empty when W4 has no roster for the block. */
+    private fun peopleFromClass(item: MyClass?): List<LessonParticipant> {
+        if (item == null) return emptyList()
+        return (item.teachers + item.students).map { LessonParticipant.fromDirectory(it.entity) }
+    }
+
+    private fun teacherFallback(event: ScheduleEvent): List<LessonParticipant> {
+        val teacherId = event.teacherId?.lowercase()?.takeIf { it.isNotBlank() } ?: return emptyList()
+        return listOf(
+            LessonParticipant(
+                id = teacherId,
+                name = event.teacher?.takeIf { it.isNotBlank() } ?: teacherId,
+                role = "Teacher",
+                kind = DirectoryEntityKind.TEACHER,
+                avatarUrl = W4PeopleParser.guessPhotoUrl(teacherId),
+            ),
+        )
     }
 
     suspend fun createPrivateEvent(draft: PrivateEventDraft): AppResult<ScheduleEvent> {

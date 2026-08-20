@@ -20,6 +20,6 @@ class HomeworkGroupingTest {
         assertEquals(2, groups[0].items.size)
         assertEquals(LocalDate.of(2026, 3, 12), groups[1].date)
         assertNull(groups[2].date)
-        assertEquals("Uden dato", groups[2].label)
+        assertEquals("No date", groups[2].label)
     }
 }

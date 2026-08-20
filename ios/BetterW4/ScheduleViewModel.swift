@@ -101,7 +101,22 @@ final class ScheduleViewModel: ObservableObject {
     }
 
     func events(on date: Date) -> [TimetableEvent] {
-        day(on: date)?.events ?? []
+        SchoolCalendar.visibleEvents(
+            day(on: date)?.events ?? [],
+            showSchoolCalendar: SettingsStore.shared.showSchoolCalendar
+        )
+    }
+
+    /// Reloads the visible weeks if the school calendar was just turned on and
+    /// none of the in-memory weeks already carry overlay events.
+    func applySchoolCalendarPreference() async {
+        guard SettingsStore.shared.showSchoolCalendar else { return }
+        let alreadyOverlaid = weeks.values.contains { week in
+            week.allEvents.contains(where: SchoolCalendar.isSchoolCalendarEvent)
+        }
+        if !alreadyOverlaid {
+            await refresh()
+        }
     }
 
     /// Blocks with a real time range, earliest first.
@@ -151,7 +166,8 @@ final class ScheduleViewModel: ObservableObject {
     func nextLesson(at instant: Date, withinMinutes: Int = 60) -> TimetableEvent? {
         guard currentLesson(at: instant) == nil else { return nil }
         return timedEvents(on: instant).first { event in
-            guard let minutes = event.minutesUntilStart(from: instant) else { return false }
+            guard event.drivesCountdown,
+                  let minutes = event.minutesUntilStart(from: instant) else { return false }
             return minutes <= withinMinutes
         }
     }
@@ -215,9 +231,9 @@ final class ScheduleViewModel: ObservableObject {
 
     // MARK: - Loading
 
-    /// First paint for the tab.
+    /// First paint for the tab — always today's week, not whichever day was last on screen.
     func onAppear() async {
-        await load(weekContaining: selectedDate)
+        await goToToday()
     }
 
     /// Pull-to-refresh: always go to W4, and keep the current week on screen if it fails.

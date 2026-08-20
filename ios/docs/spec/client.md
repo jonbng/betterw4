@@ -1,7 +1,7 @@
 # BetterW4 iOS — W4 networking / session / auth layer
 
 **Status:** implementation spec. Replaces the Lectio client in `ios/BetterW4/`.
-**Authority:** `README.md` §4 and §5 (the W4 protocol brief) + the finished Kotlin port in
+**Authority:** `PROTOCOL.md` §4 and §5 (the W4 protocol brief) + the finished Kotlin port in
 `android/app/src/main/java/dk/betterw4/android/core/w4/**`.
 **Scope:** everything below `W4Client` — URL building, HTTP, cookies, errors, login, session, demo.
 Feature scrapers and view models are out of scope except where they touch these types.

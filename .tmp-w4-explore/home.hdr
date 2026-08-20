@@ -1,0 +1,11 @@
+HTTP/1.1 200 OK
+Date: Tue, 18 Aug 2026 14:47:57 GMT
+Server: Apache/2.4.59 (Debian) mpm-itk/2.4.7-04 OpenSSL/1.1.1n
+Expires: Thu, 19 Nov 1981 08:52:00 GMT
+Cache-Control: no-store, no-cache, must-revalidate
+Pragma: no-cache
+Vary: Accept-Encoding
+Content-Encoding: gzip
+Content-Length: 3520
+Content-Type: text/html; charset=UTF-8
+

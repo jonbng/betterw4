@@ -191,15 +191,20 @@ enum TimetableGridGuard {
 
 actor TimetableRepository {
 
-    static let shared = TimetableRepository()
+    static let shared = TimetableRepository(
+        schoolCalendarOverlay: { year, week in
+            guard SettingsStore.shared.showSchoolCalendar else { return nil }
+            return await SchoolCalendarRepository.shared.weekOverlay(year: year, week: week)
+        }
+    )
 
     private let loader: any TimetablePageLoading
     private let cache: W4PageCache
     private let store: TimetableStoreBridge
     private let resolveContext: @Sendable () throws -> W4RequestContext
     private let clock: @Sendable () -> Date
-    /// OQ-8: the school Google-Calendar ICS overlay ships **off**. The hook exists so enabling it
-    /// is a wiring change in the settings layer, not surgery in here. `nil` ⇒ no overlay, no fetch.
+    /// School Google-Calendar ICS overlay. `nil` ⇒ never fetch. The shared instance wires
+    /// `SchoolCalendarRepository` and honours the Settings toggle (on by default, same as Android).
     private let schoolCalendarOverlay: (@Sendable (_ year: Int, _ week: Int) async -> ScheduleWeek?)?
 
     /// Whether `?year=&week=` has been proven to work. The UI reads this to decide if the
@@ -263,7 +268,7 @@ actor TimetableRepository {
         let cached = await cachedWeek(iso: iso, uwcId: uwcId)
 
         if policy == .refreshWhenStale, let cached, !Self.isStale(cached) {
-            return cached
+            return await overlaySchoolCalendar(cached)
         }
 
         do {
@@ -400,12 +405,6 @@ actor TimetableRepository {
                 : .unsupported
         }
 
-        if let schoolCalendarOverlay,
-           let overlay = await schoolCalendarOverlay(merged.year, merged.week) {
-            merged = W4TimetableParser.merge(merged, with: overlay)
-            sources.insert(.schoolCalendar)
-        }
-
         // Always key on the week W4 actually answered with, never on the one we asked for. If the
         // probe just failed, writing this grid under the requested key would poison the cache.
         let weekKey = ScheduleIdentity.weekKey(year: merged.year, week: merged.week)
@@ -435,18 +434,137 @@ actor TimetableRepository {
         let week = merged.withFetchedAt(fetchedAt)
 
         // D-22: delete only what this fetch can actually vouch for. An empty set means
-        // "upsert, delete nothing".
+        // "upsert, delete nothing". School-calendar events are not stored here — the ICS
+        // overlay is applied after persist so a later toggle cannot duplicate them.
         let replacingSources = TimetableGridGuard.hasFullGrid(html: primaryHTML)
             ? sources
             : Set<EventSource>()
         await store.persist(week, uwcId, weekKey, replacingSources)
 
+        let presented = await overlaySchoolCalendarIfNeeded(week) ?? week
+
         // Reusing Home is still cached data, and saying otherwise would put a false
         // "just now" under a grid that may be a quarter of an hour old.
         if let servedFrom {
-            return W4Loaded(week, freshness: .cached(fetchedAt: servedFrom, isStale: false))
+            return W4Loaded(presented, freshness: .cached(fetchedAt: servedFrom, isStale: false))
         }
-        return W4Loaded(week, freshness: .fresh)
+        return W4Loaded(presented, freshness: .fresh)
+    }
+
+    /// Another person's AC+EA week: `academics/timetable/timetable&uwc_id=`.
+    ///
+    /// `mytimetable&uwc_id=` is ignored and always returns the signed-in student, so this
+    /// uses the public person routes and a cache key that includes the target id.
+    func personWeek(
+        uwcId rawUwcId: String,
+        containing date: Date,
+        forceRefresh: Bool = false
+    ) async throws -> W4Loaded<ScheduleWeek> {
+        let context = try resolveContext()
+        let uwcId = DirectoryRepository.normalizedUwcId(rawUwcId)
+        guard !uwcId.isEmpty else {
+            throw W4Error.parsingError("A person week needs a uwc id")
+        }
+        if context.isDemo {
+            return W4Loaded(Self.demoWeek(containing: date), freshness: .demo)
+        }
+
+        let iso = W4Dates.isoWeek(of: date)
+        let weekKey = ScheduleIdentity.weekKey(year: iso.year, week: iso.week)
+        let cacheKey = "person:\(uwcId):\(weekKey)"
+        let cached = await cache.page(
+            surface: .timetableAcademics,
+            key: cacheKey,
+            uwcId: context.uwcId
+        )
+        if !forceRefresh, let cached, !cached.isStale {
+            let parsed = W4TimetableParser.parseWeek(
+                html: cached.html,
+                source: .academics,
+                fallbackYear: iso.year,
+                fallbackWeek: iso.week
+            )
+            if !parsed.days.isEmpty {
+                return W4Loaded(
+                    parsed,
+                    freshness: .cached(fetchedAt: cached.fetchedAt, isStale: false)
+                )
+            }
+        }
+
+        let query = [
+            "uwc_id": uwcId,
+            "year": String(iso.year),
+            "week": String(iso.week)
+        ]
+        async let academicsTask = loadPage(
+            route: W4Routes.R.personTimetableIndex,
+            query: query,
+            context: context,
+            priority: .important,
+            skip: false,
+            tolerateFailure: false
+        )
+        async let extraTask = loadPage(
+            route: W4Routes.R.eaPersonTimetableIndex,
+            query: query,
+            context: context,
+            priority: .opportunistic,
+            skip: false,
+            tolerateFailure: true
+        )
+        let academics = try await academicsTask
+        let extra = try await extraTask
+        guard let primaryHTML = academics?.html else {
+            if let cached {
+                let parsed = W4TimetableParser.parseWeek(
+                    html: cached.html,
+                    source: .academics,
+                    fallbackYear: iso.year,
+                    fallbackWeek: iso.week
+                )
+                if !parsed.days.isEmpty {
+                    return W4Loaded(
+                        parsed,
+                        freshness: .cached(fetchedAt: cached.fetchedAt, isStale: true)
+                    )
+                }
+            }
+            throw W4Error.noResponse
+        }
+
+        var merged = W4TimetableParser.parseWeek(
+            html: primaryHTML,
+            source: .academics,
+            fallbackYear: iso.year,
+            fallbackWeek: iso.week
+        )
+        guard !merged.days.isEmpty else {
+            throw W4Error.parsingError("timetable page carried no day columns")
+        }
+        if let extraHTML = extra?.html {
+            let extraWeek = W4TimetableParser.parseWeek(
+                html: extraHTML,
+                source: .extraAcademics,
+                fallbackYear: merged.year,
+                fallbackWeek: merged.week
+            )
+            if extraWeek.year == merged.year, extraWeek.week == merged.week {
+                merged = W4TimetableParser.merge(merged, with: extraWeek)
+            }
+        }
+
+        let fetchedAt = clock()
+        await cache.store(
+            html: primaryHTML,
+            surface: .timetableAcademics,
+            key: cacheKey,
+            uwcId: context.uwcId,
+            finalURL: academics?.finalURL,
+            contentType: Self.htmlContentType,
+            fetchedAt: fetchedAt
+        )
+        return W4Loaded(merged.withFetchedAt(fetchedAt), freshness: .fresh)
     }
 
     /// One page fetch, with the two behaviours the caller needs to vary: skip it entirely (we
@@ -551,10 +669,31 @@ actor TimetableRepository {
             }
         }
 
-        return W4Loaded(
+        let loaded = W4Loaded(
             week.withFetchedAt(fetchedAt),
-            freshness: .cached(fetchedAt: fetchedAt, isStale: isStale)
+            freshness: W4Freshness.cached(fetchedAt: fetchedAt, isStale: isStale)
         )
+        return await overlaySchoolCalendar(loaded)
+    }
+
+    /// Lays the school Google Calendar over a week when the overlay hook is wired
+    /// and the student has it turned on. Identity function otherwise.
+    private func overlaySchoolCalendar(_ loaded: W4Loaded<ScheduleWeek>) async -> W4Loaded<ScheduleWeek> {
+        guard let overlaid = await overlaySchoolCalendarIfNeeded(loaded.value) else { return loaded }
+        return W4Loaded(overlaid.withFetchedAt(loaded.value.fetchedAt), freshness: loaded.freshness)
+    }
+
+    private func overlaySchoolCalendarIfNeeded(_ week: ScheduleWeek) async -> ScheduleWeek? {
+        guard let schoolCalendarOverlay,
+              let overlay = await schoolCalendarOverlay(week.year, week.week) else {
+            return nil
+        }
+        let withoutCalendar = week.withDays(
+            week.days.map { day in
+                day.withEvents(day.events.filter { !SchoolCalendar.isSchoolCalendarEvent($0) })
+            }
+        )
+        return SchoolCalendar.overlay(withoutCalendar, with: overlay.allEvents)
     }
 
     /// The last resort: rebuild a week out of stored lessons when both W4 and the page cache are
@@ -590,13 +729,14 @@ actor TimetableRepository {
             days: days,
             fetchedAt: snapshot.updatedAt
         )
-        return W4Loaded(
+        let loaded = W4Loaded(
             week,
             freshness: .cached(
                 fetchedAt: snapshot.updatedAt,
                 isStale: !CachePolicy.isFresh(snapshot.updatedAt, for: .timetableAcademics, now: now)
             )
         )
+        return await overlaySchoolCalendar(loaded)
     }
 
     // MARK: - Helpers

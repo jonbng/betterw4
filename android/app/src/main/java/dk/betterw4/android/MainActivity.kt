@@ -26,6 +26,7 @@ import dk.betterw4.android.core.w4.session.AuthState
 import dk.betterw4.android.core.w4.session.SessionController
 import dk.betterw4.android.feature.live.LiveLessonNotifier
 import dk.betterw4.android.feature.live.LiveLessonScheduler
+import dk.betterw4.android.feature.notifications.BackgroundPermission
 import dk.betterw4.android.feature.notifications.NotificationDiffWorker
 import dk.betterw4.android.feature.settings.AppearanceMode
 import dk.betterw4.android.feature.settings.SettingsStore
@@ -42,7 +43,11 @@ import javax.inject.Inject
 class MainActivity : AppCompatActivity() {
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { /* A denied permission leaves notifications disabled; the app continues normally. */ }
+    ) {
+        if (BackgroundPermission.needsBatteryPrompt(this)) {
+            BackgroundPermission.requestBatteryExemption(this)
+        }
+    }
 
     @Inject
     lateinit var sessionController: SessionController
@@ -85,13 +90,17 @@ class MainActivity : AppCompatActivity() {
             val authState by sessionController.authState.collectAsStateWithLifecycle()
             LaunchedEffect(authState) {
                 when {
-                    authState is AuthState.Authenticated &&
-                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                        ContextCompat.checkSelfPermission(
-                            this@MainActivity,
-                            Manifest.permission.POST_NOTIFICATIONS,
-                        ) != PackageManager.PERMISSION_GRANTED -> {
-                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    authState is AuthState.Authenticated -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            ContextCompat.checkSelfPermission(
+                                this@MainActivity,
+                                Manifest.permission.POST_NOTIFICATIONS,
+                            ) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else if (BackgroundPermission.needsBatteryPrompt(this@MainActivity)) {
+                            BackgroundPermission.requestBatteryExemption(this@MainActivity)
+                        }
                     }
                     authState is AuthState.Unauthenticated -> {
                         liveLessonNotifier.clear()

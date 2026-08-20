@@ -20,12 +20,12 @@ Two companion documents, both still current:
 
 | | |
 |---|---|
-| Builds | ✅ Debug simulator, Release `generic/platform=iOS`, both clean |
-| Tests | ✅ 759 passing, 0 failures |
+| Builds | ✅ Debug simulator and Release `generic/platform=iOS`, both clean — after fixing six compile/test breakages that came in with `origin/main` (§2.7) |
+| Tests | ✅ 828 passing, 0 failures |
 | Gates | ✅ `check-legacy.sh` and `check-english.sh` both exit 0 |
 | App icon | ✅ ships (was missing entirely — §2.1) |
 | Privacy manifest | ✅ ships (was missing entirely — §2.2) |
-| Signed archive | ⛔️ never produced — needs your team id (§3.1) |
+| Signed archive | ⛔️ never produced — needs disk space and an SDK check (§0) |
 | Permission from the college | ⛔️ not obtained — **the real blocker** (§1) |
 
 ---
@@ -60,14 +60,16 @@ none of them is permission.
    that does not lead with someone else's trademark is a smaller target under 5.2.1. This is a
    judgement call, not a rule; the App Store has plenty of "unofficial client for X" apps.
 
+**The app icon now makes this sharper.** As of `origin/main`, the icon vector is the UWC
+twin-globes mark with "W4" — visually very close to UWC's own logo — rather than the abstract owl it
+was. That is a branding decision, but it moves an unofficial client closer to the line under 4.1
+(impersonation) as well as 5.2.1. Written permission matters more, not less, because of it.
+
 **Do not skip this and hope.** A 5.2.1 rejection is resolved by producing documentation, so you will
 end up doing it anyway — just after a rejection is on the record and with the clock restarted.
 
-There is a related, smaller point worth pre-empting: **do not use `logo.png` at the repository root
-anywhere in the listing.** It is a crown-and-twin-globes mark that reads as the UWC crest, which is
-exactly the impersonation question you do not want a reviewer asking. The shipped app icon is the
-abstract owl (`ios/AppIcon.icon/Assets/logo 1.svg`), which is the app's own artwork. Keep it that
-way on the product page too.
+Be deliberate about the marks you put on the product page as well as in the binary — `logo.png`,
+`logo-512.png` and `uwc.svg` at the repository root are all UWC-derived.
 
 ---
 
@@ -145,6 +147,24 @@ manifest's reason off `CA92.1`.
 
 ### 2.4 The notification feature promised something it did not do ⛔️→✅
 
+> **Updated 2026-08-20 after merging `origin/main`.** Upstream landed the background-refresh work
+> (`NotificationRefresh`, `NotificationDiff`, `NotificationBackgroundRefresh`) that this section
+> said did not exist. The app now runs **two** notification systems and both are real:
+>
+> * **Change alerts** — `NotificationRefresh` fetches on a `BGAppRefreshTask`, diffs against the
+>   last snapshot and posts when the server disagrees. Covers timetable changes, new/overdue
+>   assessments and trips.
+> * **Time reminders** — `NotificationScheduler` pre-schedules lesson reminders and "due tomorrow"
+>   from cached data, needing no background execution.
+>
+> Consequently `UIBackgroundModes = fetch` has been **restored** — `BGTaskScheduler` requires it
+> alongside `BGTaskSchedulerPermittedIdentifiers`, and with only one of the two the background
+> refresh fails at runtime. It is now declared *and* implemented, which is what Guideline 2.5.4
+> actually asks for. Only `notifyNewMail` stayed deleted: nothing polls the mailer.
+>
+> The rest of this section is the original diagnosis, kept because it explains why the toggles
+> were audited in the first place.
+
 The old state was, in one sentence: the app asked for notification permission on first launch, told
 the student in Settings that *"BetterW4 checks W4 in the background and notifies you on this device
 only"*, declared `UIBackgroundModes = fetch`, and never sent a single notification. There was no
@@ -167,8 +187,10 @@ Rather than delete the feature, it was made real within what the app can honestl
     keeps the soonest.
 - **"New mail" and "Timetable changes" were removed**, not fixed. Answering either question means
   fetching W4 on a schedule and diffing the result, which needs background refresh this app does not
-  implement. They were write-only switches over nothing.
-- `UIBackgroundModes` is gone from both build configurations.
+  implement. They were write-only switches over nothing. *(Superseded: `Timetable changes` came back
+  with upstream's diff engine. `New mail` is still gone.)*
+- `UIBackgroundModes` is gone from both build configurations. *(Superseded: restored — see the note
+  above.)*
 - Permission is now requested **lazily, on first opt-in** in Settings, instead of from the root
   view's `.task` at launch. Verified: the app launches to the login screen with no system prompt.
 - The Settings footer now says what actually happens, including *"the app does not check W4 in the
@@ -194,6 +216,24 @@ Rather than delete the feature, it was made real within what the app can honestl
 the bundle. Every `String(localized:)` call site in the app already carries a `defaultValue`, so
 deleting it changed nothing on screen.
 
+### 2.7 Six breakages that arrived with `origin/main` (merged 2026-08-20) ⛔️→✅
+
+`origin/main` did not compile. This was verified in isolation — a clean worktree at `6276bd0`, built
+on its own, fails — so none of it came from the merge. All six are fixed:
+
+| Where | What | Fix |
+|---|---|---|
+| `PeopleModels.swift:198` | `DirectoryPersonProfile: Codable` holds `[PersonClass]`, and `PersonClass` was not `Codable`. | Added `Codable` — every stored property is already a `String`/`String?`. |
+| `StudentProfile.swift:256` | `String.nilIfEmpty` declared a second time; `BaseParser.swift:70` already has it. Swift rejects it as a redeclaration rather than treating it as a shadow. | Removed the duplicate. The surviving one trims before testing for empty, which is what the rest of that file already does by hand. |
+| `W4HouseParser.swift:259` | `item.clone()` — that is jsoup's name; SwiftSoup spells it `copy(with:)` and returns `Any`. The error-typed result produced four further "cannot infer contextual base" errors further down the same function. | `guard let clone = item.copy() as? Element`. |
+| `OnDutyView.swift:41` | A `Section` with a `header:`, containing a `ForEach`, nested in another `ForEach`, inside an `if`/`else` in a `List` — the type checker gave up and reported against Charts' `ChartContentBuilder`, a framework that file does not import. | Extracted `OnDutyRoleSection` so the section has a concrete type. |
+| `ScreenRenderSmokeTests.swift:64` | `TimetableEvent.init` takes `room` before `teacher`; the call passed them the other way round. | Swapped. |
+| `DirectoryViewModelTests.swift:545` | `testSwitchingYearFilterHidesTheOtherYear` failed. Its stub returned every person regardless of which list was requested, but W4 pre-filters server-side — `people/students/firstyear` answers with first years and nobody else. | Made the stub honour the route. The production code was right; the stub was modelling a server that does not exist. |
+
+One more, caught by the gate rather than the compiler: `HouseFlag.swift` folded a literal `å`, which
+`check-english.sh` flags as Danish UI text. It is a folding table for Norwegian house names, not
+something anyone reads, so it is now written as `\u{00E5}` with a comment saying why.
+
 ### Verification, if you want to re-run it
 
 ```bash
@@ -203,7 +243,7 @@ cd ios
 ./scripts/check-legacy.sh && ./scripts/check-english.sh
 
 # Tests — never pass CODE_SIGNING_ALLOWED=NO to `test`; the Keychain tests
-# need the entitlement and fail with -34018 without it.
+# need the entitlement and fail with -34018 without it. Expect 828 passing.
 xcodebuild test -project BetterW4.xcodeproj -scheme BetterW4 \
   -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest'
 

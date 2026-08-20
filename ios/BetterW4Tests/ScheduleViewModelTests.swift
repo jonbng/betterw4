@@ -126,6 +126,24 @@ final class ScheduleViewModelTests: XCTestCase {
         XCTAssertTrue(ids.contains("ea-w4-99"), "Extra Academics lesson missing: \(ids)")
     }
 
+    func testOnAppearAlwaysSelectsTodayEvenAfterBrowsingAway() async {
+        let viewModel = await loadedViewModel()
+        let later = W4Dates.adding(days: 3, to: now)
+        await viewModel.select(date: later)
+
+        XCTAssertFalse(
+            W4Dates.isSameDay(viewModel.selectedDate, viewModel.today),
+            "precondition: the student has left today"
+        )
+
+        await viewModel.onAppear()
+
+        XCTAssertTrue(
+            W4Dates.isSameDay(viewModel.selectedDate, viewModel.today),
+            "opening the timetable must land on today, not the last browsed day"
+        )
+    }
+
     func testTimedAndAllDayBlocksAreSplitForTheDayTheyFallOn() async {
         let viewModel = await loadedViewModel()
         let monday = startOfCurrentWeek()

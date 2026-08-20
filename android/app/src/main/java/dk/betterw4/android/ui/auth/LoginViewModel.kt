@@ -9,6 +9,7 @@ import dk.betterw4.android.core.result.AppResult
 import dk.betterw4.android.core.w4.auth.AuthSessionInstaller
 import dk.betterw4.android.core.w4.auth.DeviceAuthenticator
 import dk.betterw4.android.core.w4.auth.W4OtpChallenge
+import dk.betterw4.android.core.w4.auth.W4OtpCode
 import dk.betterw4.android.core.w4.session.LastSchoolHint
 import dk.betterw4.android.core.w4.session.LastSchoolReason
 import dk.betterw4.android.core.w4.session.LastSchoolStore
@@ -77,7 +78,7 @@ class LoginViewModel @Inject constructor(
     }
 
     fun onOtp(value: String) {
-        _state.update { it.copy(otp = value, error = null) }
+        _state.update { it.copy(otp = W4OtpCode.sanitizeInput(value), error = null) }
     }
 
     fun cancelOtp() {
@@ -98,15 +99,21 @@ class LoginViewModel @Inject constructor(
         }
     }
 
-    /** [LoginScreen] is activity-scoped; refresh after logout / first save in this process. */
-    fun refreshUnlockAvailability() {
+    /**
+     * [LoginScreen] is activity-scoped, so this ViewModel survives logout. Each visit to the
+     * login screen must offer biometrics again and drop the previous attempt's in-flight flag.
+     */
+    fun onLoginScreenVisible() {
+        loginInFlight.set(false)
         val saved = savedLoginStore.load()
         _state.update {
             it.copy(
                 hasSavedLogin = saved != null,
                 canUnlock = saved != null && deviceAuthenticator.canAuthenticate(),
                 username = it.username.ifBlank { saved?.username.orEmpty() },
-                preferPasswordForm = if (saved == null) false else it.preferPasswordForm,
+                preferPasswordForm = false,
+                loggingIn = false,
+                error = null,
             )
         }
     }
@@ -166,6 +173,7 @@ class LoginViewModel @Inject constructor(
     }
 
     fun enterDemo() {
+        loginInFlight.set(false)
         authSessionInstaller.enterDemo()
     }
 
@@ -207,6 +215,7 @@ class LoginViewModel @Inject constructor(
     }
 
     private fun onLoggedIn() {
+        loginInFlight.set(false)
         val username = _state.value.username.trim()
         LastSchoolHint.fromSchool(W4School.school, username = username)?.let { lastSchoolStore.save(it) }
         _state.update {
@@ -218,6 +227,7 @@ class LoginViewModel @Inject constructor(
                 lastSchool = lastSchoolStore.load(),
                 hasSavedLogin = true,
                 canUnlock = deviceAuthenticator.canAuthenticate(),
+                preferPasswordForm = false,
             )
         }
     }

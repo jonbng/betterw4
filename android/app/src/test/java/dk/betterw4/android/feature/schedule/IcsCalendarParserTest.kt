@@ -105,4 +105,45 @@ class IcsCalendarParserTest {
         assertTrue(merged.days[4].events.any { it.title == "Year 1 arrival in Bergen" })
         assertTrue(SchoolCalendar.isSchoolCalendarEvent(merged.days[4].events.first { it.title.startsWith("Year 1") }))
     }
+
+    @Test
+    fun visibleEvents_hidesSchoolCalendarWhenToggledOff() {
+        val monday = LocalDate.of(2026, 8, 10)
+        val lesson = ScheduleEvent(
+            id = "ac-1",
+            title = "Biology HL",
+            date = monday,
+        )
+        val calendar = IcsCalendarParser.eventsOverlapping(ics, monday, monday.plusDays(7))
+            .first { it.title == "Year 1 arrival in Bergen" }
+        val events = listOf(lesson, calendar)
+
+        val shown = SchoolCalendar.visibleEvents(events, showSchoolCalendar = true)
+        assertEquals(events, shown)
+
+        val hidden = SchoolCalendar.visibleEvents(events, showSchoolCalendar = false)
+        assertEquals(listOf(lesson), hidden)
+        assertFalse(hidden.any(SchoolCalendar::isSchoolCalendarEvent))
+    }
+
+    @Test
+    fun description_html_breaks_become_newlines() {
+        val ics = """
+            BEGIN:VCALENDAR
+            BEGIN:VEVENT
+            DTSTART;VALUE=DATE:20260818
+            DTEND;VALUE=DATE:20260819
+            SUMMARY:Economics
+            DESCRIPTION:Bring calculator&lt;br /&gt;Sit in A 1.2
+            UID:html-desc
+            END:VEVENT
+            END:VCALENDAR
+        """.trimIndent()
+        val event = IcsCalendarParser.eventsOverlapping(
+            ics,
+            LocalDate.of(2026, 8, 18),
+            LocalDate.of(2026, 8, 19),
+        ).single()
+        assertEquals("Bring calculator\nSit in A 1.2", event.notes)
+    }
 }

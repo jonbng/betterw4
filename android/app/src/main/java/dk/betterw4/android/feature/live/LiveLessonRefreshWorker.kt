@@ -9,9 +9,8 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import dk.betterw4.android.core.result.AppResult
 import dk.betterw4.android.core.util.IsoDateUtils
+import dk.betterw4.android.core.w4.W4Dates
 import dk.betterw4.android.feature.schedule.ScheduleRepository
-import java.time.LocalDate
-import java.time.LocalDateTime
 
 class LiveLessonRefreshWorker(
     context: Context,
@@ -27,16 +26,14 @@ class LiveLessonRefreshWorker(
         val notifier = entry.liveLessonNotifier()
         val scheduler = entry.liveLessonScheduler()
 
-        val year = IsoDateUtils.isoWeekYear()
-        val week = IsoDateUtils.isoWeek()
+        val today = W4Dates.today()
+        val year = IsoDateUtils.isoWeekYear(today)
+        val week = IsoDateUtils.isoWeek(today)
         val events = when (val res = scheduleRepository.loadWeek(year, week, forceRefresh = false)) {
-            is AppResult.Success -> {
-                val today = LocalDate.now()
-                res.data.days.find { it.date == today }?.events.orEmpty()
-            }
+            is AppResult.Success -> res.data.days.find { it.date == today }?.events.orEmpty()
             is AppResult.Failure -> emptyList()
         }
-        val now = LocalDateTime.now()
+        val now = W4Dates.now()
         notifier.update(events, now)
         scheduler.scheduleBoundaries(events, now)
         return Result.success()

@@ -9,6 +9,19 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<false/>
 	</dict>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>googlegmail</string>
+	</array>
+	<!-- Paired with `UIBackgroundModes = fetch` in the build settings. BGTaskScheduler needs
+	     *both*: this list authorises the identifier, and the background mode authorises the
+	     capability. With only one of them, `BGTaskScheduler.submit` fails at runtime and
+	     `NotificationRefresh` silently never runs — which looks exactly like "notifications are
+	     broken" and nothing like a missing plist key. -->
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>dk.jonathanb.w4.refresh</string>
+	</array>
 	<!-- Answers App Store Connect's export-compliance question once, in the build, instead of
 	     by hand on every single upload. `false` is the correct answer here: the app's only
 	     cryptography is HTTPS to w4.uwcrcn.no via URLSession and the Keychain, both of which are

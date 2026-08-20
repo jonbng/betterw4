@@ -43,7 +43,9 @@ object W4AssessmentParser {
                 unit.takeIf { it.isNotBlank() },
                 daysLeft.takeIf { it.isNotBlank() }?.let { "$it days left" },
             ).joinToString(" · ")
-            val overdue = link.attr("data-css-class").contains("overdue", ignoreCase = true)
+            val overdue = link.hasClass("overdue") ||
+                link.classNames().any { it.contains("overdue", ignoreCase = true) } ||
+                link.attr("data-css-class").contains("overdue", ignoreCase = true)
             HomeworkItem(
                 id = "$kind:$id",
                 note = note,
@@ -87,9 +89,37 @@ object W4AssessmentParser {
             ?.trim()
             ?.toIntOrNull()
             ?: return null
-        val month = Regex("""month=(\d+)""").find(html)?.groupValues?.get(1)?.toIntOrNull()
-        val year = Regex("""year=(\d{4})""").find(html)?.groupValues?.get(1)?.toIntOrNull()
-        if (month == null || year == null) return null
-        return runCatching { LocalDate.of(year, month, day) }.getOrNull()
+        val monthYear = monthAndYear(html) ?: return null
+        return runCatching { LocalDate.of(monthYear.second, monthYear.first, day) }.getOrNull()
     }
+
+    /**
+     * Bug B11: `month=(\d+)` never matched `var month = 08 - 1;`.
+     * Prefer the script form (1-based month, `- 1` is for JS Date), then query keys.
+     */
+    internal fun monthAndYear(html: String): Pair<Int, Int>? {
+        val month = parsedMonth(html) ?: return null
+        val year = parsedYear(html) ?: return null
+        return month to year
+    }
+
+    private fun parsedMonth(source: String): Int? {
+        MONTH_SCRIPT.find(source)?.groupValues?.get(1)?.toIntOrNull()
+            ?.takeIf { it in 1..12 }
+            ?.let { return it }
+        MONTH_QUERY.find(source)?.groupValues?.get(1)?.toIntOrNull()
+            ?.takeIf { it in 1..12 }
+            ?.let { return it }
+        return MONTH_BARE.find(source)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 1..12 }
+    }
+
+    private fun parsedYear(source: String): Int? =
+        YEAR_SCRIPT.find(source)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 1900..2200 }
+            ?: YEAR_QUERY.find(source)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in 1900..2200 }
+
+    private val MONTH_SCRIPT = Regex("""\bmonth\s*=\s*(\d{1,2})\s*-\s*1\b""")
+    private val MONTH_QUERY = Regex("""[?&]month=(\d{1,2})""")
+    private val MONTH_BARE = Regex("""\bmonth\s*=\s*(\d{1,2})""")
+    private val YEAR_SCRIPT = Regex("""\byear\s*=\s*(\d{4})""")
+    private val YEAR_QUERY = Regex("""[?&]year=(\d{4})""")
 }

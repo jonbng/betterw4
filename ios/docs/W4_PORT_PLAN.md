@@ -101,7 +101,10 @@ diagnosis is not lost.
    style, subject colours and every notification toggle are affected. The one-line fix is
    `UserDefaults.standard`; it is one line because the plan already decided it, and it is left undone
    only because this pass does not touch Swift.
-2. ~~**The four notification toggles are write-only.**~~ **FIXED 2026-08-18** — `NotificationScheduler.swift`
+2. ~~**The four notification toggles are write-only.**~~ **FIXED 2026-08-18, completed 2026-08-20**
+   — Wave 9.3 landed upstream (`NotificationRefresh` / `NotificationDiff` /
+   `NotificationBackgroundRefresh`), so timetable-change, assessment and trip alerts are now real
+   diff-based notifications on a `BGAppRefreshTask`. Alongside them, `NotificationScheduler.swift`
    schedules `UNCalendarNotificationTrigger` reminders for lessons and assessment due dates from data
    already on disk, so no background refresh is needed. `notifyNewMail` and `notifyTimetableChanges`
    were **removed** rather than backed: both need a scheduled fetch-and-diff the app does not do. The
@@ -119,8 +122,11 @@ diagnosis is not lost.
    `BetterW4App.swift:28` requests authorisation from `.task` on the root view. The plan wanted it
    requested lazily on first toggle (9.3). Combined with (2), this is a permission prompt with
    nothing behind it — and an App Review question waiting to happen.
-4. ~~**`UIBackgroundModes = fetch` is declared and unused.**~~ **FIXED 2026-08-18** — removed from
-   both configurations; verified absent from a built `Info.plist`. Original: `project.pbxproj:367,405` sets
+4. ~~**`UIBackgroundModes = fetch` is declared and unused.**~~ **RESOLVED 2026-08-20** — removed on
+   2026-08-18 when nothing implemented background work, then **restored** when Wave 9.3 landed:
+   `BGTaskScheduler` requires the background mode *and* `BGTaskSchedulerPermittedIdentifiers`, and
+   with only one of the two `NotificationRefresh` never runs. Declared and used is the state
+   Guideline 2.5.4 asks for. Original: `project.pbxproj:367,405` sets
    `INFOPLIST_KEY_UIBackgroundModes = fetch` with no background work to justify it. Remove it or
    implement 9.3 before submitting.
 5. ~~**`Localizable.strings` is dead.**~~ **FIXED 2026-08-18** — `BetterW4/en.lproj/` deleted. Every
@@ -916,7 +922,7 @@ schemes; every swipe action has a non-swipe equivalent.
 
 **10.5 — Docs** · files: `docs/W4_PORT_PLAN.md` (this file — mark waves done),
 `docs/BUILD.md`, `docs/spec/*.md` (append a "superseded by plan §2" note where §2 overrode them),
-`../README.md` (update §10 unknowns with what the captures resolved).
+`../PROTOCOL.md` (update §10 unknowns with what the captures resolved).
 **Done:** a new engineer can go from clone to running app using `docs/BUILD.md` alone.
 
 **10.6 — Release hygiene** · files: `BetterW4/Info.plist`, `BetterW4/BetterW4.entitlements`,

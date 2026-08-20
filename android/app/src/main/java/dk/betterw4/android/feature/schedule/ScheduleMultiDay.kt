@@ -107,12 +107,16 @@ object ScheduleMultiDay {
     /**
      * Minutes from [dayStartHour]:00 for the portion of [event] that falls on [date].
      * Returns null if the event does not intersect the day (or is all-day).
+     *
+     * [minDurationMinutes] is a floor on the returned end. Overlap columns must
+     * pass 0: stretching a 15-minute break to a "readable" duration makes it
+     * collide with the next lesson even though the clocks only touch.
      */
     fun segmentMinutesOnDay(
         event: ScheduleEvent,
         date: LocalDate,
         dayStartHour: Int,
-        minDurationMinutes: Int = 29,
+        minDurationMinutes: Int = 0,
     ): Pair<Int, Int>? {
         if (event.isAllDay) return null
         val start = event.start ?: return null

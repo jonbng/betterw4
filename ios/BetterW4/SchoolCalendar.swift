@@ -25,8 +25,8 @@
 //    is an empty `about:blank` document, so the `src` the server actually sends
 //    has never been observed. `calendarID` / `icsURLString` below are inherited
 //    from `android/.../schedule/SchoolCalendar.kt:17-19` — **[I], not verified**.
-//    That is open question OQ-8, and it is why the overlay ships **off by
-//    default** with a Settings toggle rather than fetching on first launch.
+//    That is open question OQ-8. The overlay matches Android and ships on
+//    by default; the timetable toolbar icon hides it.
 //
 //  Everything in this file is pure and synchronous. Nothing fetches, nothing
 //  caches, nothing reads a clock; the TTL constant is a number for a later
@@ -60,16 +60,23 @@ enum SchoolCalendar {
     /// college calendar changes a handful of times a term.
     static let cacheTTL: TimeInterval = 6 * 60 * 60
 
-    /// The overlay is opt-in until OQ-8 is closed by a real capture of the Home
-    /// iframe `src`. Shipping it on by default would mean every launch hits
-    /// `calendar.google.com` for a calendar we are not certain is the right one.
-    static let isEnabledByDefault = false
+    /// Same default as Android: the college calendar is on until the student hides it.
+    static let isEnabledByDefault = true
 
     /// True when `event` came from the school-calendar overlay rather than from
     /// a scraped W4 timetable.
     static func isSchoolCalendarEvent(_ event: TimetableEvent) -> Bool {
         if event.source == .schoolCalendar { return true }
         return event.id.lowercased().hasPrefix(idPrefix.lowercased())
+    }
+
+    /// Drops college-calendar overlay events when the student has hidden them.
+    static func visibleEvents(
+        _ events: [TimetableEvent],
+        showSchoolCalendar: Bool
+    ) -> [TimetableEvent] {
+        guard !showSchoolCalendar else { return events }
+        return events.filter { !isSchoolCalendarEvent($0) }
     }
 
     /// Every occurrence inside ISO week `week` of `week-year`, Monday to Sunday.

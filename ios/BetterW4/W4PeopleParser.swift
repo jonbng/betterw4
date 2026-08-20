@@ -127,38 +127,48 @@ enum W4PeopleParser {
         kind explicitKind: DirectoryPersonKind? = nil
     ) -> DirectoryPersonProfile? {
         let root = contentRoot(of: document)
-        // Yii 1 renders a `CDetailView` as `table.detail-view` with `th` labels.
-        // **[I]** — no profile page has ever been captured; when the table is
-        // missing we still sweep the content area for `th`/`td` pairs.
+        // Students: Yii `table.detail-view` (`site/profile`, inferred).
+        // Staff: live `people/staff/staff` pages use `dl/dt/dd` plus class/EA lists.
         let view = firstElement(root, "table.detail-view") ?? root
-        let fields = parseFields(in: view)
+        var fields = parseFields(in: view)
+        fields.append(contentsOf: parseDefinitionList(in: root))
 
         guard let uwcId = profileUWCId(in: root, fields: fields) else {
             log.warning("Profile page carries no recognisable uwc id; returning nil.")
             return nil
         }
 
-        let resolvedKind = explicitKind ?? profileKind(in: document, uwcId: uwcId)
+        let preferredName = value(fields, "preferred name", "preferred")
+        let year = value(fields, "year", "ib year").flatMap { normalizedYear($0) }
+        let house = value(fields, "house")
+        let country = value(fields, "country", "nationality") ?? sidebarCountry(in: root)
+        let pronouns = value(fields, "pronouns", "pronoun")
+        let positions = StaffRoles.parse(value(fields, "position", "positions", "role", "roles"))
+        let taughtClasses = parseTaughtClasses(in: root)
+        let activities = parseStaffActivities(in: root)
+
+        let resolvedKind = explicitKind
+            ?? profileKind(in: document, uwcId: uwcId)
+            ?? ((positions.isEmpty && taughtClasses.isEmpty && activities.isEmpty) ? nil : .staff)
         if resolvedKind == nil {
             log.warning("Profile page states no kind for its own uwc id; assuming student.")
         }
 
-        let preferredName = value(fields, "preferred name", "preferred")
-        let year = value(fields, "year", "ib year").flatMap { normalizedYear($0) }
-        let house = value(fields, "house")
-        let country = value(fields, "country", "nationality")
-        let pronouns = value(fields, "pronouns", "pronoun")
+        let kind = resolvedKind ?? .student
+        let subtitle = kind == .staff
+            ? staffSubtitle(positions: positions, country: country)
+            : profileSubtitle(year: year, house: house, country: country)
 
         let person = DirectoryPerson(
             uwcId: uwcId,
             name: profileName(fields: fields, uwcId: uwcId),
-            kind: resolvedKind ?? .student,
+            kind: kind,
             preferredName: preferredName,
             year: year,
             house: house,
             country: country,
             pronouns: pronouns,
-            subtitle: profileSubtitle(year: year, house: house, country: country),
+            subtitle: subtitle,
             status: nil,
             isOnline: nil,
             photoURL: profilePhotoURL(in: root, uwcId: uwcId)
@@ -168,8 +178,12 @@ enum W4PeopleParser {
             person: person,
             birthday: value(fields, "birthday", "date of birth", "birth date", "dob"),
             lastLogin: value(fields, "last login", "last logged in", "last seen"),
-            // The address W4 printed. `person.email` stays derived (README §6).
-            scrapedEmail: value(fields, "email", "e-mail"),
+            scrapedEmail: value(fields, "email", "e-mail", "e mail"),
+            officeTel: value(fields, "office tel", "office telephone", "office phone"),
+            mobile: value(fields, "mobile", "mobile phone", "cell"),
+            positions: positions,
+            taughtClasses: taughtClasses,
+            activities: activities,
             fields: fields
         )
     }
@@ -219,15 +233,34 @@ enum W4PeopleParser {
 
     // MARK: - Photos
 
-    /// The canonical thumbnail for a UWC id:
-    /// `https://w4.uwcrcn.no/files/user_photos/{uwc_id}_thumb.jpg` — the
-    /// convention the Home birthdays block follows (**[V]** for the file-name
-    /// shape, **[I]** for the directory, which every capture rewrote to a local
-    /// `…_files/` path).
+    /// The canonical full-size portrait for a UWC id:
+    /// `https://w4.uwcrcn.no/files/user_photos/{uwc_id}_photo.jpg`.
+    ///
+    /// List pages and the Home birthdays block print `{uwc_id}_thumb.jpg`
+    /// (**[V]** for the file-name shape, **[I]** for the directory, which every
+    /// capture rewrote to a local `…_files/` path). We always request the
+    /// matching `{uwc_id}_photo.jpg` file — `{uwc_id}.jpg` 404s on live W4.
     nonisolated static func photoURL(forUWCId uwcId: String) -> URL? {
         let id = uwcId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !id.isEmpty else { return nil }
-        return URL(string: "\(W4Routes.origin)/files/user_photos/\(id)_thumb.jpg")
+        return URL(string: "\(W4Routes.origin)/files/user_photos/\(id)_photo.jpg")
+    }
+
+    /// List pages print `{uwc_id}_thumb.jpg`; the matching full portrait is
+    /// `{uwc_id}_photo.jpg`. A guessed `{uwc_id}.jpg` 404s and is upgraded too.
+    /// Already-full URLs are returned unchanged.
+    nonisolated static func fullSizePhotoURL(from url: URL) -> URL {
+        let stripped = url.absoluteString.replacingOccurrences(
+            of: "_thumb.",
+            with: ".",
+            options: .caseInsensitive
+        )
+        let upgraded = stripped.replacingOccurrences(
+            of: #"(/files/user_photos/)([A-Za-z0-9]+)(\.[A-Za-z0-9]+)"#,
+            with: "$1$2_photo$3",
+            options: [.regularExpression, .caseInsensitive]
+        )
+        return URL(string: upgraded) ?? url
     }
 
     /// Resolves an `img src` into a portrait URL, or `nil` for "no photo".
@@ -235,7 +268,8 @@ enum W4PeopleParser {
     /// `/images/user.png` is W4's missing-photo placeholder: rendering it as if
     /// it were a portrait is a bug, so it maps to `nil`. A "Save page as" local
     /// path (`./UWCRCN W4_files/nc00aaa_thumb.jpg`) is restored to the live
-    /// convention rather than dropped.
+    /// full-size convention rather than dropped. A live `_thumb.jpg` src is
+    /// upgraded to `{uwc_id}_photo.jpg`.
     nonisolated static func photoURL(fromSource raw: String, uwcId: String) -> URL? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
@@ -250,7 +284,7 @@ enum W4PeopleParser {
 
         guard let url = absoluteURL(fromHref: trimmed) else { return nil }
         guard url.lastPathComponent.lowercased() != "user.png" else { return nil }
-        return url
+        return fullSizePhotoURL(from: url)
     }
 
     // MARK: - Rows
@@ -538,12 +572,16 @@ enum W4PeopleParser {
         in root: Element,
         fields: [PersonProfileField]
     ) -> String? {
-        if let stated = value(fields, "uwc id", "username", "id"), let id = firstUWCId(in: stated) {
-            return id
+        if let stated = value(fields, "uwc id", "username", "id") {
+            if let id = firstUWCId(in: stated) ?? firstPersonId(in: stated) { return id }
         }
-        if let image = firstElement(root, "img.photo") {
-            if let id = firstUWCId(in: attribute(image, "alt")) { return id }
-            if let id = firstUWCId(in: attribute(image, "src")) { return id }
+        if let image = firstElement(root, "img.user-photo") ?? firstElement(root, "img.photo") {
+            if let id = firstUWCId(in: attribute(image, "alt")) ?? firstPersonId(in: attribute(image, "alt")) {
+                return id
+            }
+            if let id = firstUWCId(in: attribute(image, "src")) ?? firstPersonId(in: attribute(image, "src")) {
+                return id
+            }
         }
         for anchor in elements(root, "a[href*=uwc_id]") where !isChrome(anchor, upTo: root) {
             if let id = uwcId(fromHref: attribute(anchor, "href")) { return id }
@@ -592,12 +630,131 @@ enum W4PeopleParser {
     }
 
     private nonisolated static func profilePhotoURL(in root: Element, uwcId: String) -> URL? {
-        let image = firstElement(root, "img.photo")
+        let image = firstElement(root, "img.user-photo")
+            ?? firstElement(root, "img.photo")
             ?? elements(root, "img[src]").first {
-                attribute($0, "src").lowercased().contains(uwcId.lowercased())
+                let src = attribute($0, "src").lowercased()
+                return src.contains(uwcId.lowercased()) && !classNames(of: $0).contains("flag")
             }
-        guard let image else { return nil }
-        return photoURL(fromSource: attribute(image, "src"), uwcId: uwcId)
+        if let image, let url = photoURL(fromSource: attribute(image, "src"), uwcId: uwcId) {
+            return url
+        }
+        if let pretty = firstElement(root, "a.pretty"),
+           let url = photoURL(fromSource: attribute(pretty, "href"), uwcId: uwcId) {
+            return url
+        }
+        return nil
+    }
+
+    private nonisolated static func parseDefinitionList(in root: Element) -> [PersonProfileField] {
+        var fields: [PersonProfileField] = []
+        for dt in elements(root, "dt") {
+            let label = text(of: dt)
+            guard !label.isEmpty else { continue }
+            guard let dd = try? dt.nextElementSibling(), dd.tagName().lowercased() == "dd" else { continue }
+            let fieldValue = text(of: dd)
+            guard !fieldValue.isEmpty else { continue }
+            fields.append(PersonProfileField(label: label, value: fieldValue))
+        }
+        return fields
+    }
+
+    private nonisolated static func parseTaughtClasses(in root: Element) -> [PersonClass] {
+        guard let heading = elements(root, "h3").first(where: {
+            text(of: $0).localizedCaseInsensitiveContains("class")
+        }) else { return [] }
+        guard let list = nextElement(heading, tag: "ul") else { return [] }
+        var seen = Set<String>()
+        var result: [PersonClass] = []
+        for anchor in elements(list, "a[href*=class_id]") {
+            let href = attribute(anchor, "href")
+            guard let classId = ClassRoster.classId(from: href) else { continue }
+            let key = classId.lowercased()
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            let caption = text(of: anchor)
+            let parsed = PersonClasses.parseCaption(caption)
+            let fallbackName: String = {
+                guard let rest = caption.split(separator: ":", maxSplits: 1).dropFirst().first else {
+                    return caption
+                }
+                let trimmed = rest.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? caption : trimmed
+            }()
+            result.append(
+                PersonClass(
+                    classId: classId,
+                    name: parsed?.subject ?? fallbackName,
+                    year: parsed?.year,
+                    levelLabel: parsed?.levelLabel,
+                    room: parsed?.room
+                )
+            )
+        }
+        return result
+    }
+
+    private nonisolated static func parseStaffActivities(in root: Element) -> [StaffActivity] {
+        guard let heading = elements(root, "h3").first(where: {
+            let title = text(of: $0)
+            return title.localizedCaseInsensitiveContains("EA activit")
+                || title.localizedCaseInsensitiveContains("extra academic")
+        }) else { return [] }
+        guard let list = nextElement(heading, tag: "ul") else { return [] }
+        return elements(list, "li").compactMap { item in
+            let html = (try? item.html()) ?? ""
+            let parts = html
+                .replacingOccurrences(of: #"<br\s*/?>"#, with: "\n", options: [.regularExpression, .caseInsensitive])
+                .components(separatedBy: "\n")
+                .map { stripTags($0) }
+                .filter { !$0.isEmpty }
+            let name: String
+            if let anchor = firstElement(item, "a") {
+                name = text(of: anchor)
+            } else {
+                name = parts.first ?? text(of: item)
+            }
+            guard !name.isEmpty else { return nil }
+            let rest = parts.filter { $0.caseInsensitiveCompare(name) != .orderedSame }
+            let dates = rest.first { $0.localizedCaseInsensitiveContains(" to ") }
+            let category = rest.first { $0 != dates }
+            return StaffActivity(name: name, dates: dates, category: category)
+        }
+    }
+
+    private nonisolated static func sidebarCountry(in root: Element) -> String? {
+        guard let sidebar = firstElement(root, ".image-sidebar") else { return nil }
+        return elements(sidebar, "div")
+            .map { text(of: $0) }
+            .first { $0.count >= 3 && $0.count <= 40 && !$0.localizedCaseInsensitiveContains("flag") }
+    }
+
+    private nonisolated static func staffSubtitle(positions: [String], country: String?) -> String? {
+        let roles = positions.prefix(3).joined(separator: " · ")
+        let parts = [emptyToNil(roles), country].compactMap { $0 }
+        return emptyToNil(parts.joined(separator: " · "))
+    }
+
+    private nonisolated static func nextElement(_ element: Element, tag: String) -> Element? {
+        var current = try? element.nextElementSibling()
+        while let node = current {
+            if node.tagName().lowercased() == tag { return node }
+            current = try? node.nextElementSibling()
+        }
+        return nil
+    }
+
+    private nonisolated static func firstPersonId(in source: String) -> String? {
+        firstCapture(#"\b([A-Za-z]{2}\d{2}[A-Za-z]+)\b"#, in: source)?.lowercased()
+    }
+
+    private nonisolated static func stripTags(_ html: String) -> String {
+        let withoutTags = html.replacingOccurrences(
+            of: #"<[^>]+>"#,
+            with: "",
+            options: .regularExpression
+        )
+        return collapse((withoutTags as NSString).replacingOccurrences(of: "&nbsp;", with: " "))
     }
 
     /// Case- and punctuation-insensitive lookup over the verbatim field list:
@@ -681,7 +838,7 @@ enum W4PeopleParser {
         return result
     }
 
-    /// A real `/files/user_photos/…_thumb.jpg` beats anything else; a name-only
+    /// A real `/files/user_photos/…` portrait beats anything else; a name-only
     /// anchor must never clobber the photo anchor's portrait.
     private nonisolated static func pickPhoto(
         _ existing: Draft,

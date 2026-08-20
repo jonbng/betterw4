@@ -1,5 +1,6 @@
 package dk.betterw4.android.feature.widget
 
+import dk.betterw4.android.core.w4.W4Dates
 import dk.betterw4.android.feature.schedule.EventStatus
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -70,7 +71,7 @@ object ScheduleWidgetCodec {
 object ScheduleWidgetProjector {
     fun present(
         snapshot: WidgetSnapshot?,
-        today: LocalDate = LocalDate.now(),
+        today: LocalDate = W4Dates.today(),
         nowEpochMilli: Long = System.currentTimeMillis(),
     ): WidgetPresentation {
         if (snapshot == null || snapshot.date != today.toString()) {
@@ -140,7 +141,7 @@ object ScheduleWidgetProjector {
         return next?.let { WidgetFeaturedKind.NEXT to it }
     }
 
-    fun startLabelFromEpoch(epochMilli: Long?, zoneId: ZoneId = ZoneId.systemDefault()): String? {
+    fun startLabelFromEpoch(epochMilli: Long?, zoneId: ZoneId = W4Dates.ZONE): String? {
         if (epochMilli == null) return null
         val time = Instant.ofEpochMilli(epochMilli).atZone(zoneId).toLocalTime()
         return "%02d:%02d".format(time.hour, time.minute)

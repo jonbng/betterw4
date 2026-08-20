@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.DayOfWeek
+import dk.betterw4.android.core.w4.W4Dates
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
@@ -192,7 +193,7 @@ private fun WeekRow(
             DayCell(
                 date = date,
                 selected = date == selected,
-                isToday = date == LocalDate.now(),
+                isToday = date == W4Dates.today(),
                 hasEvents = hasEvents(date),
                 locale = locale,
                 onClick = { onSelect(date) },
@@ -249,14 +250,14 @@ private fun DayCell(
         selected -> onPrimary
         isToday -> primary
         hasEvents -> onSurface
-        else -> onSurfaceVariant.copy(alpha = 0.40f)
+        else -> onSurfaceVariant.copy(alpha = 0.62f)
     }
 
     val labelColor: Color = when {
         selected -> onPrimary.copy(alpha = 0.90f)
         isToday -> primary.copy(alpha = 0.85f)
         hasEvents -> onSurfaceVariant
-        else -> onSurfaceVariant.copy(alpha = 0.35f)
+        else -> onSurfaceVariant.copy(alpha = 0.55f)
     }
 
     Column(

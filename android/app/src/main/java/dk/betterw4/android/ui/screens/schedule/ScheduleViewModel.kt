@@ -10,6 +10,7 @@ import dk.betterw4.android.core.i18n.UiText
 import dk.betterw4.android.core.result.AppError
 import dk.betterw4.android.core.result.AppResult
 import dk.betterw4.android.core.util.IsoDateUtils
+import dk.betterw4.android.core.w4.W4Dates
 import dk.betterw4.android.feature.campus.CampusStatusRepository
 import dk.betterw4.android.feature.live.LiveLessonNotifier
 import dk.betterw4.android.feature.live.LiveLessonScheduler
@@ -17,7 +18,14 @@ import dk.betterw4.android.feature.notifications.W4NotificationItem
 import dk.betterw4.android.feature.notifications.W4NotificationRepository
 import dk.betterw4.android.feature.review.ReviewPromptCoordinator
 import dk.betterw4.android.feature.review.ReviewTrigger
+import dk.betterw4.android.feature.directory.DirectoryEntity
+import dk.betterw4.android.feature.directory.DirectoryPinRepository
+import dk.betterw4.android.feature.directory.DirectoryRepository
+import dk.betterw4.android.feature.directory.HouseRepository
+import dk.betterw4.android.feature.directory.RoomScheduleRepository
+import dk.betterw4.android.feature.directory.StudentProfile
 import dk.betterw4.android.feature.schedule.LessonDetail
+import dk.betterw4.android.feature.schedule.PersonClasses
 import dk.betterw4.android.feature.schedule.PrivateEventDraft
 import dk.betterw4.android.feature.schedule.PrivateEventIds
 import dk.betterw4.android.feature.schedule.ScheduleDay
@@ -39,10 +47,11 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -53,14 +62,24 @@ data class ScheduleUiState(
     val week: ScheduleWeek? = null,
     val year: Int = IsoDateUtils.isoWeekYear(),
     val weekNum: Int = IsoDateUtils.isoWeek(),
-    val selectedDate: LocalDate = LocalDate.now(),
+    val selectedDate: LocalDate = W4Dates.today(),
     /** Merged events for any loaded day (multi-week cache for day swipe). */
     val eventsByDate: Map<LocalDate, List<ScheduleEvent>> = emptyMap(),
+    /** Rotation / no-classes metadata for any loaded day. */
+    val daysByDate: Map<LocalDate, ScheduleDay> = emptyMap(),
     /** Days known to have zero events (vs not loaded). */
     val knownEmptyDays: Set<LocalDate> = emptySet(),
     val selectedEvent: ScheduleEvent? = null,
     val lessonDetail: LessonDetail? = null,
     val detailLoading: Boolean = false,
+    /** Person opened from the class roster in the lesson sheet. */
+    val selectedPerson: DirectoryEntity? = null,
+    val studentProfile: StudentProfile? = null,
+    val personSchedule: ScheduleWeek? = null,
+    val personWeekYear: Int = IsoDateUtils.isoWeekYear(),
+    val personWeek: Int = IsoDateUtils.isoWeek(),
+    val personLoading: Boolean = false,
+    val pinnedIds: Set<String> = emptySet(),
     val showPrivateEvent: Boolean = false,
     /** Non-null when editing an existing private event. */
     val editingPrivateEventId: String? = null,
@@ -81,6 +100,10 @@ data class ScheduleUiState(
 @HiltViewModel
 class ScheduleViewModel @Inject constructor(
     private val repository: ScheduleRepository,
+    private val roomScheduleRepo: RoomScheduleRepository,
+    private val houseRepo: HouseRepository,
+    private val directoryRepo: DirectoryRepository,
+    private val pinRepo: DirectoryPinRepository,
     private val campusStatus: CampusStatusRepository,
     private val notificationsRepo: W4NotificationRepository,
     private val liveLessonNotifier: LiveLessonNotifier,
@@ -102,6 +125,9 @@ class ScheduleViewModel @Inject constructor(
     val useSubjectColors: StateFlow<Boolean> = settings.useSubjectColors
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), settings.useSubjectColors.value)
 
+    val showSchoolCalendar: StateFlow<Boolean> = settings.showSchoolCalendar
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), settings.showSchoolCalendar.value)
+
     val subjectColors: StateFlow<Map<String, Long>> = settings.subjectColors
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), settings.subjectColors.value)
 
@@ -117,7 +143,7 @@ class ScheduleViewModel @Inject constructor(
     private val loadingWeeks = ConcurrentHashMap.newKeySet<String>()
 
     init {
-        val today = LocalDate.now()
+        val today = W4Dates.today()
         _state.update {
             it.copy(
                 selectedDate = today,
@@ -139,6 +165,24 @@ class ScheduleViewModel @Inject constructor(
         viewModelScope.launch {
             notificationsRepo.snapshot.collect { snap ->
                 _state.update { it.copy(notifications = snap) }
+            }
+        }
+        viewModelScope.launch {
+            var previous = settings.showSchoolCalendar.value
+            settings.showSchoolCalendar.collect { enabled ->
+                weekCache[weekKey(_state.value.year, _state.value.weekNum)]?.let {
+                    publishLiveAndWidget(it)
+                }
+                if (enabled && !previous) {
+                    val missing = weekCache.values.none { week ->
+                        week.days.any { day -> day.events.any(SchoolCalendar::isSchoolCalendarEvent) }
+                    }
+                    if (missing) {
+                        weekCache.clear()
+                        refresh(force = true)
+                    }
+                }
+                previous = enabled
             }
         }
     }
@@ -166,16 +210,17 @@ class ScheduleViewModel @Inject constructor(
 
     fun accentArgbFor(event: ScheduleEvent): Long = settings.accentArgbFor(event)
 
-    fun displayTitle(event: ScheduleEvent): String {
-        if (SchoolCalendar.isSchoolCalendarEvent(event)) return event.title
-        // Prefer team hold code (e.g. "1x MA") so canonical-key resolution works;
-        // fall back to title for private events / all-day without team.
-        val key = event.team.ifBlank { event.title }
-        return settings.displayNameForSubject(key, fallback = event.title.ifBlank { key })
-    }
+    fun displayTitle(event: ScheduleEvent): String = settings.displayTitleForEvent(event)
 
     fun eventsFor(date: LocalDate): List<ScheduleEvent> =
-        _state.value.eventsByDate[date].orEmpty()
+        visibleEvents(_state.value.eventsByDate[date].orEmpty())
+
+    fun visibleEvents(events: List<ScheduleEvent>): List<ScheduleEvent> =
+        SchoolCalendar.visibleEvents(events, showSchoolCalendar.value)
+
+    fun setShowSchoolCalendar(enabled: Boolean) {
+        settings.setShowSchoolCalendar(enabled)
+    }
 
     /**
      * Whether the day has lessons for the date-strip tint.
@@ -183,9 +228,9 @@ class ScheduleViewModel @Inject constructor(
      */
     fun hasEvents(date: LocalDate): Boolean {
         val s = _state.value
-        if (date in s.knownEmptyDays) return false
-        if (date in s.eventsByDate) return s.eventsByDate[date].orEmpty().isNotEmpty()
-        s.week?.days?.find { it.date == date }?.let { return it.events.isNotEmpty() }
+        if (date in s.knownEmptyDays && date !in s.eventsByDate) return false
+        if (date in s.eventsByDate) return visibleEvents(s.eventsByDate[date].orEmpty()).isNotEmpty()
+        s.week?.days?.find { it.date == date }?.let { return visibleEvents(it.events).isNotEmpty() }
         return false
     }
 
@@ -196,13 +241,6 @@ class ScheduleViewModel @Inject constructor(
         ensureWeekLoaded(date.plusWeeks(1), force = force)
         if (force) {
             viewModelScope.launch { campusStatus.refresh() }
-        }
-    }
-
-    fun setCampusLocation(option: String) {
-        viewModelScope.launch {
-            val onCampus = option.equals("On campus", ignoreCase = true)
-            campusStatus.set(onCampus, if (onCampus) null else option)
         }
     }
 
@@ -297,6 +335,7 @@ class ScheduleViewModel @Inject constructor(
     private fun mergeWeekIntoState(week: ScheduleWeek, setAsPrimary: Boolean) {
         _state.update { s ->
             val map = s.eventsByDate.toMutableMap()
+            val daysMap = s.daysByDate.toMutableMap()
             val empty = s.knownEmptyDays.toMutableSet()
             val eventsByDate = week.days.associate { it.date to it.events }
 
@@ -311,8 +350,12 @@ class ScheduleViewModel @Inject constructor(
                 week.days.find { it.date == date }
                     ?: ScheduleDay(date = date, events = events)
             }
+            fullDays.forEach { daysMap[it.date] = it }
 
             val normalizedWeek = week.copy(days = fullDays)
+            settings.noteObservedHolds(
+                week.days.flatMap { day -> day.events.flatMap { listOf(it.team, it.title) } },
+            )
             val selected = s.selectedDate
             val primary = if (setAsPrimary) {
                 normalizedWeek
@@ -329,6 +372,7 @@ class ScheduleViewModel @Inject constructor(
                 loading = if (setAsPrimary) false else s.loading,
                 week = primary,
                 eventsByDate = map,
+                daysByDate = daysMap,
                 knownEmptyDays = empty,
                 error = if (setAsPrimary) null else s.error,
             )
@@ -336,12 +380,12 @@ class ScheduleViewModel @Inject constructor(
     }
 
     private fun publishLiveAndWidget(week: ScheduleWeek) {
-        val today = LocalDate.now()
-        val todayEvents = week.days.find { it.date == today }?.events.orEmpty()
-        val now = LocalDateTime.now()
+        val today = W4Dates.today()
+        val todayEvents = visibleEvents(week.days.find { it.date == today }?.events.orEmpty())
+        val now = W4Dates.now()
         liveLessonNotifier.update(todayEvents, now)
         liveLessonScheduler.scheduleBoundaries(todayEvents, now)
-        val zone = java.time.ZoneId.systemDefault()
+        val zone = W4Dates.ZONE
         ScheduleWidgetSnapshot.write(
             appContext,
             WidgetSnapshot(
@@ -375,10 +419,31 @@ class ScheduleViewModel @Inject constructor(
 
     fun selectEvent(event: ScheduleEvent?) {
         if (event == null) {
-            _state.update { it.copy(selectedEvent = null, lessonDetail = null, detailLoading = false) }
+            _state.update {
+                it.copy(
+                    selectedEvent = null,
+                    lessonDetail = null,
+                    detailLoading = false,
+                    selectedPerson = null,
+                    studentProfile = null,
+                    personSchedule = null,
+                    personLoading = false,
+                )
+            }
             return
         }
-        _state.update { it.copy(selectedEvent = event, detailLoading = true, lessonDetail = null) }
+        _state.update {
+            it.copy(
+                selectedEvent = event,
+                detailLoading = true,
+                lessonDetail = null,
+                selectedPerson = null,
+                studentProfile = null,
+                personSchedule = null,
+                personLoading = false,
+                pinnedIds = pinRepo.pinnedIds(),
+            )
+        }
         viewModelScope.launch {
             when (val res = repository.loadLessonDetail(event)) {
                 is AppResult.Success -> _state.update {
@@ -396,6 +461,107 @@ class ScheduleViewModel @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    fun openPerson(entity: DirectoryEntity) = viewModelScope.launch {
+        val year = IsoDateUtils.isoWeekYear()
+        val week = IsoDateUtils.isoWeek()
+        _state.update {
+            it.copy(
+                selectedPerson = entity,
+                studentProfile = StudentProfile.from(entity, null),
+                personSchedule = null,
+                personWeekYear = year,
+                personWeek = week,
+                personLoading = true,
+                pinnedIds = pinRepo.pinnedIds(),
+            )
+        }
+        coroutineScope {
+            val weekDeferred = async { roomScheduleRepo.loadPersonWeek(entity, year, week) }
+            val placementDeferred = async {
+                if (entity.kind == dk.betterw4.android.feature.directory.DirectoryEntityKind.TEACHER) {
+                    null
+                } else {
+                    houseRepo.findPlacement(entity.id)
+                }
+            }
+            val profileDeferred = async { directoryRepo.loadProfile(entity) }
+            val weekRes = weekDeferred.await()
+            val placement = placementDeferred.await()
+            val parsed = (profileDeferred.await() as? AppResult.Success)?.data
+            val classes = when (weekRes) {
+                is AppResult.Success -> PersonClasses.fromWeek(weekRes.data)
+                is AppResult.Failure -> emptyList()
+            }
+            _state.update {
+                it.copy(
+                    personLoading = false,
+                    personSchedule = (weekRes as? AppResult.Success)?.data,
+                    studentProfile = StudentProfile.from(entity, placement, classes, parsed),
+                )
+            }
+        }
+    }
+
+    fun closePerson() {
+        _state.update {
+            it.copy(
+                selectedPerson = null,
+                studentProfile = null,
+                personSchedule = null,
+                personLoading = false,
+            )
+        }
+    }
+
+    fun togglePersonPin() {
+        val entity = _state.value.selectedPerson ?: return
+        pinRepo.toggle(entity.id)
+        _state.update { it.copy(pinnedIds = pinRepo.pinnedIds()) }
+    }
+
+    fun shiftPersonWeek(delta: Int) {
+        val currentStart = IsoDateUtils.weekStart(
+            _state.value.personWeekYear,
+            _state.value.personWeek,
+        )
+        loadPersonWeekForDate(currentStart.plusWeeks(delta.toLong()))
+    }
+
+    fun goToPersonToday() {
+        loadPersonWeekForDate(W4Dates.today())
+    }
+
+    fun loadPersonWeekForDate(date: LocalDate) = viewModelScope.launch {
+        val entity = _state.value.selectedPerson ?: return@launch
+        val year = IsoDateUtils.isoWeekYear(date)
+        val week = IsoDateUtils.isoWeek(date)
+        if (year == _state.value.personWeekYear &&
+            week == _state.value.personWeek &&
+            _state.value.personSchedule != null
+        ) {
+            return@launch
+        }
+        _state.update { it.copy(personLoading = true) }
+        when (val res = roomScheduleRepo.loadPersonWeek(entity, year, week)) {
+            is AppResult.Success -> _state.update {
+                val merged = PersonClasses.merge(
+                    it.studentProfile?.classes.orEmpty(),
+                    PersonClasses.fromWeek(res.data),
+                )
+                it.copy(
+                    personLoading = false,
+                    personWeekYear = year,
+                    personWeek = week,
+                    personSchedule = res.data,
+                    studentProfile = (it.studentProfile
+                        ?: StudentProfile(id = entity.id, name = entity.name, kind = entity.kind))
+                        .copy(classes = merged),
+                )
+            }
+            is AppResult.Failure -> _state.update { it.copy(personLoading = false) }
         }
     }
 

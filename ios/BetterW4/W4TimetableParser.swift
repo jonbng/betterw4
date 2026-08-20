@@ -45,6 +45,9 @@ enum W4TimetableGeometry {
     /// a rounding artefact rather than a real lesson.
     static let minimumBlockMinutes = 15
 
+    /// Passing-time slop when folding a double into one block. W4 doubles usually touch.
+    static let maximumDoubleBlockGapMinutes = 5
+
     /// Converts a `top:` offset inside the grid into minutes from midnight.
     static func minutesFromMidnight(topPixels: Double, startHour: Int) -> Int {
         startHour * 60 + Int((topPixels * minutesPerPixel).rounded())
@@ -236,13 +239,135 @@ enum W4TimetableParser {
         let events = blocks.enumerated().compactMap { index, block in
             parseBlock(block, day: day, source: source, startHour: startHour, index: index)
         }
-        return sorted(events)
+        return mergeConsecutiveSameClass(events)
+    }
+
+    /// W4 paints a double (or triple) as stacked `.period` bricks of the same class. Fold those
+    /// into one block spanning the first start to the last end.
+    static func mergeConsecutiveSameClass(
+        _ events: [TimetableEvent],
+        maxGapMinutes: Int = W4TimetableGeometry.maximumDoubleBlockGapMinutes
+    ) -> [TimetableEvent] {
+        guard events.count >= 2 else { return sorted(events) }
+        let sortedEvents = sorted(events)
+        var merged: [TimetableEvent] = []
+        for event in sortedEvents {
+            if let last = merged.last, canMerge(last, with: event, maxGapMinutes: maxGapMinutes) {
+                merged[merged.count - 1] = combining(last, with: event)
+            } else {
+                merged.append(event)
+            }
+        }
+        return uniquifyIDs(merged)
+    }
+
+    private static func canMerge(
+        _ first: TimetableEvent,
+        with second: TimetableEvent,
+        maxGapMinutes: Int
+    ) -> Bool {
+        guard !first.isAllDay, !second.isAllDay else { return false }
+        guard first.source == second.source else { return false }
+        guard first.status == second.status else { return false }
+        guard first.source == .academics || first.source == .extraAcademics else { return false }
+        guard mergeKey(for: first) == mergeKey(for: second) else { return false }
+        guard let firstEnd = first.end, let secondStart = second.start else { return false }
+        let gap = Int(secondStart.timeIntervalSince(firstEnd) / 60)
+        return gap <= maxGapMinutes
+    }
+
+    private static func mergeKey(for event: TimetableEvent) -> String {
+        if let href = event.href,
+           let classID = firstGroup(in: href, pattern: #"(?:class_id|group_id)=([^&]+)"#) {
+            return classID.lowercased()
+        }
+        if let href = event.href,
+           let numeric = firstGroup(in: href, pattern: #"(?:^|[?&])id=(\d+)"#) {
+            return numeric
+        }
+        return event.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private static func combining(_ first: TimetableEvent, with second: TimetableEvent) -> TimetableEvent {
+        let room = joinedOptional(first.room, second.room, separator: " / ")
+        let notes = joinedOptional(first.notes, second.notes, separator: "\n")
+        let end: Date?
+        if let left = first.end, let right = second.end {
+            end = max(left, right)
+        } else {
+            end = first.end ?? second.end
+        }
+
+        return TimetableEvent(
+            id: first.id,
+            title: first.title,
+            subject: first.subject,
+            source: first.source,
+            start: first.start,
+            end: end,
+            date: first.date,
+            room: room,
+            teacher: first.teacher ?? second.teacher,
+            teacherUwcId: first.teacherUwcId ?? second.teacherUwcId,
+            status: first.status,
+            attendance: first.attendance ?? second.attendance,
+            isAllDay: false,
+            href: first.href ?? second.href,
+            notes: notes,
+            rawTooltip: first.rawTooltip ?? second.rawTooltip
+        )
+    }
+
+    private static func uniquifyIDs(_ events: [TimetableEvent]) -> [TimetableEvent] {
+        var seen = Set<String>()
+        return events.map { event in
+            if seen.insert(event.id).inserted {
+                return event
+            }
+            let stamp: String
+            if let start = event.start {
+                stamp = String(format: "%02d%02d", W4Dates.minutesFromMidnight(start) / 60,
+                               W4Dates.minutesFromMidnight(start) % 60)
+            } else {
+                stamp = "\(seen.count)"
+            }
+            let next = "\(event.id)-\(stamp)"
+            seen.insert(next)
+            return TimetableEvent(
+                id: next,
+                title: event.title,
+                subject: event.subject,
+                source: event.source,
+                start: event.start,
+                end: event.end,
+                date: event.date,
+                room: event.room,
+                teacher: event.teacher,
+                teacherUwcId: event.teacherUwcId,
+                status: event.status,
+                attendance: event.attendance,
+                isAllDay: event.isAllDay,
+                href: event.href,
+                notes: event.notes,
+                rawTooltip: event.rawTooltip
+            )
+        }
+    }
+
+    private static func joinedOptional(_ first: String?, _ second: String?, separator: String) -> String? {
+        let left = first?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let right = second?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let leftKept = (left?.isEmpty == false) ? left : nil
+        let rightKept = (right?.isEmpty == false) ? right : nil
+        if leftKept == nil { return rightKept }
+        if rightKept == nil || leftKept == rightKept { return leftKept }
+        return "\(leftKept!)\(separator)\(rightKept!)"
     }
 
     // MARK: - Lesson blocks
 
-    /// **[I] — no real `.period` element has ever been captured.** Everything here is optional and
-    /// falls back to pixel geometry, which is the only verified part.
+    /// Lesson bricks print the class id in `.title`. The subject, teacher, room
+    /// and any leftover note live in `div.period[title]`.
     private static func parseBlock(
         _ block: Element,
         day: ScheduleDay,
@@ -253,18 +378,26 @@ enum W4TimetableParser {
         let inner = (try? block.select(".inner").first()) ?? block
 
         let datetimeText = text(of: inner, selector: ".datetime") ?? ""
-        let room = text(of: inner, selector: ".room")
         let href = try? block.select("a[href]").first()?.attr("href")
-        // Bug B3: `div.period[title]` is proven to exist and is the likeliest home of teacher,
-        // full subject name and change notes. Captured raw, deliberately unparsed.
         let rawTooltip = (try? block.attr("title"))?
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        let tooltip = rawTooltip.flatMap { $0.isEmpty ? nil : PeriodTooltip.parse($0) }
 
-        let title = blockTitle(inner)
+        let brickTitle = blockTitle(inner)
         // A "No-Classes" filler block is grid furniture, not a lesson.
-        guard !title.isEmpty, title.caseInsensitiveCompare("No-Classes") != .orderedSame else {
+        guard !brickTitle.isEmpty, brickTitle.caseInsensitiveCompare("No-Classes") != .orderedSame else {
             return nil
         }
+        let title = tooltip?.className
+            ?? tooltip?.blockName.map { "Block \($0)" }
+            ?? brickTitle
+        let room = tooltip?.room ?? stripRoomPrefix(text(of: inner, selector: ".room"))
+        let notes = tooltip?.extraNotes
+            .flatMap { extra -> String? in
+                if extra.caseInsensitiveCompare(title) == .orderedSame { return nil }
+                if extra.caseInsensitiveCompare(brickTitle) == .orderedSame { return nil }
+                return extra
+            }
 
         let range = timeRange(in: datetimeText) ?? timeRange(in: (try? inner.text()) ?? "")
         let placement = range.map { range -> (start: Date?, end: Date?) in
@@ -282,13 +415,30 @@ enum W4TimetableParser {
             end: placement.end,
             date: day.date,
             room: room,
+            teacher: tooltip?.teacher,
             teacherUwcId: uwcId(in: href),
             status: status(of: block, inner: inner),
             attendance: attendance(of: inner),
             isAllDay: placement.start == nil,
             href: href?.isEmpty == false ? href : nil,
+            notes: notes,
             rawTooltip: rawTooltip?.isEmpty == false ? rawTooltip : nil
         )
+    }
+
+    private static func stripRoomPrefix(_ raw: String?) -> String? {
+        guard let raw, !raw.isEmpty else { return raw }
+        guard let regex = try? NSRegularExpression(pattern: #"^(?i)room\s+"#),
+              let match = regex.firstMatch(
+                in: raw,
+                range: NSRange(raw.startIndex..<raw.endIndex, in: raw)
+              ),
+              let range = Range(match.range, in: raw)
+        else {
+            return raw
+        }
+        let stripped = String(raw[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        return stripped.isEmpty ? raw : stripped
     }
 
     /// The verified fallback: `top`/`height` in pixels, one minute per pixel from `tt_start_hour`.
@@ -370,7 +520,10 @@ enum W4TimetableParser {
         day: ScheduleDay,
         index: Int
     ) -> String {
-        if let href, let match = firstGroup(in: href, pattern: #"(?:id|class_id|group_id)=(\d+)"#) {
+        if let href, let match = firstGroup(in: href, pattern: #"(?:class_id|group_id)=([^&]+)"#) {
+            return "\(source.idPrefix)-w4-\(match)"
+        }
+        if let href, let match = firstGroup(in: href, pattern: #"(?:^|[?&])id=(\d+)"#) {
             return "\(source.idPrefix)-w4-\(match)"
         }
         return "\(source.idPrefix)-\(W4Dates.format(day.date))-\(index)"
@@ -478,6 +631,108 @@ enum W4TimetableParser {
 
     private static func firstGroup(in text: String, pattern: String) -> String? {
         firstMatch(in: text, pattern: pattern, groups: 1)?.first
+    }
+}
+
+/// W4 `div.period[title]` tooltip, captured live Aug 2026:
+/// `Monday 08:15 - 09:05<br /> Class: <b>Economics</b><br />Teacher: <b>…</b><br />Room: <b>A 1.6</b>`
+struct PeriodTooltip: Equatable, Sendable {
+    var className: String?
+    var teacher: String?
+    var room: String?
+    var blockName: String?
+    var extraNotes: String?
+
+    static func parse(_ raw: String) -> PeriodTooltip {
+        let lines = plainLines(raw)
+        var className: String?
+        var teacher: String?
+        var room: String?
+        var blockName: String?
+        var leftover: [String] = []
+        for line in lines {
+            if let value = labeledValue(line, label: "Class") {
+                className = value
+            } else if let value = labeledValue(line, label: "Teacher") {
+                teacher = value
+            } else if let value = labeledValue(line, label: "Room") {
+                room = value
+            } else if let value = labeledValue(line, label: "Block") {
+                blockName = value
+            } else if matches(line, #"^(?i)(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b.*\d{1,2}:\d{2}"#) {
+                continue
+            } else {
+                leftover.append(line)
+            }
+        }
+        let shown = Set(
+            [className, teacher, room, blockName, blockName.map { "Block \($0)" }]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                .filter { !$0.isEmpty }
+        )
+        let extra = leftover.filter { !shown.contains($0.lowercased()) }.joined(separator: "\n")
+        return PeriodTooltip(
+            className: className,
+            teacher: teacher,
+            room: room,
+            blockName: blockName,
+            extraNotes: extra.isEmpty ? nil : extra
+        )
+    }
+
+    static func plainText(_ raw: String) -> String {
+        plainLines(raw).joined(separator: "\n")
+    }
+
+    private static func labeledValue(_ line: String, label: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: #"^(?i)\#(label):\s*(.+)$"#),
+              let match = regex.firstMatch(
+                in: line,
+                range: NSRange(line.startIndex..<line.endIndex, in: line)
+              ),
+              match.numberOfRanges > 1,
+              let range = Range(match.range(at: 1), in: line)
+        else {
+            return nil
+        }
+        let value = String(line[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : value
+    }
+
+    private static func plainLines(_ raw: String) -> [String] {
+        var text = raw
+        for (entity, replacement) in [
+            ("&nbsp;", " "), ("&#39;", "'"), ("&quot;", "\""),
+            ("&lt;", "<"), ("&gt;", ">"),
+        ] {
+            text = text.replacingOccurrences(of: entity, with: replacement, options: .caseInsensitive)
+        }
+        text = text.replacingOccurrences(of: "&amp;", with: "&", options: .caseInsensitive)
+        text = replacing(#"(?i)<br\s*/?>"#, in: text, with: "\n")
+        text = replacing(#"(?i)</(?:p|div|li|h[1-6])>"#, in: text, with: "\n")
+        text = replacing("<[^>]+>", in: text, with: "")
+        return text
+            .split(whereSeparator: \.isNewline)
+            .map { $0.replacingOccurrences(of: "\u{00A0}", with: " ").trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private static func replacing(_ pattern: String, in text: String, with replacement: String) -> String {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return text }
+        return regex.stringByReplacingMatches(
+            in: text,
+            options: [],
+            range: NSRange(text.startIndex..<text.endIndex, in: text),
+            withTemplate: NSRegularExpression.escapedTemplate(for: replacement)
+        )
+    }
+
+    private static func matches(_ text: String, _ pattern: String) -> Bool {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return false }
+        return regex.firstMatch(
+            in: text,
+            range: NSRange(text.startIndex..<text.endIndex, in: text)
+        ) != nil
     }
 }
 

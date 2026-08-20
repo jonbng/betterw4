@@ -166,4 +166,4 @@ matters most, with nothing asserting it. Full list with file and line references
 | `../IOSGuide.md` | **The ordered App Store walkthrough** — what was fixed, what you still have to do, and every App Store Connect field. Start here for a submission. |
 | `docs/spec/parsers.md` | Every selector, with a bug register of places the Android port is wrong. |
 | `docs/spec/reviewer-notes.md` | Verified versus assumed, in more detail than this page. |
-| `../README.md` | The W4 protocol brief — routes, the login flow, cookies, session-death rules. Shared with the Android app. |
+| `../PROTOCOL.md` | The W4 protocol brief — routes, the login flow, cookies, session-death rules. Shared with the Android app. |

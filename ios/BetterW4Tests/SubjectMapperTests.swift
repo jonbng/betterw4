@@ -117,6 +117,36 @@ final class SubjectMapperTests: XCTestCase {
         XCTAssertEqual(SubjectMapper.canonicalKey(for: "Grade 11 Chemistry HL"), "chemistry")
     }
 
+    /// Live W4 class ids from `academics/classes` (nc26jban, Aug 2026). The brick
+    /// prints `1EA16CECOX`; the suffix is the subject.
+    func testCapturedW4ClassIdsMapToCatalogueSubjects() {
+        XCTAssertEqual(SubjectMapper.canonicalKey(for: "1DA13HMTAA"), "mathematics")
+        XCTAssertEqual(SubjectMapper.canonicalKey(for: "1EA16CECOX"), "economics")
+        XCTAssertEqual(SubjectMapper.canonicalKey(for: "1YA25SLALI"), "english-a")
+        XCTAssertEqual(SubjectMapper.canonicalKey(for: "2AA24CDALI"), "danish-a")
+        XCTAssertEqual(SubjectMapper.canonicalKey(for: "1CA24CPHIX"), "philosophy")
+        XCTAssertEqual(SubjectMapper.canonicalKey(for: "1BE12CPHYX"), "physics")
+        XCTAssertEqual(SubjectMapper.canonicalKey(for: "1ZAUDXCORE"), "core-meetings")
+        XCTAssertEqual(SubjectMapper.canonicalKey(for: "2DA14XTHOK"), "tok")
+        XCTAssertEqual(SubjectMapper.canonicalKey(for: "1AK21CGLOP"), "global-politics")
+        XCTAssertEqual(SubjectMapper.canonicalKey(for: "1AA26CNOLI"), "norwegian-a")
+        XCTAssertEqual(SubjectMapper.canonicalKey(for: "1AA13CSPLI"), "spanish-a")
+        XCTAssertEqual(SubjectMapper.canonicalKey(for: "1XA12SSPAB"), "spanish")
+        XCTAssertEqual(SubjectMapper.canonicalKey(for: "2XA26CSPBB"), "spanish")
+        XCTAssertEqual(SubjectMapper.canonicalKey(for: "1XA24SFRAB"), "french")
+        XCTAssertEqual(SubjectMapper.canonicalKey(for: "1DA21HENGB"), "english-b")
+        XCTAssertEqual(SubjectMapper.canonicalKey(for: "1EE15CENSS"), "environmental-systems-and-societies")
+        XCTAssertEqual(SubjectMapper.canonicalKey(for: "1CMUSCTHEX"), "theatre")
+        XCTAssertEqual(SubjectMapper.canonicalKey(for: "1CA22CVART"), "visual-arts")
+        XCTAssertEqual(SubjectMapper.canonicalKey(for: "2YA25SWOLX"), "world-literature")
+        XCTAssertEqual(SubjectMapper.canonicalKey(for: "1BA24CPSYC"), "psychology")
+        XCTAssertEqual(SubjectMapper.canonicalKey(for: "1EA11SMTAI"), "mathematics")
+
+        XCTAssertEqual(SubjectMapper.displayName(for: "1EA16CECOX"), "Economics")
+        XCTAssertEqual(SubjectMapper.displayName(for: "1DA13HMTAA"), "Mathematics")
+        XCTAssertEqual(SubjectMapper.colorHue(for: "1DA13HMTAA"), SubjectMapper.colorHue(for: "Mathematics HL"))
+    }
+
     // MARK: - Unknown subjects
 
     /// [I] An unmatched title keeps its own text and gets a deterministic hue. The pinned
@@ -322,6 +352,26 @@ final class SubjectMapperTests: XCTestCase {
         XCTAssertEqual(SubjectMapper.color(hue: 108), SubjectMapper.color(hue: 468))
         XCTAssertEqual(SubjectMapper.color(hue: -1), SubjectMapper.color(hue: 359))
         XCTAssertEqual(SubjectMapper.defaultColor(for: "biology"), SubjectMapper.color(hue: 108))
+    }
+
+    /// Yellow swatches at S 0.62 / V 0.88 fail WCAG on white; the readable variant must not.
+    func testReadableSubjectColourMeetsContrastOnWhite() {
+        let white = Color(red: 1, green: 1, blue: 1)
+        let yellow = SubjectMapper.color(hue: 60)
+        XCTAssertLessThan(yellow.contrastRatio(against: white), 4.5)
+
+        let readable = yellow.ensuringContrast(against: white)
+        XCTAssertGreaterThanOrEqual(readable.contrastRatio(against: white), 4.5)
+
+        for hue in stride(from: 0, to: 360, by: 15) {
+            let swatch = SubjectMapper.color(hue: hue)
+            let text = swatch.ensuringContrast(against: white)
+            XCTAssertGreaterThanOrEqual(
+                text.contrastRatio(against: white),
+                4.5,
+                "hue \(hue) stayed too light as text"
+            )
+        }
     }
 
     /// [I] The tokeniser must be idempotent, or feeding a canonical key back through the

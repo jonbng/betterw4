@@ -113,7 +113,7 @@ struct W4AvatarView: View {
             .clipShape(Circle())
     }
 
-    /// W4's portrait convention: `/files/user_photos/{uwc_id}_thumb.jpg`.
+    /// W4's portrait convention: `/files/user_photos/{uwc_id}_photo.jpg`.
     static func portraitURL(forUWCId uwcId: String) -> URL? {
         W4PeopleParser.photoURL(forUWCId: uwcId)
     }

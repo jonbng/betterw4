@@ -389,11 +389,12 @@ enum W4HomeParser {
     }
 
     /// W4's own default avatar means "no photo", the same rule the people
-    /// parser and the image loader use.
+    /// parser and the image loader use. A live `{uwc_id}_thumb.jpg` src is
+    /// upgraded to the matching full portrait.
     private nonisolated static func photoURL(fromSource source: String) -> URL? {
         guard let url = absoluteURL(fromHref: source) else { return nil }
         if url.lastPathComponent.lowercased() == "user.png" { return nil }
-        return url
+        return W4PeopleParser.fullSizePhotoURL(from: url)
     }
 
     // MARK: - UWC ids

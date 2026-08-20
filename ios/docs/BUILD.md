@@ -122,4 +122,4 @@ files at once.
   each conflict was resolved.
 - `docs/spec/parsers.md` — every selector, with a bug register of places the Android port is wrong.
 - `docs/spec/reviewer-notes.md` — what is verified against a real capture versus assumed.
-- `../README.md` — the W4 protocol brief: routes, the login flow, session-death rules.
+- `../PROTOCOL.md` — the W4 protocol brief: routes, the login flow, session-death rules.

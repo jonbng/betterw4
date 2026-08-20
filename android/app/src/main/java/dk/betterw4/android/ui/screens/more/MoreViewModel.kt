@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dk.betterw4.android.R
+import dk.betterw4.android.core.FeatureFlags
 import dk.betterw4.android.core.cache.SimpleCache
 import dk.betterw4.android.core.i18n.UiText
 import dk.betterw4.android.core.i18n.toUiText
@@ -16,13 +17,22 @@ import dk.betterw4.android.core.result.AppResult
 import dk.betterw4.android.feature.absence.AbsenceCauses
 import dk.betterw4.android.feature.absence.AbsenceOverview
 import dk.betterw4.android.feature.absence.AbsenceRepository
+import dk.betterw4.android.feature.classes.MyClass
+import dk.betterw4.android.feature.classes.MyClassRepository
+import dk.betterw4.android.feature.schedule.PersonClass
+import dk.betterw4.android.feature.classes.W4ClassParser
 import dk.betterw4.android.core.util.IsoDateUtils
 import dk.betterw4.android.feature.directory.DirectoryEntity
 import dk.betterw4.android.feature.directory.DirectoryEntityKind
 import dk.betterw4.android.feature.directory.DirectoryPinRepository
 import dk.betterw4.android.feature.directory.DirectoryRepository
+import dk.betterw4.android.feature.directory.House
+import dk.betterw4.android.feature.directory.HousePlacement
+import dk.betterw4.android.feature.directory.HouseRepository
 import dk.betterw4.android.feature.directory.RoomScheduleRepository
 import dk.betterw4.android.feature.directory.StudentProfile
+import dk.betterw4.android.feature.directory.placementOf
+import dk.betterw4.android.feature.schedule.PersonClasses
 import dk.betterw4.android.feature.documents.W4DocumentKind
 import dk.betterw4.android.feature.documents.W4DocumentNode
 import dk.betterw4.android.feature.documents.W4DocumentsRepository
@@ -50,25 +60,37 @@ import dk.betterw4.android.feature.teams.ModuleStatRepository
 import dk.betterw4.android.feature.terms.SchoolTerm
 import dk.betterw4.android.feature.terms.TermRepository
 import dk.betterw4.android.feature.trips.W4TripsRepository
+import dk.betterw4.android.feature.extraacademics.ExtraAcademicsPage
 import dk.betterw4.android.feature.updates.AppUpdateProbe
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 enum class MoreDestination {
-    ROOT, GRADES, ABSENCE, DIRECTORY, ROOMS, STUDIEKORT, PLANS, MODULE_STATS, TERM, SETTINGS,
-    DOCUMENTS, TRIPS,
+    ROOT, HOME, NOTIFICATIONS, GRADES, ABSENCE, EXTRA_ACADEMICS, EA_PAGE,
+    DIRECTORY, MAIL, ROOMS, HOUSES, STUDIEKORT, PLANS, MODULE_STATS, TERM, SETTINGS, SETTINGS_PRIVACY,
+    DOCUMENTS, TRIPS, ON_DUTY, MY_CLASSES,
 }
 
 data class DocumentNav(
     val folderId: String? = null,
     val pageId: String? = null,
 )
+
+data class RoomTarget(
+    val id: String,
+    val name: String,
+    val subtitle: String? = null,
+)
+
+enum class PersonProfileTab { SCHEDULE, ABOUT }
 
 data class MoreUiState(
     val destination: MoreDestination = MoreDestination.ROOT,
@@ -82,9 +104,9 @@ data class MoreUiState(
     val absence: AbsenceOverview? = null,
     val directory: List<DirectoryEntity> = emptyList(),
     val directoryQuery: String = "",
-    val directoryKind: DirectoryEntityKind? = null,
-    val directoryMembers: List<DirectoryEntity> = emptyList(),
-    val directoryParent: DirectoryEntity? = null,
+    val directoryKind: DirectoryEntityKind = DirectoryEntityKind.STUDENT,
+    /** `null` = every year, `"1"` / `"2"` = that IB year. Ignored for teachers. */
+    val directoryYear: String? = null,
     /** Person selected for action sheet (large photo + actions). */
     val selectedPerson: DirectoryEntity? = null,
     /** Other person schedule (student/teacher) under directory. */
@@ -92,15 +114,22 @@ data class MoreUiState(
     val personSchedule: ScheduleWeek? = null,
     /** Extra directory profile when viewing a student (null = Lectio-only). */
     val studentProfile: StudentProfile? = null,
+    val personTab: PersonProfileTab = PersonProfileTab.SCHEDULE,
+    val personOpenedHouseId: String? = null,
+    val personOpenedClass: MyClass? = null,
     val personWeekYear: Int = IsoDateUtils.isoWeekYear(),
     val personWeek: Int = IsoDateUtils.isoWeek(),
     val pinnedIds: Set<String> = emptySet(),
     val roomSchedule: ScheduleWeek? = null,
-    val roomEntity: DirectoryEntity? = null,
+    val roomTarget: RoomTarget? = null,
     val roomWeekYear: Int = IsoDateUtils.isoWeekYear(),
     val roomWeek: Int = IsoDateUtils.isoWeek(),
     /** Live room occupancy list (in-use flags). */
     val roomsOccupancy: List<dk.betterw4.android.feature.directory.RoomParser.RoomWithOccupancy> = emptyList(),
+    val houses: List<House> = emptyList(),
+    val selectedHouseId: String? = null,
+    val myClasses: List<MyClass> = emptyList(),
+    val selectedClassId: String? = null,
     val card: StudentCard? = null,
     val plans: List<StudyPlan> = emptyList(),
     val planDetail: StudyPlan? = null,
@@ -114,6 +143,8 @@ data class MoreUiState(
     val documentsStack: List<DocumentNav> = emptyList(),
     val trips: List<dk.betterw4.android.feature.trips.W4Trip> = emptyList(),
     val letterUri: android.net.Uri? = null,
+    val eaPage: ExtraAcademicsPage? = null,
+    val documentsExtraAcademics: Boolean = false,
 )
 
 @HiltViewModel
@@ -125,6 +156,8 @@ class MoreViewModel @Inject constructor(
     private val absenceRepo: AbsenceRepository,
     private val directoryRepo: DirectoryRepository,
     private val pinRepo: DirectoryPinRepository,
+    private val houseRepo: HouseRepository,
+    private val myClassRepo: MyClassRepository,
     private val roomScheduleRepo: RoomScheduleRepository,
     private val pendingCompose: PendingComposeRecipient,
     private val studiekortRepo: StudiekortRepository,
@@ -166,9 +199,11 @@ class MoreViewModel @Inject constructor(
     val calendarStyle = settings.calendarStyle.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), settings.calendarStyle.value)
     val useSubjectColors = settings.useSubjectColors
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), settings.useSubjectColors.value)
+    val showSchoolCalendar = settings.showSchoolCalendar
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), settings.showSchoolCalendar.value)
     val notifEvents = settings.notifEvents
-    val notifMessages = settings.notifMessages
     val notifAssignments = settings.notifAssignments
+    val notifTrips = settings.notifTrips
     val disableSignature = settings.disableSignature
     val lessonMappings = settings.lessonMappings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), settings.lessonMappings.value)
@@ -176,21 +211,27 @@ class MoreViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), settings.notificationHistory.value)
 
     fun navigate(dest: MoreDestination) {
+        if (dest == MoreDestination.MAIL && !FeatureFlags.MAIL_ENABLED) return
         _state.update {
             it.copy(
                 destination = dest,
                 message = null,
                 gradeDetail = null,
-                directoryMembers = emptyList(),
-                directoryParent = null,
                 selectedPerson = null,
                 personEntity = null,
                 personSchedule = null,
                 studentProfile = null,
+                personTab = PersonProfileTab.SCHEDULE,
+                personOpenedHouseId = null,
+                personOpenedClass = null,
                 roomSchedule = null,
-                roomEntity = null,
+                roomTarget = null,
+                selectedHouseId = if (dest == MoreDestination.HOUSES) it.selectedHouseId else null,
+                selectedClassId = if (dest == MoreDestination.MY_CLASSES) it.selectedClassId else null,
                 planDetail = null,
                 documentsStack = if (dest == MoreDestination.DOCUMENTS) emptyList() else it.documentsStack,
+                documentsExtraAcademics = false,
+                eaPage = if (dest == MoreDestination.EA_PAGE) it.eaPage else null,
             )
         }
         when (dest) {
@@ -200,8 +241,13 @@ class MoreViewModel @Inject constructor(
             MoreDestination.ABSENCE -> {
                 loadAbsence()
             }
-            MoreDestination.DIRECTORY -> searchDirectory()
+            MoreDestination.DIRECTORY -> {
+                searchDirectory()
+                if (_state.value.houses.isEmpty()) loadHouses()
+            }
             MoreDestination.ROOMS -> loadRoomsOccupancy()
+            MoreDestination.HOUSES -> loadHouses()
+            MoreDestination.MY_CLASSES -> loadMyClasses()
             MoreDestination.STUDIEKORT -> {
                 loadCard()
             }
@@ -217,8 +263,45 @@ class MoreViewModel @Inject constructor(
             }
             MoreDestination.DOCUMENTS -> loadDocuments()
             MoreDestination.TRIPS -> loadTrips()
+            MoreDestination.HOME,
+            MoreDestination.NOTIFICATIONS,
+            MoreDestination.ON_DUTY,
+            MoreDestination.MAIL,
+            MoreDestination.EXTRA_ACADEMICS,
+            MoreDestination.EA_PAGE,
+            MoreDestination.SETTINGS_PRIVACY,
             MoreDestination.ROOT -> Unit
         }
+    }
+
+    fun openEaPage(page: ExtraAcademicsPage) {
+        _state.update {
+            it.copy(destination = MoreDestination.EA_PAGE, eaPage = page, message = null)
+        }
+    }
+
+    fun openEaDocuments() {
+        _state.update {
+            it.copy(
+                destination = MoreDestination.DOCUMENTS,
+                documentsStack = emptyList(),
+                documentsExtraAcademics = true,
+                message = null,
+            )
+        }
+        loadDocuments()
+    }
+
+    fun openSchoolDocuments() {
+        _state.update {
+            it.copy(
+                destination = MoreDestination.DOCUMENTS,
+                documentsStack = emptyList(),
+                documentsExtraAcademics = false,
+                message = null,
+            )
+        }
+        loadDocuments()
     }
 
     fun back() {
@@ -226,24 +309,66 @@ class MoreViewModel @Inject constructor(
         when {
             s.gradeDetail != null -> _state.update { it.copy(gradeDetail = null) }
             s.planDetail != null -> _state.update { it.copy(planDetail = null) }
+            s.personOpenedClass != null -> _state.update { it.copy(personOpenedClass = null) }
+            s.personOpenedHouseId != null -> _state.update { it.copy(personOpenedHouseId = null) }
             s.personSchedule != null || s.personEntity != null -> _state.update {
                 it.copy(
                     personSchedule = null,
                     personEntity = null,
                     studentProfile = null,
+                    personTab = PersonProfileTab.SCHEDULE,
+                    personOpenedHouseId = null,
+                    personOpenedClass = null,
                 )
             }
-            s.roomSchedule != null || s.roomEntity != null -> _state.update {
-                it.copy(roomSchedule = null, roomEntity = null)
+            s.roomSchedule != null || s.roomTarget != null -> _state.update {
+                it.copy(roomSchedule = null, roomTarget = null)
             }
-            s.directoryParent != null -> _state.update {
-                it.copy(directoryParent = null, directoryMembers = emptyList())
-            }
+            s.selectedHouseId != null -> _state.update { it.copy(selectedHouseId = null) }
+            s.selectedClassId != null -> _state.update { it.copy(selectedClassId = null) }
             s.destination == MoreDestination.DOCUMENTS && s.documentsStack.isNotEmpty() -> {
                 _state.update { it.copy(documentsStack = it.documentsStack.dropLast(1)) }
                 loadDocuments()
             }
+            s.destination == MoreDestination.DOCUMENTS && s.documentsExtraAcademics -> _state.update {
+                it.copy(
+                    destination = MoreDestination.EXTRA_ACADEMICS,
+                    documents = null,
+                    documentsStack = emptyList(),
+                    documentsExtraAcademics = false,
+                )
+            }
+            s.destination == MoreDestination.EA_PAGE -> _state.update {
+                it.copy(destination = MoreDestination.EXTRA_ACADEMICS, eaPage = null)
+            }
+            s.destination == MoreDestination.SETTINGS_PRIVACY -> _state.update {
+                it.copy(destination = MoreDestination.SETTINGS)
+            }
             else -> _state.update { it.copy(destination = MoreDestination.ROOT) }
+        }
+    }
+
+    /**
+     * Walk one step toward [root] instead of the More menu. Used by the Students tab so
+     * backing out of a profile lands on the directory, not the More root.
+     */
+    fun backTo(root: MoreDestination) {
+        val s = _state.value
+        val atRoot = s.destination == root &&
+            s.gradeDetail == null &&
+            s.planDetail == null &&
+            s.personEntity == null &&
+            s.personSchedule == null &&
+            s.personOpenedHouseId == null &&
+            s.personOpenedClass == null &&
+            s.roomTarget == null &&
+            s.roomSchedule == null &&
+            s.selectedHouseId == null &&
+            s.selectedClassId == null
+        if (atRoot) return
+        back()
+        if (_state.value.destination == MoreDestination.ROOT && root != MoreDestination.ROOT) {
+            _state.update { it.copy(destination = root) }
         }
     }
 
@@ -254,19 +379,194 @@ class MoreViewModel @Inject constructor(
                 destination = MoreDestination.ROOT,
                 message = null,
                 gradeDetail = null,
-                directoryMembers = emptyList(),
-                directoryParent = null,
                 selectedPerson = null,
                 personEntity = null,
                 personSchedule = null,
                 studentProfile = null,
+                personTab = PersonProfileTab.SCHEDULE,
+                personOpenedHouseId = null,
+                personOpenedClass = null,
                 roomSchedule = null,
-                roomEntity = null,
+                roomTarget = null,
+                selectedHouseId = null,
+                selectedClassId = null,
                 planDetail = null,
                 documents = null,
                 documentsStack = emptyList(),
+                documentsExtraAcademics = false,
                 trips = emptyList(),
+                eaPage = null,
             )
+        }
+    }
+
+    /** Students tab reselect: drop profile and stay on the directory list. */
+    fun popToDirectory() {
+        _state.update {
+            it.copy(
+                destination = MoreDestination.DIRECTORY,
+                message = null,
+                selectedPerson = null,
+                personEntity = null,
+                personSchedule = null,
+                studentProfile = null,
+                personTab = PersonProfileTab.SCHEDULE,
+                personOpenedHouseId = null,
+                personOpenedClass = null,
+                roomSchedule = null,
+                roomTarget = null,
+            )
+        }
+    }
+
+    fun selectedHouse(): House? {
+        val id = _state.value.selectedHouseId ?: return null
+        return _state.value.houses.firstOrNull { it.id == id }
+    }
+
+    fun openHouse(house: House) {
+        _state.update { it.copy(selectedHouseId = house.id, message = null) }
+    }
+
+    fun setPersonTab(tab: PersonProfileTab) {
+        _state.update { it.copy(personTab = tab) }
+    }
+
+    fun openPersonHouse() {
+        val houseId = _state.value.studentProfile?.houseId ?: return
+        if (_state.value.destination == MoreDestination.HOUSES &&
+            _state.value.selectedHouseId == houseId
+        ) {
+            back()
+            return
+        }
+        _state.update { it.copy(personOpenedHouseId = houseId, personOpenedClass = null) }
+        if (_state.value.houses.none { it.id == houseId && it.loaded }) {
+            loadHouses()
+        }
+    }
+
+    fun openPersonRoom() {
+        openPersonHouse()
+    }
+
+    fun openPersonClass(item: PersonClass) {
+        val id = item.id?.trim().orEmpty()
+        if (id.isEmpty()) return
+        val existing = _state.value.myClasses.firstOrNull { it.id.equals(id, ignoreCase = true) }
+        _state.update {
+            it.copy(
+                personOpenedClass = existing ?: MyClass(id = id, subject = item.name),
+                personOpenedHouseId = null,
+            )
+        }
+        if (existing?.loaded != true) loadMyClass(id)
+    }
+
+    fun selectedClass(): MyClass? {
+        val id = _state.value.selectedClassId ?: return null
+        return _state.value.myClasses.firstOrNull { it.id.equals(id, ignoreCase = true) }
+    }
+
+    fun openMyClass(item: MyClass) {
+        _state.update { it.copy(selectedClassId = item.id, message = null) }
+        if (!item.loaded) loadMyClass(item.id)
+    }
+
+    fun openClassRoom(room: dk.betterw4.android.feature.classes.ClassRoom) {
+        val id = room.id ?: return
+        openRoomSchedule(RoomTarget(id = id, name = room.name))
+    }
+
+    private fun loadMyClasses() = viewModelScope.launch {
+        _state.update { it.copy(loading = _state.value.myClasses.isEmpty(), message = null) }
+        when (val res = myClassRepo.loadIndex()) {
+            is AppResult.Failure -> _state.update {
+                it.copy(loading = false, message = res.error.toUiText())
+            }
+            is AppResult.Success -> {
+                _state.update { it.copy(myClasses = res.data, loading = false) }
+                res.data.forEachIndexed { index, item ->
+                    val priority = if (index == 0) {
+                        dk.betterw4.android.core.w4.model.FetchPriority.Important
+                    } else {
+                        dk.betterw4.android.core.w4.model.FetchPriority.Opportunistic
+                    }
+                    when (val page = myClassRepo.loadClass(item.id, priority = priority)) {
+                        is AppResult.Success -> _state.update { state ->
+                            val merged = W4ClassParser.merge(
+                                state.myClasses.firstOrNull { existing ->
+                                    existing.id.equals(page.data.id, ignoreCase = true)
+                                } ?: item,
+                                page.data,
+                            )
+                            state.copy(
+                                myClasses = state.myClasses.map { existing ->
+                                    if (existing.id.equals(merged.id, ignoreCase = true)) merged else existing
+                                },
+                            )
+                        }
+                        is AppResult.Failure -> Unit
+                    }
+                }
+            }
+        }
+    }
+
+    private fun loadMyClass(classId: String) = viewModelScope.launch {
+        when (val res = myClassRepo.loadClass(classId)) {
+            is AppResult.Success -> _state.update { state ->
+                val base = state.myClasses.firstOrNull { it.id.equals(classId, ignoreCase = true) }
+                val merged = if (base != null) W4ClassParser.merge(base, res.data) else res.data
+                val classes = if (state.myClasses.any { it.id.equals(classId, ignoreCase = true) }) {
+                    state.myClasses.map { existing ->
+                        if (existing.id.equals(classId, ignoreCase = true)) merged else existing
+                    }
+                } else {
+                    state.myClasses + merged
+                }
+                state.copy(
+                    myClasses = classes,
+                    loading = false,
+                    personOpenedClass = if (state.personOpenedClass?.id.equals(classId, ignoreCase = true)) {
+                        merged
+                    } else {
+                        state.personOpenedClass
+                    },
+                )
+            }
+            is AppResult.Failure -> _state.update {
+                it.copy(loading = false, message = res.error.toUiText())
+            }
+        }
+    }
+
+    private fun loadHouses() = viewModelScope.launch {
+        _state.update { it.copy(loading = _state.value.houses.isEmpty(), message = null) }
+        when (val res = houseRepo.loadIndex()) {
+            is AppResult.Failure -> _state.update {
+                it.copy(loading = false, message = res.error.toUiText())
+            }
+            is AppResult.Success -> {
+                _state.update { it.copy(houses = res.data, loading = false) }
+                res.data.forEachIndexed { index, house ->
+                    val priority = if (index == 0) {
+                        dk.betterw4.android.core.w4.model.FetchPriority.Important
+                    } else {
+                        dk.betterw4.android.core.w4.model.FetchPriority.Opportunistic
+                    }
+                    when (val page = houseRepo.loadHouse(house.id, priority = priority)) {
+                        is AppResult.Success -> _state.update { state ->
+                            state.copy(
+                                houses = state.houses.map { existing ->
+                                    if (existing.id == page.data.id) page.data else existing
+                                },
+                            )
+                        }
+                        is AppResult.Failure -> Unit
+                    }
+                }
+            }
         }
     }
 
@@ -330,8 +630,6 @@ class MoreViewModel @Inject constructor(
                 destination = MoreDestination.DIRECTORY,
                 directoryKind = kind,
                 directoryQuery = "",
-                directoryMembers = emptyList(),
-                directoryParent = null,
                 message = null,
             )
         }
@@ -364,13 +662,30 @@ class MoreViewModel @Inject constructor(
         searchDirectory()
     }
 
-    fun onDirectoryKind(kind: DirectoryEntityKind?) {
-        _state.update { it.copy(directoryKind = kind) }
+    fun onDirectoryKind(kind: DirectoryEntityKind) {
+        if (_state.value.directoryKind == kind) return
+        _state.update {
+            it.copy(
+                directoryKind = kind,
+                directory = visibleDirectory(it.directory, kind, it.directoryYear),
+            )
+        }
+        searchDirectory()
+    }
+
+    fun onDirectoryYear(year: String?) {
+        if (_state.value.directoryYear == year) return
+        _state.update {
+            it.copy(
+                directoryYear = year,
+                directory = visibleDirectory(it.directory, it.directoryKind, year),
+            )
+        }
         searchDirectory()
     }
 
     private fun searchDirectory() = viewModelScope.launch {
-        _state.update { it.copy(loading = true) }
+        _state.update { it.copy(loading = it.directory.isEmpty()) }
         when (val res = directoryRepo.search(_state.value.directoryQuery, _state.value.directoryKind)) {
             is AppResult.Success -> {
                 val classLabel = session.currentStudent?.classLabel
@@ -383,7 +698,7 @@ class MoreViewModel @Inject constructor(
                 _state.update {
                     it.copy(
                         loading = false,
-                        directory = ranked,
+                        directory = visibleDirectory(ranked, it.directoryKind, it.directoryYear),
                         pinnedIds = pinRepo.pinnedIds(),
                     )
                 }
@@ -392,17 +707,31 @@ class MoreViewModel @Inject constructor(
         }
     }
 
+    private fun visibleDirectory(
+        items: List<DirectoryEntity>,
+        kind: DirectoryEntityKind,
+        year: String?,
+    ): List<DirectoryEntity> = items.filter { person ->
+        if (person.kind != kind) return@filter false
+        if (kind != DirectoryEntityKind.STUDENT || year.isNullOrBlank()) return@filter true
+        person.resolvedYear == year
+    }
+
     fun togglePin(entity: DirectoryEntity) {
         pinRepo.toggle(entity.id)
         val classLabel = session.currentStudent?.classLabel
         _state.update {
             it.copy(
                 pinnedIds = pinRepo.pinnedIds(),
-                directory = dk.betterw4.android.feature.directory.DirectorySearch.rank(
-                    items = it.directory,
-                    query = it.directoryQuery,
-                    pinnedIds = pinRepo.pinnedIds(),
-                    classmateClassLabel = classLabel,
+                directory = visibleDirectory(
+                    dk.betterw4.android.feature.directory.DirectorySearch.rank(
+                        items = it.directory,
+                        query = it.directoryQuery,
+                        pinnedIds = pinRepo.pinnedIds(),
+                        classmateClassLabel = classLabel,
+                    ),
+                    it.directoryKind,
+                    it.directoryYear,
                 ),
             )
         }
@@ -422,65 +751,53 @@ class MoreViewModel @Inject constructor(
     }
 
     /**
-     * Open the dedicated student profile page (hero + week schedule).
+     * Open the dedicated person profile page (hero + about + week schedule).
      */
     fun openStudentProfile(entity: DirectoryEntity) = viewModelScope.launch {
-        if (entity.kind != DirectoryEntityKind.STUDENT) {
-            openPersonSchedule(entity)
-            return@launch
-        }
         val year = IsoDateUtils.isoWeekYear()
         val week = IsoDateUtils.isoWeek()
+        val isStaff = entity.kind == DirectoryEntityKind.TEACHER
+        val cachedPlacement = if (isStaff) null else _state.value.houses.placementOf(entity.id)
         _state.update {
             it.copy(
                 selectedPerson = null,
                 loading = true,
                 personEntity = entity,
                 personSchedule = null,
-                studentProfile = null,
+                studentProfile = StudentProfile.from(entity, cachedPlacement),
+                personTab = if (isStaff) PersonProfileTab.ABOUT else PersonProfileTab.SCHEDULE,
+                personOpenedHouseId = null,
+                personOpenedClass = null,
                 personWeekYear = year,
                 personWeek = week,
             )
         }
-        when (val res = roomScheduleRepo.loadPersonWeek(entity, year, week)) {
-            is AppResult.Success -> _state.update {
-                it.copy(
-                    loading = false,
-                    personSchedule = res.data,
-                )
+        coroutineScope {
+            val weekDeferred = async { roomScheduleRepo.loadPersonWeek(entity, year, week) }
+            val placementDeferred = async {
+                if (isStaff) null else cachedPlacement ?: houseRepo.findPlacement(entity.id)
             }
-            is AppResult.Failure -> _state.update {
+            val profileDeferred = async { directoryRepo.loadProfile(entity) }
+            val weekRes = weekDeferred.await()
+            val placement = placementDeferred.await()
+            val parsed = (profileDeferred.await() as? AppResult.Success)?.data
+            rememberPlacement(placement)
+            val classes = when (weekRes) {
+                is AppResult.Success -> PersonClasses.fromWeek(weekRes.data)
+                is AppResult.Failure -> emptyList()
+            }
+            _state.update {
                 it.copy(
                     loading = false,
-                    message = res.error.toUiText(),
+                    personSchedule = (weekRes as? AppResult.Success)?.data,
+                    studentProfile = StudentProfile.from(entity, placement, classes, parsed),
+                    message = (weekRes as? AppResult.Failure)?.error?.toUiText() ?: it.message,
                 )
             }
         }
     }
 
-    fun openPersonSchedule(entity: DirectoryEntity) = viewModelScope.launch {
-        val year = IsoDateUtils.isoWeekYear()
-        val week = IsoDateUtils.isoWeek()
-        _state.update {
-            it.copy(
-                selectedPerson = null,
-                loading = true,
-                personEntity = entity,
-                personSchedule = null,
-                studentProfile = null,
-                personWeekYear = year,
-                personWeek = week,
-            )
-        }
-        when (val res = roomScheduleRepo.loadPersonWeek(entity, year, week)) {
-            is AppResult.Success -> _state.update {
-                it.copy(loading = false, personSchedule = res.data)
-            }
-            is AppResult.Failure -> _state.update {
-                it.copy(loading = false, message = res.error.toUiText())
-            }
-        }
-    }
+    fun openPersonSchedule(entity: DirectoryEntity) = openStudentProfile(entity)
 
     fun shiftPersonWeek(delta: Int) {
         val currentStart = IsoDateUtils.weekStart(
@@ -517,11 +834,18 @@ class MoreViewModel @Inject constructor(
         _state.update { it.copy(loading = true) }
         when (val res = roomScheduleRepo.loadPersonWeek(entity, year, week)) {
             is AppResult.Success -> _state.update {
+                val merged = PersonClasses.merge(
+                    it.studentProfile?.classes.orEmpty(),
+                    PersonClasses.fromWeek(res.data),
+                )
                 it.copy(
                     loading = false,
                     personWeekYear = year,
                     personWeek = week,
                     personSchedule = res.data,
+                    studentProfile = (it.studentProfile
+                        ?: StudentProfile(id = entity.id, name = entity.name, kind = entity.kind))
+                        .copy(classes = merged),
                 )
             }
             is AppResult.Failure -> _state.update {
@@ -530,17 +854,31 @@ class MoreViewModel @Inject constructor(
         }
     }
 
-    fun displayTitleForEvent(event: ScheduleEvent): String {
-        val key = event.team.ifBlank { event.title }
-        return settings.displayNameForSubject(key, fallback = event.title.ifBlank { key })
+    private fun rememberPlacement(placement: HousePlacement?) {
+        val house = placement?.house ?: return
+        _state.update { state ->
+            val existing = state.houses.indexOfFirst { it.id == house.id }
+            val houses = if (existing >= 0) {
+                state.houses.toMutableList().also { it[existing] = house }
+            } else {
+                state.houses + house
+            }
+            state.copy(houses = houses)
+        }
     }
+
+    fun displayTitleForEvent(event: ScheduleEvent): String = settings.displayTitleForEvent(event)
 
     fun accentArgbForEvent(event: ScheduleEvent): Long = settings.accentArgbFor(event)
 
     /**
-     * Queue compose recipient and dismiss sheet. Caller navigates to the Messages tab.
+     * Queue compose recipient and dismiss sheet. Caller opens the mailer.
      */
     fun composeToPerson(entity: DirectoryEntity) {
+        if (!FeatureFlags.MAIL_ENABLED) {
+            _state.update { it.copy(selectedPerson = null) }
+            return
+        }
         pendingCompose.offer(
             MessageRecipient(
                 id = entity.id,
@@ -551,87 +889,19 @@ class MoreViewModel @Inject constructor(
         _state.update { it.copy(selectedPerson = null) }
     }
 
-    fun openPersonClass(entity: DirectoryEntity) = viewModelScope.launch {
-        val label = entity.subtitle?.trim().orEmpty()
-        if (label.isEmpty()) {
-            _state.update { it.copy(message = UiText.Res(R.string.directory_class_not_found)) }
-            return@launch
-        }
-        when (val res = directoryRepo.search(label, DirectoryEntityKind.CLASS)) {
-            is AppResult.Failure -> _state.update {
-                it.copy(message = res.error.toUiText())
-            }
-            is AppResult.Success -> {
-                val match = res.data.firstOrNull {
-                    it.name.equals(label, ignoreCase = true)
-                } ?: res.data.firstOrNull {
-                    it.name.contains(label, ignoreCase = true) ||
-                        label.contains(it.name, ignoreCase = true)
-                }
-                if (match == null) {
-                    // Fallback: hold with same label (member lists often use hold names).
-                    when (val holdRes = directoryRepo.search(label, DirectoryEntityKind.HOLD)) {
-                        is AppResult.Failure -> _state.update {
-                            it.copy(message = UiText.Res(R.string.directory_class_not_found))
-                        }
-                        is AppResult.Success -> {
-                            val hold = holdRes.data.firstOrNull {
-                                it.name.equals(label, ignoreCase = true)
-                            } ?: holdRes.data.firstOrNull {
-                                it.name.contains(label, ignoreCase = true)
-                            }
-                            if (hold == null) {
-                                _state.update {
-                                    it.copy(message = UiText.Res(R.string.directory_class_not_found))
-                                }
-                            } else {
-                                _state.update { it.copy(selectedPerson = null) }
-                                openDirectoryMembers(hold)
-                            }
-                        }
-                    }
-                } else {
-                    _state.update { it.copy(selectedPerson = null) }
-                    openDirectoryMembers(match)
-                }
-            }
-        }
-    }
-
-    fun openDirectoryMembers(entity: DirectoryEntity) = viewModelScope.launch {
-        _state.update {
-            it.copy(
-                loading = true,
-                directoryParent = entity,
-                selectedPerson = null,
-                personEntity = null,
-                personSchedule = null,
-                studentProfile = null,
-            )
-        }
-        when (val res = directoryRepo.loadMembers(entity)) {
-            is AppResult.Success -> _state.update {
-                it.copy(loading = false, directoryMembers = res.data)
-            }
-            is AppResult.Failure -> _state.update {
-                it.copy(loading = false, message = res.error.toUiText())
-            }
-        }
-    }
-
-    fun openRoomSchedule(entity: DirectoryEntity) = viewModelScope.launch {
+    fun openRoomSchedule(target: RoomTarget) = viewModelScope.launch {
         val year = IsoDateUtils.isoWeekYear()
         val week = IsoDateUtils.isoWeek()
         _state.update {
             it.copy(
                 loading = true,
-                roomEntity = entity,
+                roomTarget = target,
                 roomSchedule = null,
                 roomWeekYear = year,
                 roomWeek = week,
             )
         }
-        when (val res = roomScheduleRepo.loadRoomWeek(entity, year, week)) {
+        when (val res = roomScheduleRepo.loadRoomWeek(target.id, year, week)) {
             is AppResult.Success -> _state.update {
                 it.copy(loading = false, roomSchedule = res.data)
             }
@@ -663,7 +933,7 @@ class MoreViewModel @Inject constructor(
     }
 
     fun loadRoomWeekForDate(date: java.time.LocalDate) = viewModelScope.launch {
-        val entity = _state.value.roomEntity ?: return@launch
+        val target = _state.value.roomTarget ?: return@launch
         val year = IsoDateUtils.isoWeekYear(date)
         val week = IsoDateUtils.isoWeek(date)
         if (year == _state.value.roomWeekYear &&
@@ -673,7 +943,7 @@ class MoreViewModel @Inject constructor(
             return@launch
         }
         _state.update { it.copy(loading = true) }
-        when (val res = roomScheduleRepo.loadRoomWeek(entity, year, week)) {
+        when (val res = roomScheduleRepo.loadRoomWeek(target.id, year, week)) {
             is AppResult.Success -> _state.update {
                 it.copy(
                     loading = false,
@@ -690,10 +960,9 @@ class MoreViewModel @Inject constructor(
 
     fun openRoomFromOccupancy(room: dk.betterw4.android.feature.directory.RoomParser.RoomWithOccupancy) {
         openRoomSchedule(
-            DirectoryEntity(
+            RoomTarget(
                 id = room.id,
                 name = "${room.shortName} · ${room.name}",
-                kind = DirectoryEntityKind.ROOM,
                 subtitle = appContext.getString(
                     if (room.inUse) R.string.room_in_use else R.string.room_free,
                 ),
@@ -779,6 +1048,7 @@ class MoreViewModel @Inject constructor(
             val res = documentsRepo.load(
                 folderId = nav?.folderId,
                 pageId = nav?.pageId,
+                extraAcademics = _state.value.documentsExtraAcademics,
                 force = true,
             )
         ) {
@@ -801,7 +1071,7 @@ class MoreViewModel @Inject constructor(
     private fun loadTrips() = viewModelScope.launch {
         _state.update { it.copy(loading = true) }
         when (val res = tripsRepo.load(force = true)) {
-            is AppResult.Success -> _state.update { it.copy(loading = false, trips = res.data) }
+            is AppResult.Success -> _state.update { it.copy(loading = false, trips = res.data.trips) }
             is AppResult.Failure -> _state.update {
                 it.copy(loading = false, message = res.error.toUiText())
             }
@@ -817,9 +1087,10 @@ class MoreViewModel @Inject constructor(
     fun setLanguage(language: AppLanguage) = settings.setLanguage(language)
     fun setCalendarStyle(style: CalendarStyle) = settings.setCalendarStyle(style)
     fun setUseSubjectColors(v: Boolean) = settings.setUseSubjectColors(v)
+    fun setShowSchoolCalendar(v: Boolean) = settings.setShowSchoolCalendar(v)
     fun setNotifEvents(v: Boolean) = settings.setNotifEvents(v)
-    fun setNotifMessages(v: Boolean) = settings.setNotifMessages(v)
     fun setNotifAssignments(v: Boolean) = settings.setNotifAssignments(v)
+    fun setNotifTrips(v: Boolean) = settings.setNotifTrips(v)
     fun setDisableSignature(v: Boolean) = settings.setDisableSignature(v)
 
     fun curatedHues(): List<Int> = SubjectMapper.CURATED_HUES

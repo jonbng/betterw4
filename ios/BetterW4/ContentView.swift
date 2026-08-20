@@ -8,16 +8,16 @@
 //  Four tabs, and no more (ui.md §1.1):
 //
 //    Timetable — `ScheduleView`      AC + EA lessons, merged
-//    Mail      — `MessagesView`      the W4 mailer, with an unread badge
+//    Students  — `StudentSearchView` people directory (the thing people actually open)
 //    Assessments — `AssessmentsView` W4 collapses homework and assignments into one calendar
-//    More      — `MoreView`          everything else
+//    More      — `MoreView`          everything else, including the unused W4 mailer
 //
-//  Every tab owns a `NavigationStack`. Only More binds a `NavigationPath`, because the directory
-//  pushes people onto it from inside.
+//  Every tab owns a `NavigationStack`. Students and More bind a `NavigationPath`, because the
+//  directory pushes people onto it from inside.
 //
 
-import Combine
 import SwiftUI
+import UIKit
 
 struct ContentView: View {
     @StateObject private var authViewModel = AuthenticationViewModel()
@@ -34,6 +34,12 @@ struct ContentView: View {
 
             case .authenticated(let student):
                 AuthenticatedTabShell(student: student, authViewModel: authViewModel)
+                    .task {
+                        await NotificationRefresh.requestAuthorizationIfNeeded()
+                    }
+                    .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+                        NotificationBackgroundRefresh.schedule()
+                    }
             }
         }
         .preferredColorScheme(settingsStore.preferredColorScheme)
@@ -48,7 +54,7 @@ struct ContentView: View {
 /// that wants "tap the selected tab to scroll to top" needs the same numbers the `TabView` uses.
 enum AuthenticatedTabIndex {
     static let timetable = 0
-    static let mail = 1
+    static let students = 1
     /// W4 merges homework and assignments into one assessments calendar, so there is no fifth tab.
     static let assessments = 2
     static let more = 3
@@ -71,8 +77,8 @@ private struct AuthenticatedTabShell: View {
     @ObservedObject var authViewModel: AuthenticationViewModel
     @ObservedObject private var settingsStore = SettingsStore.shared
     @State private var selectedTab = AuthenticatedTabIndex.timetable
+    @State private var studentsNavigationPath = NavigationPath()
     @State private var moreNavigationPath = NavigationPath()
-    @State private var unreadMessageCount = 0
     @ObservedObject private var reviewPromptCoordinator = ReviewPromptCoordinator.shared
 
     var body: some View {
@@ -85,14 +91,33 @@ private struct AuthenticatedTabShell: View {
             }
             .tag(AuthenticatedTabIndex.timetable)
 
-            NavigationStack {
-                MessagesView(student: student)
+            NavigationStack(path: $studentsNavigationPath) {
+                StudentSearchView(
+                    student: student,
+                    authViewModel: authViewModel,
+                    navigationPath: $studentsNavigationPath,
+                    presentation: .full
+                )
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        CampusStatusControl()
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        NotificationsBellButton()
+                    }
+                }
             }
             .tabItem {
-                Label("Mail", systemImage: "envelope.fill")
+                Label("Students", systemImage: "person.2.fill")
             }
-            .badge(unreadMessageCount)
-            .tag(AuthenticatedTabIndex.mail)
+            .tag(AuthenticatedTabIndex.students)
+            .background {
+                TabBarSameTabReselectDetector(tabIndex: AuthenticatedTabIndex.students) {
+                    if !studentsNavigationPath.isEmpty {
+                        studentsNavigationPath = NavigationPath()
+                    }
+                }
+            }
 
             NavigationStack {
                 AssessmentsView(student: student)
@@ -117,27 +142,15 @@ private struct AuthenticatedTabShell: View {
         .onAppear {
             reviewPromptCoordinator.onAuthenticatedLaunch(student: student)
             MessageListPrefetcher.schedulePrefetch(for: student)
-            refreshUnreadCount()
         }
         .task(id: student.id) {
             settingsStore.activateScope(studentId: student.studentId)
         }
         .onChange(of: selectedTab) { _, newValue in
-            // Leaving Mail is the cheapest moment to warm the inbox for the next visit.
-            if newValue != AuthenticatedTabIndex.mail {
+            // Mail now lives under More; warm the inbox when that tab is about to be used.
+            if newValue == AuthenticatedTabIndex.more {
                 MessageListPrefetcher.schedulePrefetch(for: student)
             }
-            refreshUnreadCount()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .unreadMessageCountDidChange)) { note in
-            guard
-                let uwcId = note.userInfo?["studentId"] as? String, uwcId == student.studentId,
-                let count = note.userInfo?["count"] as? Int
-            else { return }
-            unreadMessageCount = count
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .betterW4CachesDidClear)) { _ in
-            refreshUnreadCount()
         }
         .sheet(item: authenticatedSheet) { sheet in
             switch sheet {
@@ -148,15 +161,6 @@ private struct AuthenticatedTabShell: View {
                     onDismiss: { reviewPromptCoordinator.onDismissed() }
                 )
             }
-        }
-    }
-
-    /// Reads the badge from the mail repository, which answers from the cache (and from the demo
-    /// catalogue in demo mode) without making a request.
-    private func refreshUnreadCount() {
-        Task {
-            let count = await MailRepository.shared.unreadCount()
-            await MainActor.run { unreadMessageCount = count }
         }
     }
 
@@ -197,7 +201,7 @@ struct LoadingView: View {
 // MARK: - More View
 
 /// The More root. Every W4 surface that is not one of the three content tabs is reachable from
-/// here, grouped the way W4's own side menus group them (ui.md §4.6).
+/// here (including the W4 mailer), grouped the way W4's own side menus group them (ui.md §4.6).
 struct MoreView: View {
     let student: Student
     @ObservedObject var authViewModel: AuthenticationViewModel
@@ -217,6 +221,10 @@ struct MoreView: View {
             Section {
                 row("Home", systemImage: "house") { HomeView(student: student) }
                 row("Notifications", systemImage: "bell") { NotificationsView() }
+                if MailFeatureFlags.visible {
+                    row("Mail", systemImage: "envelope") { MessagesView(student: student) }
+                }
+                row("Houses", systemImage: "building.2") { HousesView() }
             } header: {
                 Text("School")
             }
@@ -230,8 +238,8 @@ struct MoreView: View {
             }
 
             Section {
-                directoryRow("Students", systemImage: "person.2.fill", presentation: .full)
                 directoryRow("Teachers", systemImage: "person.text.rectangle.fill", presentation: .teachers)
+                row("On duty", systemImage: "person.badge.shield.checkmark") { OnDutyView() }
             } header: {
                 Text("People")
             }

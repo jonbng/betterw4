@@ -3,8 +3,10 @@ package dk.betterw4.android.feature.homework
 import android.content.Context
 import androidx.core.content.edit
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dk.betterw4.android.core.cache.CachePolicy
 import dk.betterw4.android.core.cache.EntityOfflineStore
 import dk.betterw4.android.core.cache.SimpleCache
+import dk.betterw4.android.core.cache.W4Surface
 import dk.betterw4.android.core.w4.W4Client
 import dk.betterw4.android.core.w4.W4Urls
 import dk.betterw4.android.core.w4.session.SessionController
@@ -19,6 +21,9 @@ import javax.inject.Singleton
 
 /**
  * Homework list + done flags stored locally per student.
+ *
+ * W4's assessments calendar is month-scoped (`&month=08&year=2026`). Cache keys follow that
+ * month so a September fetch cannot paint August's page.
  */
 @Singleton
 class HomeworkRepository @Inject constructor(
@@ -34,25 +39,29 @@ class HomeworkRepository @Inject constructor(
         kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO,
     )
 
-    suspend fun load(forceRefresh: Boolean = false): AppResult<List<HomeworkItem>> {
+    suspend fun load(
+        forceRefresh: Boolean = false,
+        month: AssessmentMonth = AssessmentMonth.current(),
+    ): AppResult<List<HomeworkItem>> {
         val student = session.currentStudent
             ?: return AppResult.Failure(AppError.Unauthorized)
 
         if (student.isDemo) {
-            return AppResult.Success(DemoData.homework.map { it.copy(done = isDone(student.studentId, it.id)) })
+            val items = DemoData.homework.filter { item ->
+                item.date == null || AssessmentMonth.of(item.date) == month
+            }
+            return AppResult.Success(items.map { it.copy(done = isDone(student.studentId, it.id)) })
         }
-        val key = "homework_${student.studentId}"
+        val key = cacheKey(student.studentId, month)
         if (!forceRefresh) {
-            cache.get(key)?.let { html ->
-                lastHtml = html
-                return AppResult.Success(parseW4(html, student.studentId))
-            }
-            offline.get(key)?.let { html ->
-                lastHtml = html
-                return AppResult.Success(parseW4(html, student.studentId))
+            cache.getWithMeta(key)?.let { cached ->
+                if (CachePolicy.isFresh(cached.updatedAtMs, W4Surface.ASSESSMENTS)) {
+                    lastHtml = cached.value
+                    return AppResult.Success(parseW4(cached.value, student.studentId))
+                }
             }
         }
-        return when (val res = client.get(W4Urls.Routes.ASSESSMENTS)) {
+        return when (val res = client.get(W4Urls.Routes.ASSESSMENTS, query = month.query)) {
             is AppResult.Failure -> {
                 cache.get(key)?.let {
                     lastHtml = it
@@ -118,5 +127,8 @@ class HomeworkRepository @Inject constructor(
         fun donePrefsKey(studentId: String, entryId: String): String = "$studentId|$entryId"
 
         fun atPrefsKey(studentId: String, entryId: String): String = "at_$studentId|$entryId"
+
+        fun cacheKey(studentId: String, month: AssessmentMonth): String =
+            "homework_${studentId}_${month.key}"
     }
 }

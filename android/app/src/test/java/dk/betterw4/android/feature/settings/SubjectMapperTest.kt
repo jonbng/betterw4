@@ -2,6 +2,7 @@ package dk.betterw4.android.feature.settings
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -16,106 +17,124 @@ class SubjectMapperTest {
     }
 
     @Test
-    fun canonicalKey_mathematicsVariants() {
-        assertEquals("ma", SubjectMapper.canonicalKey("1x MA"))
-        assertEquals("ma", SubjectMapper.canonicalKey("2x MA"))
-        assertEquals("ma", SubjectMapper.canonicalKey("2.4 MA"))
-        assertEquals("ma", SubjectMapper.canonicalKey("L2d MA"))
-        assertEquals("ma", SubjectMapper.canonicalKey("Matematik"))
-        assertEquals("ma", SubjectMapper.canonicalKey("MA"))
-        assertEquals("ma", SubjectMapper.canonicalKey("ma"))
-        assertEquals("ma", SubjectMapper.canonicalKey("mat"))
-        assertEquals("ma", SubjectMapper.canonicalKey("Ma A"))
-        assertEquals("ma", SubjectMapper.canonicalKey("MA-A"))
+    fun canonicalKey_ibTitlesAndW4ClassIds() {
+        assertEquals("mathematics", SubjectMapper.canonicalKey("Mathematics HL"))
+        assertEquals("mathematics", SubjectMapper.canonicalKey("Mathematics Analysis and Approaches"))
+        assertEquals("mathematics", SubjectMapper.canonicalKey("1DA13HMTAA"))
+        assertEquals("mathematics", SubjectMapper.canonicalKey("MTAA"))
+        assertEquals("economics", SubjectMapper.canonicalKey("Economics"))
+        assertEquals("economics", SubjectMapper.canonicalKey("1EA16CECOX"))
+        assertEquals("english-a", SubjectMapper.canonicalKey("English Language & Literature"))
+        assertEquals("english-a", SubjectMapper.canonicalKey("1YA25SLALI"))
+        assertEquals("danish-a", SubjectMapper.canonicalKey("Danish Literature"))
+        assertEquals("danish-a", SubjectMapper.canonicalKey("2AA24CDALI"))
+        assertEquals("philosophy", SubjectMapper.canonicalKey("1CA24CPHIX"))
+        assertEquals("physics", SubjectMapper.canonicalKey("1BE12CPHYX"))
+        assertEquals("core-meetings", SubjectMapper.canonicalKey("1ZAUDXCORE"))
+        assertEquals("tok", SubjectMapper.canonicalKey("TOK"))
+        assertEquals("tok", SubjectMapper.canonicalKey("2DA14XTHOK"))
+        assertEquals("global-politics", SubjectMapper.canonicalKey("1AK21CGLOP"))
+        assertEquals("norwegian-a", SubjectMapper.canonicalKey("1AA26CNOLI"))
+        assertEquals("spanish-a", SubjectMapper.canonicalKey("1AA13CSPLI"))
+        assertEquals("spanish", SubjectMapper.canonicalKey("1XA12SSPAB"))
+        assertEquals("spanish", SubjectMapper.canonicalKey("2XA26CSPBB"))
+        assertEquals("french", SubjectMapper.canonicalKey("1XA24SFRAB"))
+        assertEquals("english-b", SubjectMapper.canonicalKey("1DA21HENGB"))
+        assertEquals("environmental-systems-and-societies", SubjectMapper.canonicalKey("1EE15CENSS"))
+        assertEquals("theatre", SubjectMapper.canonicalKey("1CMUSCTHEX"))
+        assertEquals("visual-arts", SubjectMapper.canonicalKey("1CA22CVART"))
+        assertEquals("world-literature", SubjectMapper.canonicalKey("2YA25SWOLX"))
+        assertEquals("psychology", SubjectMapper.canonicalKey("1BA24CPSYC"))
+        assertEquals("history", SubjectMapper.canonicalKey("1DK11CHIST"))
+        assertEquals("mathematics", SubjectMapper.canonicalKey("1EA11SMTAI"))
     }
 
     @Test
-    fun canonicalKey_specialProjectsAndKlassensTime() {
-        assertEquals("srp", SubjectMapper.canonicalKey("SRP"))
-        assertEquals("sro", SubjectMapper.canonicalKey("SRO"))
-        assertEquals("dho", SubjectMapper.canonicalKey("DHO"))
-        assertEquals("kt", SubjectMapper.canonicalKey("KT"))
-        assertEquals("kt", SubjectMapper.canonicalKey("Klassens Time"))
+    fun canonicalKey_levelSuffixesCollapse() {
+        assertEquals("mathematics", SubjectMapper.canonicalKey("Mathematics SL"))
+        assertEquals("biology", SubjectMapper.canonicalKey("DP1 Biology HL"))
+        assertEquals("english-a", SubjectMapper.canonicalKey("English A: Language and Literature HL"))
+        assertEquals("english-b", SubjectMapper.canonicalKey("English B SL"))
     }
 
     @Test
-    fun canonicalKey_namedAndHyphenatedClassPrefixes() {
-        assertEquals("da", SubjectMapper.canonicalKey("BShannon DA"))
-        assertEquals("pu", SubjectMapper.canonicalKey("BShannon PU"))
-        assertEquals("ma", SubjectMapper.canonicalKey("BHamilton MA"))
-        assertEquals("da", SubjectMapper.canonicalKey("Epsilon DA"))
-        assertEquals("da", SubjectMapper.canonicalKey("3hx-u DA"))
-        assertEquals("en", SubjectMapper.canonicalKey("IB1 En B"))
-    }
-
-    @Test
-    fun canonicalKey_unknownAndIgnored() {
-        assertNull(SubjectMapper.canonicalKey("Ukendt Fag XYZ"))
+    fun canonicalKey_furnitureIsIgnored() {
         assertNull(SubjectMapper.canonicalKey(""))
         assertNull(SubjectMapper.canonicalKey("   "))
-        assertNull(SubjectMapper.canonicalKey("Kor"))
-        assertNull(SubjectMapper.canonicalKey("Elevråd"))
-        assertNull(SubjectMapper.canonicalKey("Kostelever"))
+        assertNull(SubjectMapper.canonicalKey("Breakfast"))
+        assertNull(SubjectMapper.canonicalKey("Break"))
+        assertNull(SubjectMapper.canonicalKey("Lunch"))
+        assertNull(SubjectMapper.canonicalKey("Weekend"))
+        assertNull(SubjectMapper.canonicalKey("House cleaning"))
     }
 
     @Test
-    fun displayName_usesBuiltInDefaultWithoutProvider() {
-        assertEquals("Matematik", SubjectMapper.displayName("1x MA"))
-        assertEquals("Dansk", SubjectMapper.displayName("da"))
-        assertEquals("Ukendt Fag XYZ", SubjectMapper.displayName("Ukendt Fag XYZ"))
-    }
+    fun displayName_usesW4NamesAndOverrides() {
+        assertEquals("Mathematics", SubjectMapper.displayName("1DA13HMTAA"))
+        assertEquals("Economics", SubjectMapper.displayName("1EA16CECOX"))
+        assertEquals("Danish Literature", SubjectMapper.displayName("2AA24CDALI"))
+        assertEquals("Core meetings", SubjectMapper.displayName("CORE"))
 
-    @Test
-    fun displayName_usesProviderOverride() {
         SubjectMapper.mappingProvider = { key ->
-            if (key == "ma") {
+            if (key == "economics") {
                 ResolvedLessonMapping(
-                    mappingId = "id-ma",
-                    canonicalKey = "ma",
-                    defaultName = "Matematik",
-                    defaultColorHue = 238,
-                    displayName = "Maths ✨",
+                    mappingId = "id-econ",
+                    canonicalKey = "economics",
+                    defaultName = "Economics",
+                    defaultColorHue = 54,
+                    displayName = "Econ ✨",
                     displayColorHue = 10,
                 )
             } else {
                 null
             }
         }
-        assertEquals("Maths ✨", SubjectMapper.displayName("1x MA"))
-        assertEquals("Maths ✨", SubjectMapper.displayName("2.4 MA"))
-        assertEquals(10, SubjectMapper.colorHue("L2d MA"))
+        assertEquals("Econ ✨", SubjectMapper.displayName("1EA16CECOX"))
+        assertEquals("Econ ✨", SubjectMapper.displayName("Economics"))
+        assertEquals(10, SubjectMapper.colorHue("ECOX"))
     }
 
     @Test
-    fun colorHue_defaultsPerSubject() {
-        assertEquals(238, SubjectMapper.colorHue("ma"))
-        assertEquals(342, SubjectMapper.colorHue("Dansk"))
-        assertEquals(215, SubjectMapper.colorHue("Ukendt"))
+    fun colorHue_knownSubjectsAreStableAndDistinct() {
+        assertEquals(238, SubjectMapper.colorHue("mathematics"))
+        assertEquals(54, SubjectMapper.colorHue("economics"))
+        assertNotEquals(
+            SubjectMapper.colorHue("1DA13HMTAA"),
+            SubjectMapper.colorHue("1EA16CECOX"),
+        )
+        assertEquals(
+            SubjectMapper.colorHue("Mathematics HL"),
+            SubjectMapper.colorHue("1DA13HMTAA"),
+        )
     }
 
     @Test
-    fun iconKey_knownAndUnknown() {
-        assertEquals("functions", SubjectMapper.iconKey("ma"))
-        assertEquals("book", SubjectMapper.iconKey("da"))
-        assertEquals("translate", SubjectMapper.iconKey("en"))
-        assertEquals("science", SubjectMapper.iconKey("fy"))
-        assertEquals("school", SubjectMapper.iconKey("Ukendt Fag XYZ"))
-    }
-
-    @Test
-    fun isKnownSubject() {
-        assertTrue(SubjectMapper.isKnownSubject("1x MA"))
-        assertTrue(SubjectMapper.isKnownSubject("Historie"))
-        assertFalse(SubjectMapper.isKnownSubject("Ukendt Fag XYZ"))
-        assertFalse(SubjectMapper.isKnownSubject("Kor"))
+    fun unknownSubjectKeepsNameAndStableHue() {
+        val title = "Underwater Basket Weaving HL"
+        assertFalse(SubjectMapper.isKnownSubject(title))
+        assertEquals(title, SubjectMapper.displayName(title))
+        assertEquals("underwater basket weaving", SubjectMapper.canonicalKey(title))
+        val first = SubjectMapper.colorHue(title)
+        assertEquals(first, SubjectMapper.colorHue("Underwater Basket Weaving SL"))
+        assertEquals(first, SubjectMapper.stableHue("underwater basket weaving"))
     }
 
     @Test
     fun allSubjects_includesEventTitles() {
-        val subjects = SubjectMapper.allSubjects(including = listOf("1x MA", "2a Biologi", "Ukendt"))
+        val subjects = SubjectMapper.allSubjects(
+            including = listOf("1EA16CECOX", "Danish Literature", "Underwater Basket Weaving HL"),
+        )
         val codes = subjects.map { it.code }.toSet()
-        assertTrue(codes.contains("ma"))
-        assertTrue(codes.contains("bi"))
-        assertFalse(codes.contains("ukendt"))
+        assertTrue(codes.contains("economics"))
+        assertTrue(codes.contains("danish-a"))
+        assertTrue(codes.contains("underwater basket weaving"))
+    }
+
+    @Test
+    fun isKnownSubject() {
+        assertTrue(SubjectMapper.isKnownSubject("1DA13HMTAA"))
+        assertTrue(SubjectMapper.isKnownSubject("Economics"))
+        assertFalse(SubjectMapper.isKnownSubject("Breakfast"))
+        assertFalse(SubjectMapper.isKnownSubject("Underwater Basket Weaving HL"))
     }
 }

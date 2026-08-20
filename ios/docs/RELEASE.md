@@ -265,16 +265,19 @@ Ordered so the blockers come first. Items marked ⛔️ are not done at the time
 - ✅ **`ITSAppUsesNonExemptEncryption = false`** in `Info.plist`, so export compliance is answered in
   the build rather than by hand on every upload.
 - ✅ **Preferences persist.** The app-group `UserDefaults` bug is fixed (§4).
-- ✅ **The notification story is honest.** `UIBackgroundModes` is gone, permission is requested lazily
-  on first opt-in rather than at launch, and `NotificationScheduler` actually schedules the two
-  reminder types that survive. The two that needed background refresh were removed rather than left
-  promising nothing.
+- ✅ **The notification story is honest.** Two systems, both implemented: `NotificationRefresh`
+  diffs the server on a `BGAppRefreshTask` (timetable changes, assessments, trips), and
+  `NotificationScheduler` pre-schedules lesson and due-tomorrow reminders from cached data.
+  `UIBackgroundModes = fetch` is declared **and** used, paired with
+  `BGTaskSchedulerPermittedIdentifiers` — `BGTaskScheduler` needs both or it fails at runtime.
+  Permission is requested after sign-in and on first opt-in, never at launch. Only `notifyNewMail`
+  was deleted outright: nothing polls the mailer.
 - ✅ Demo mode reachable in one tap and fully offline.
 - ✅ Single host, enforced at runtime and in the test suite.
 - ✅ `keychain-access-groups` present; no other entitlement.
 - ✅ Caches excluded from backup.
 - ✅ `scripts/check-legacy.sh` and `scripts/check-english.sh` both exit 0.
-- ✅ 759 tests passing, both gate scripts clean.
+- ✅ 828 tests passing, both gate scripts clean.
 - ⚠️ Screenshots must be taken **in demo mode**. Never screenshot a real account — the timetable,
   mail list and directory all show real students' names at a 200-person college.
 

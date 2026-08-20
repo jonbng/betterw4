@@ -116,6 +116,18 @@ struct SettingsView: View {
                 settingsStore.saveUseSubjectColors(newValue)
             }
 
+            Toggle(isOn: $settingsStore.showSchoolCalendar) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("School calendar")
+                    Text("Show college events from the public school Google Calendar on the timetable.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .onChange(of: settingsStore.showSchoolCalendar) { _, newValue in
+                settingsStore.saveShowSchoolCalendar(newValue)
+            }
+
             NavigationLink {
                 SubjectSettingsView(student: student, eventTitles: subjectTitles)
             } label: {
@@ -142,15 +154,30 @@ struct SettingsView: View {
                         // behind it — a prompt you can only answer wrong.
                         requestNotificationPermission()
                     } else {
+                        // Both systems, or the one left running keeps notifying after the
+                        // student said stop.
+                        NotificationBackgroundRefresh.cancel()
                         rescheduleNotifications()
                     }
                 }
 
             if settingsStore.notificationsEnabled {
-                Toggle("Assessments due", isOn: $settingsStore.notifyAssessments)
+                Toggle("Timetable changes", isOn: $settingsStore.notifyTimetableChanges)
+                    .onChange(of: settingsStore.notifyTimetableChanges) { _, value in
+                        settingsStore.saveNotifyTimetableChanges(value)
+                    }
+
+                // Drives both systems: an alert when an assessment appears or goes overdue, and
+                // a reminder the evening before it is due.
+                Toggle("Assessments", isOn: $settingsStore.notifyAssessments)
                     .onChange(of: settingsStore.notifyAssessments) { _, value in
                         settingsStore.saveNotifyAssessments(value)
                         rescheduleNotifications()
+                    }
+
+                Toggle("Trips", isOn: $settingsStore.notifyTrips)
+                    .onChange(of: settingsStore.notifyTrips) { _, value in
+                        settingsStore.saveNotifyTrips(value)
                     }
 
                 Toggle("Lesson reminder", isOn: $settingsStore.notifyLessonReminder)
@@ -185,7 +212,7 @@ struct SettingsView: View {
         } header: {
             Text("Notifications")
         } footer: {
-            Text("Reminders are scheduled on this device from the timetable and assessments already loaded, and appear even when BetterW4 is closed. Nothing is sent to a server, and the app does not check W4 in the background.")
+            Text("BetterW4 checks W4 in the background while Background App Refresh is on, and lesson reminders are scheduled ahead of time on this device. Everything stays on this device only. Mail is your Gmail — it is not notified here.")
         }
     }
 
@@ -334,11 +361,7 @@ struct SettingsView: View {
     /// never at launch (features.md §5.2).
     private func requestNotificationPermission() {
         Task {
-            let granted = (try? await UNUserNotificationCenter.current()
-                .requestAuthorization(options: [.alert, .badge, .sound])) ?? false
-            await MainActor.run {
-                settingsStore.saveNotificationsEnabled(granted)
-            }
+            await NotificationRefresh.requestAuthorizationIfNeeded()
             await refreshNotificationAuthorization()
             await NotificationScheduler.shared.preferencesChanged()
         }
@@ -394,7 +417,7 @@ struct PrivacyDetailView: View {
                 privacyRow(
                     icon: "network.slash",
                     title: "No third parties",
-                    detail: "The app talks to \(W4Routes.host) and nowhere else. Your data is never uploaded anywhere."
+                    detail: "The app talks to \(W4Routes.host). If you turn on the school calendar, it also fetches the public college calendar from Google. Your data is never uploaded anywhere."
                 )
             }
 

@@ -37,6 +37,10 @@ import SwiftUI
 /// calls for one shared `W4Feature` namespace eventually, but no wave owns that type, so each
 /// vertical keeps its own flag and they fold together later without changing meaning.
 enum MailFeatureFlags {
+    /// Flip to `true` to show More ▸ Mail, compose, and mail notifications.
+    /// Hidden until the mailer is ready to ship.
+    static let visible = false
+
     /// Flip to `true` only when a real `mailer/send&type=freeform` round trip has been captured
     /// **and** `MailRepository` has a send path to call.
     static let composeEnabled = false

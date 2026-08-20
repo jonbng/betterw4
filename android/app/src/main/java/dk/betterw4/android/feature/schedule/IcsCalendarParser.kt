@@ -471,14 +471,16 @@ object IcsCalendarParser {
 
     private fun stripHtml(value: String): String {
         if ('<' !in value && '&' !in value) return value
-        return value
+        var text = value
+            .replace("&nbsp;", " ", ignoreCase = true)
+            .replace("&#39;", "'", ignoreCase = true)
+            .replace("&quot;", "\"", ignoreCase = true)
+            .replace("&lt;", "<", ignoreCase = true)
+            .replace("&gt;", ">", ignoreCase = true)
+            .replace("&amp;", "&", ignoreCase = true)
+        return text
             .replace(Regex("(?i)<br\\s*/?>"), "\n")
             .replace(Regex("<[^>]+>"), "")
-            .replace("&nbsp;", " ")
-            .replace("&amp;", "&")
-            .replace("&lt;", "<")
-            .replace("&gt;", ">")
-            .replace("&quot;", "\"")
     }
 
     internal data class IcsProperty(
@@ -524,6 +526,7 @@ object IcsCalendarParser {
                 date = start.toLocalDate(),
                 notes = description,
                 isAllDay = allDay,
+                source = EventSource.SCHOOL_CALENDAR.idPrefix,
             )
         }
     }

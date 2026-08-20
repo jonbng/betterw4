@@ -16,11 +16,11 @@
 //      there is genuinely nothing to show, and a failure leaves the week on screen with a banner;
 //    * the "last updated" line is driven by `W4Loaded.freshness`, so an offline launch says how
 //      old the grid is rather than pretending it is live;
-//    * the now-line is computed from `TimeProvider.now` in Europe/Oslo against the week's own
-//      `tt_start_hour`, never from W4's baked-in `#current_time` (plan D-10).
+//    * the now-line and the header countdown share `TimeProvider.now` in Europe/Oslo, ticked
+//      on the minute and again when the app becomes active — never W4's baked-in `#current_time`
+//      (plan D-10).
 //
 
-import Combine
 import SwiftUI
 import UIKit
 
@@ -31,28 +31,49 @@ struct ScheduleView: View {
     @StateObject private var viewModel = ScheduleViewModel()
     @StateObject private var settingsStore = SettingsStore.shared
 
-    @State private var dateRange: [Date] = []
-    @State private var currentPage: Int = 0
+    @State private var dateRange: [Date]
+    @State private var currentPage: Int
+    /// `scrollPosition` writes `0` during the first layout pass. Ignore that or
+    /// the tab opens on Monday two weeks ago instead of today.
+    @State private var pagerAcceptsScroll = false
     @State private var selectedEvent: TimetableEvent?
     @State private var currentTime = TimeProvider.now
     @State private var stripTopY: CGFloat = 0
     @State private var pagerHeight: CGFloat = 700
     @Environment(\.scenePhase) private var scenePhase
 
-    private let minuteTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
-
     /// W4 is one student's own timetable; there is no "someone else's schedule" surface to target.
     /// `authViewModel` is accepted and ignored so the tab shell can keep passing it.
     init(student: Student, authViewModel: AuthenticationViewModel? = nil) {
         self.student = student
+        // Build the pager on today *before* the first frame. An empty range
+        // with `currentPage = 0` used to paint Monday two weeks ago, and
+        // `scrollPosition` would sometimes keep the student there.
+        let today = W4Dates.startOfDay(TimeProvider.now)
+        let range = Self.dateRange(around: today)
+        _dateRange = State(initialValue: range)
+        _currentPage = State(
+            initialValue: range.firstIndex(where: { W4Dates.isSameDay($0, today) }) ?? 0
+        )
     }
 
     // MARK: - Date range
 
-    private func buildDateRange(around date: Date) -> [Date] {
+    private static func dateRange(around date: Date) -> [Date] {
         let monday = W4Dates.startOfWeek(containing: date)
         let start = W4Dates.adding(days: -14, to: monday)
         return (0..<28).map { W4Dates.startOfDay(W4Dates.adding(days: $0, to: start)) }
+    }
+
+    private func buildDateRange(around date: Date) -> [Date] {
+        Self.dateRange(around: date)
+    }
+
+    /// Snap the pager and the view model to today. Opening the tab must never
+    /// resume on whichever day was last on screen.
+    private func showToday(animated: Bool) {
+        selectDate(viewModel.today, animated: animated)
+        Task { await viewModel.goToToday() }
     }
 
     /// Grows the pager's range so the student can keep swiping past either end.
@@ -77,6 +98,7 @@ struct ScheduleView: View {
 
         if dateRange.isEmpty {
             dateRange = buildDateRange(around: target)
+            currentPage = dateRange.firstIndex(where: { W4Dates.isSameDay($0, target) }) ?? 0
             return
         }
 
@@ -167,15 +189,28 @@ struct ScheduleView: View {
         .coordinateSpace(name: "scheduleView")
         .onPreferenceChange(StripTopPositionKey.self) { stripTopY = $0 }
         .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                CampusStatusControl()
+            }
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                schoolCalendarToolbarButton
+                NotificationsBellButton()
+            }
+        }
+        .onAppear {
+            showToday(animated: false)
+            DispatchQueue.main.async {
+                pagerAcceptsScroll = true
+            }
+        }
+        .background {
+            TabBarSameTabReselectDetector(tabIndex: AuthenticatedTabIndex.timetable) {
+                showToday(animated: true)
+            }
+        }
         .task {
-            if dateRange.isEmpty {
-                dateRange = buildDateRange(around: viewModel.today)
-            }
-            ensureDateInRange(viewModel.today)
-            if let todayIndex = dateRange.firstIndex(where: { W4Dates.isSameDay($0, viewModel.today) }) {
-                currentPage = todayIndex
-            }
-
+            showToday(animated: false)
             await viewModel.onAppear()
             pagerHeight = computePagerHeight()
 
@@ -189,8 +224,20 @@ struct ScheduleView: View {
         .onReceive(NotificationCenter.default.publisher(for: .betterW4CachesDidClear)) { _ in
             Task { await viewModel.reset() }
         }
-        .onReceive(minuteTimer) { _ in
+        .task {
             currentTime = TimeProvider.now
+            var lastToday = W4Dates.startOfDay(currentTime)
+            while !Task.isCancelled {
+                let wait = TimeProvider.secondsUntilNextMinute(after: TimeProvider.now)
+                let nanoseconds = UInt64((wait * 1_000_000_000).rounded())
+                try? await Task.sleep(nanoseconds: nanoseconds)
+                currentTime = TimeProvider.now
+                let newToday = W4Dates.startOfDay(currentTime)
+                if !W4Dates.isSameDay(lastToday, newToday) {
+                    lastToday = newToday
+                    showToday(animated: false)
+                }
+            }
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
@@ -200,6 +247,10 @@ struct ScheduleView: View {
         .onChange(of: viewModel.weeks) { _, _ in pagerHeight = computePagerHeight() }
         .onChange(of: dateRange) { _, _ in pagerHeight = computePagerHeight() }
         .onChange(of: settingsStore.calendarStyle) { _, _ in pagerHeight = computePagerHeight() }
+        .onChange(of: settingsStore.showSchoolCalendar) { _, _ in
+            Task { await viewModel.applySchoolCalendarPreference() }
+            pagerHeight = computePagerHeight()
+        }
         .overlay(alignment: .top) {
             if let message = viewModel.errorMessage {
                 errorBanner(message)
@@ -292,7 +343,10 @@ struct ScheduleView: View {
             .scrollTargetBehavior(.paging)
             .scrollPosition(id: Binding(
                 get: { currentPage },
-                set: { if let newValue = $0 { currentPage = newValue } }
+                set: { newValue in
+                    guard pagerAcceptsScroll, let newValue else { return }
+                    currentPage = newValue
+                }
             ))
             .frame(height: pagerHeight)
             .onChange(of: currentPage) { _, newPage in
@@ -312,8 +366,6 @@ struct ScheduleView: View {
     @ViewBuilder
     private func daySchedulePage(for date: Date) -> some View {
         VStack(spacing: 0) {
-            dayContextRow(for: date)
-
             AllDayEventsView(events: viewModel.allDayEvents(on: date)) { event in
                 selectedEvent = event
             }
@@ -326,6 +378,7 @@ struct ScheduleView: View {
                     events: viewModel.timedEvents(on: date),
                     gridStartHour: viewModel.gridStartHour(for: date),
                     gridEndHour: viewModel.gridEndHour(for: date),
+                    now: currentTime,
                     onEventTapped: { selectedEvent = $0 }
                 )
                 .padding(.trailing, 16)
@@ -334,6 +387,7 @@ struct ScheduleView: View {
                     displayDate: date,
                     events: viewModel.timedEvents(on: date),
                     gridStartHour: viewModel.gridStartHour(for: date),
+                    now: currentTime,
                     onEventTapped: { selectedEvent = $0 }
                 )
                 .padding(.trailing, 16)
@@ -341,46 +395,6 @@ struct ScheduleView: View {
             }
 
             Spacer(minLength: 0)
-        }
-    }
-
-    /// W4's own day header: the rotation day, whether it is a no-classes day, and the Extra
-    /// Academics line. All three are optional — an unloaded or bare day shows nothing.
-    @ViewBuilder
-    private func dayContextRow(for date: Date) -> some View {
-        let rotation = viewModel.rotationDay(on: date)
-        let eaNote = viewModel.extraAcademicsNote(on: date)
-        let noClasses = viewModel.isNoClassesDay(date)
-
-        if rotation != nil || eaNote != nil || noClasses {
-            HStack(spacing: 8) {
-                if let rotation {
-                    Text(rotation)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Capsule().fill(Color(uiColor: .secondarySystemBackground)))
-                }
-
-                if noClasses {
-                    Text("No classes")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.orange)
-                }
-
-                if let eaNote {
-                    Label(eaNote, systemImage: "sparkles")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 10)
-            .padding(.bottom, 2)
         }
     }
 
@@ -407,6 +421,20 @@ struct ScheduleView: View {
     }
 
     // MARK: - Banners
+
+    private var schoolCalendarToolbarButton: some View {
+        Button {
+            settingsStore.saveShowSchoolCalendar(!settingsStore.showSchoolCalendar)
+        } label: {
+            Image(systemName: settingsStore.showSchoolCalendar ? "calendar.circle.fill" : "calendar")
+                .imageScale(.large)
+                .foregroundStyle(settingsStore.showSchoolCalendar ? Color.accentColor : Color.secondary)
+        }
+        .accessibilityLabel(
+            settingsStore.showSchoolCalendar ? "Hide school calendar" : "Show school calendar"
+        )
+        .accessibilityAddTraits(settingsStore.showSchoolCalendar ? [.isSelected] : [])
+    }
 
     @ViewBuilder
     private var freshnessBanner: some View {
@@ -537,7 +565,11 @@ struct LessonDetailSheet: View {
     let event: TimetableEvent
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var settingsStore = SettingsStore.shared
+    @StateObject private var directory = DirectoryViewModel()
+    @State private var people: [DirectoryPerson] = []
+    @State private var peopleLoading = false
 
     private var themeColor: Color {
         event.accentColor(useSubjectColors: settingsStore.useSubjectColors)
@@ -559,6 +591,11 @@ struct LessonDetailSheet: View {
                        !notes.isEmpty {
                         Divider()
                         noteSection(title: "Note", text: notes)
+                    }
+
+                    if !people.isEmpty || peopleLoading {
+                        Divider()
+                        peopleSection
                     }
 
                     if let href = event.href, let url = openInW4URL(href) {
@@ -586,6 +623,9 @@ struct LessonDetailSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .task(id: event.id) {
+            await loadPeople()
+        }
     }
 
     // MARK: Header
@@ -594,9 +634,9 @@ struct LessonDetailSheet: View {
         HStack(spacing: 12) {
             Image(systemName: event.iconName)
                 .font(.title2)
-                .foregroundColor(themeColor)
+                .foregroundColor(themeColor.readableAccent(colorScheme: colorScheme))
                 .frame(width: 44, height: 44)
-                .background(themeColor.opacity(0.12))
+                .background(themeColor.opacity(0.14))
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
             VStack(alignment: .leading, spacing: 3) {
@@ -652,7 +692,16 @@ struct LessonDetailSheet: View {
             }
 
             if let teacher = event.teacher, !teacher.isEmpty {
-                infoRow(icon: "person", text: teacher)
+                if let uwcId = event.teacherUwcId, !uwcId.isEmpty {
+                    NavigationLink {
+                        StudentProfileView(uwcId: uwcId, directory: directory)
+                    } label: {
+                        infoRow(icon: "person", text: teacher)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    infoRow(icon: "person", text: teacher)
+                }
             }
 
             if let attendance = event.attendance {
@@ -689,6 +738,92 @@ struct LessonDetailSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color(UIColor.secondarySystemBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+    }
+
+    // MARK: People
+
+    private var staff: [DirectoryPerson] { people.filter { $0.kind == .staff } }
+    private var students: [DirectoryPerson] { people.filter { $0.kind != .staff } }
+
+    @ViewBuilder
+    private var peopleSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("People")
+                .font(.headline)
+
+            if peopleLoading && people.isEmpty {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                    Spacer()
+                }
+                .padding(.vertical, 8)
+            }
+
+            if !staff.isEmpty {
+                Text("Teachers")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+                ForEach(staff) { person in
+                    personRow(person)
+                }
+            }
+
+            if !students.isEmpty {
+                if !staff.isEmpty { Spacer().frame(height: 4) }
+                Text("Students")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+                ForEach(students) { person in
+                    personRow(person)
+                }
+            }
+        }
+    }
+
+    private func personRow(_ person: DirectoryPerson) -> some View {
+        NavigationLink {
+            StudentProfileView(person: person, directory: directory)
+        } label: {
+            HStack(spacing: 12) {
+                W4AvatarView(
+                    url: person.photoURL ?? W4PeopleParser.photoURL(forUWCId: person.uwcId),
+                    name: person.displayName,
+                    size: 36
+                )
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(person.displayName)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.primary)
+                    if let subtitle = person.subtitle, !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func loadPeople() async {
+        peopleLoading = true
+        defer { peopleLoading = false }
+        do {
+            let loaded = try await ClassRosterRepository.shared.people(for: event)
+            people = loaded.value
+        } catch {
+            if error is CancellationError { return }
+            (error as? W4Error)?.notifyIfSessionExpired()
         }
     }
 

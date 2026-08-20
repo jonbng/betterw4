@@ -106,7 +106,12 @@ struct SubjectMapper {
         #"^n\s*/?\s*a$"#,
         #"^tba$"#,
         #"^tbd$"#,
-        #"^[-–—]+$"#
+        #"^[-–—]+$"#,
+        #"^breakfast$"#,
+        #"^break$"#,
+        #"^lunch$"#,
+        #"^house cleaning$"#,
+        #"^special programme$"#
     ]
 
     /// [I] Generic, digit-bearing class/cohort tokens (`DP1`, `IB2`, `Y1`, `25`), plus the
@@ -292,6 +297,14 @@ struct SubjectMapper {
 
         if let match = resolveCanonicalCandidate(token) {
             return match
+        }
+
+        if let parsed = W4ClassId.parse(normalized) {
+            let code = parsed.subjectCode.lowercased()
+            if let match = resolveCanonicalCandidate(code) {
+                return match
+            }
+            return code
         }
 
         // Retry once with a leading class/cohort code removed: `DP1 Biology HL`.

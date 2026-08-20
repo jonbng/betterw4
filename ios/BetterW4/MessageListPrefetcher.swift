@@ -2,7 +2,7 @@
 //  MessageListPrefetcher.swift
 //  BetterW4
 //
-//  Warms the W4 inbox in the background so the Messages tab opens on content, and keeps the tab
+//  Warms the W4 inbox in the background so More ▸ Mail opens on content, and keeps the
 //  badge honest (plan Wave 5 item 5.3).
 //
 //  Two rules, and they are the whole point of this file:
@@ -36,6 +36,7 @@ enum MessageListPrefetcher {
 
     /// Warms the inbox if its 5-minute TTL has lapsed. Cheap and safe to call on every tab change.
     static func schedulePrefetch(for student: Student) {
+        guard MailFeatureFlags.visible else { return }
         guard !student.isDemo else { return }
         Task(priority: .utility) {
             await coordinator.run(force: false, using: MailRepository.shared)
@@ -48,6 +49,7 @@ enum MessageListPrefetcher {
     /// Named for the Lectio `Ulæst` folder it used to refresh; on W4 there is no unread folder,
     /// only the inbox, and its unread rows are the badge.
     static func refreshUnreadFolder(for student: Student) {
+        guard MailFeatureFlags.visible else { return }
         guard !student.isDemo else { return }
         Task(priority: .utility) {
             await coordinator.run(force: true, using: MailRepository.shared)
