@@ -32,7 +32,24 @@ var SHEET_TITLE = 'BetterW4 — TestFlight testers';
 /** Minimum iOS the app runs on. Must match IPHONEOS_DEPLOYMENT_TARGET. */
 var MINIMUM_IOS = '18.5';
 
+/**
+ * Calls an optional Form setting, logging and continuing if this account will not accept it.
+ * Used only for settings the form is still usable without.
+ */
+function trySet(form, method, value) {
+  try {
+    if (typeof form[method] !== 'function') {
+      Logger.log('skipped ' + method + ' — not available in this Apps Script version');
+      return;
+    }
+    form[method](value);
+  } catch (e) {
+    Logger.log('skipped ' + method + ' — ' + e.message);
+  }
+}
+
 function createTesterForm() {
+  Logger.log('creating form…');
   var form = FormApp.create(FORM_TITLE);
 
   form.setDescription(
@@ -45,10 +62,17 @@ function createTesterForm() {
     'This takes about three minutes.'
   );
 
-  form.setProgressBarEnabled(true);
+  // `setProgressBar`, NOT `setProgressBarEnabled` — the latter does not exist and throws
+  // `TypeError: form.setProgressBarEnabled is not a function`, killing the run one line after
+  // the form has already been created. That leaves an orphan form in Drive every attempt.
+  form.setProgressBar(true);
   form.setAllowResponseEdits(true);
-  form.setLimitOneResponsePerUser(true);   // set false if testers lack Google accounts
-  form.setCollectEmail(false);             // their Google address is NOT their Apple Account
+
+  // Both of these depend on the account type: one-response-per-user needs sign-in, and on a
+  // personal Google account (rather than a Workspace one) it can be refused outright. Neither
+  // is worth losing the whole form over, so they are attempted and shrugged off.
+  trySet(form, 'setLimitOneResponsePerUser', true);
+  trySet(form, 'setCollectEmail', false);   // their Google address is NOT their Apple Account
 
   // ── 1. What you are signing up for ──────────────────────────────────────────
   form.addSectionHeaderItem()
@@ -232,10 +256,14 @@ function createTesterForm() {
     'address in Settings ▸ (your name) actually matches what you gave us.'
   );
 
+  Logger.log('questions added; linking response sheet…');
+
   // A linked sheet, with the columns already in TestFlight's CSV import order.
   var sheet = SpreadsheetApp.create(SHEET_TITLE);
   form.setDestination(FormApp.DestinationType.SPREADSHEET, sheet.getId());
 
+  Logger.log('');
+  Logger.log('DONE.');
   Logger.log('Form (edit):    ' + form.getEditUrl());
   Logger.log('Form (share):   ' + form.getPublishedUrl());
   Logger.log('Responses:      ' + sheet.getUrl());
