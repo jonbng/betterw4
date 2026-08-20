@@ -9,5 +9,15 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<false/>
 	</dict>
+	<!-- Answers App Store Connect's export-compliance question once, in the build, instead of
+	     by hand on every single upload. `false` is the correct answer here: the app's only
+	     cryptography is HTTPS to w4.uwcrcn.no via URLSession and the Keychain, both of which are
+	     Apple-provided and exempt. It implements no encryption of its own and ships no crypto
+	     library — SwiftSoup, the one dependency, is a pure HTML parser.
+
+	     If that ever stops being true (a bundled cipher, a custom key exchange, a VPN), this key
+	     must be removed or set to `true` and a CCATS/self-classification filed. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+	PrivacyInfo.xcprivacy — BetterW4
+
+	Apple has required this file since 1 May 2024 for any app that calls a "required reason"
+	API. Uploading without it earns an ITMS-91053 "Missing API declaration" mail from App Store
+	Connect and, for a new app, a rejection. Nothing in the app's behaviour depends on it; it is
+	a declaration, and it has to match what the code actually does.
+
+	Each entry below was verified against the tree rather than copied from a template. If you add
+	a call to one of Apple's listed APIs, add its category here in the same pass — the check is
+	static analysis over the binary, so an undeclared call is found every time.
+
+	The two claims that are *not* required-reason API declarations, and that carry the weight of
+	the App Store privacy answer, are the two at the top: this app tracks nobody and collects
+	nothing. Both are literally true — BetterW4 has no backend, no analytics SDK, and no account
+	of its own. See docs/RELEASE.md §2 for the full argument.
+-->
+<dict>
+	<!-- No tracking as Apple defines it: no linking of this app's data to third-party data for
+	     advertising or measurement, and no data broker. The app never calls ATTrackingManager
+	     and links no ad framework. -->
+	<key>NSPrivacyTracking</key>
+	<false/>
+
+	<!-- Empty because there is no tracking. Any domain listed here would be blocked outright
+	     until the user grants tracking permission; the app's one host, w4.uwcrcn.no, is the
+	     college's own server and is not a tracking domain. -->
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+
+	<!-- Empty on purpose, and it is the whole privacy nutrition label. "Collect" in Apple's
+	     sense means transmit off the device. Everything BetterW4 knows — the W4 session cookie,
+	     cached pages, preferences — stays in the app sandbox. The only thing it ever sends is
+	     the student's own credentials, back to the college's own login form. -->
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<!-- UserDefaults: preferences (theme, calendar style, subject colours, notification
+		     toggles), the review-prompt bookkeeping in ReviewPromptStore, and the directory
+		     sweep state in DirectoryRepository / DirectoryStore.
+
+		     CA92.1 is the "app's own defaults only" reason, and it is the correct one *because*
+		     the app has no app group: every one of these reads and writes lands in
+		     UserDefaults.standard, which nothing outside this app can see. An app-group suite
+		     would have required a different reason. -->
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+
+		<!-- File timestamps: AttachmentCache stamps and reads modification dates to run its LRU
+		     eviction, OutgoingMessageAttachment reads them to purge stale temporary files,
+		     ReviewEligibility reads the Documents directory's creation date to work out how long
+		     the app has been installed, and W4PageCache / MessageCacheManager enumerate file
+		     attributes to report cache size in Settings.
+
+		     C617.1 is the "files inside the app container" reason. Every path above is under the
+		     app's own Caches, Documents or temporary directory — the app reads no timestamp it
+		     did not write. -->
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+			</array>
+		</dict>
+
+		<!-- Deliberately absent, each checked against the tree on 2026-08-18:
+
+		     • DiskSpace — the caches measure themselves with NSURLFileSizeKey, which is a file
+		       size and is not in Apple's disk-space category. Nothing calls statfs, and nothing
+		       reads NSURLVolumeAvailableCapacityKey or NSFileSystemFreeSize. Do not add this
+		       entry "to be safe": an unused declaration is its own kind of wrong answer.
+		     • SystemBootTime — no systemUptime, no kern.boottime.
+		     • ActiveKeyboards — no activeInputModes.
+		-->
+	</array>
+</dict>
+</plist>

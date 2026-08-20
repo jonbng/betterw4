@@ -136,29 +136,27 @@ struct SettingsView: View {
                 .onChange(of: settingsStore.notificationsEnabled) { _, newValue in
                     settingsStore.saveNotificationsEnabled(newValue)
                     if newValue {
+                        // Asked here, on the first opt-in, and nowhere else. The app used to
+                        // request authorisation from the root view's `.task` on first launch,
+                        // before the student had asked for anything and with no notification
+                        // behind it — a prompt you can only answer wrong.
                         requestNotificationPermission()
+                    } else {
+                        rescheduleNotifications()
                     }
                 }
 
             if settingsStore.notificationsEnabled {
-                Toggle("New mail", isOn: $settingsStore.notifyNewMail)
-                    .onChange(of: settingsStore.notifyNewMail) { _, value in
-                        settingsStore.saveNotifyNewMail(value)
-                    }
-
                 Toggle("Assessments due", isOn: $settingsStore.notifyAssessments)
                     .onChange(of: settingsStore.notifyAssessments) { _, value in
                         settingsStore.saveNotifyAssessments(value)
-                    }
-
-                Toggle("Timetable changes", isOn: $settingsStore.notifyTimetableChanges)
-                    .onChange(of: settingsStore.notifyTimetableChanges) { _, value in
-                        settingsStore.saveNotifyTimetableChanges(value)
+                        rescheduleNotifications()
                     }
 
                 Toggle("Lesson reminder", isOn: $settingsStore.notifyLessonReminder)
                     .onChange(of: settingsStore.notifyLessonReminder) { _, value in
                         settingsStore.saveNotifyLessonReminder(value)
+                        rescheduleNotifications()
                     }
 
                 if settingsStore.notifyLessonReminder {
@@ -169,6 +167,7 @@ struct SettingsView: View {
                     }
                     .onChange(of: settingsStore.lessonReminderMinutes) { _, value in
                         settingsStore.saveLessonReminderMinutes(value)
+                        rescheduleNotifications()
                     }
                 }
             }
@@ -186,7 +185,7 @@ struct SettingsView: View {
         } header: {
             Text("Notifications")
         } footer: {
-            Text("BetterW4 checks W4 in the background and notifies you on this device only. Nothing is sent to a server.")
+            Text("Reminders are scheduled on this device from the timetable and assessments already loaded, and appear even when BetterW4 is closed. Nothing is sent to a server, and the app does not check W4 in the background.")
         }
     }
 
@@ -341,7 +340,14 @@ struct SettingsView: View {
                 settingsStore.saveNotificationsEnabled(granted)
             }
             await refreshNotificationAuthorization()
+            await NotificationScheduler.shared.preferencesChanged()
         }
+    }
+
+    /// Applies a preference change to the pending notifications straight away, so switching a
+    /// reminder off clears it now rather than at the next timetable load.
+    private func rescheduleNotifications() {
+        Task { await NotificationScheduler.shared.preferencesChanged() }
     }
 
     private func openSystemSettings() {

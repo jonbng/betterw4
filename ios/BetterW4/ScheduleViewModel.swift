@@ -310,6 +310,19 @@ final class ScheduleViewModel: ObservableObject {
         if actualKey != requestedKey {
             weekNavigationAvailable = false
         }
+
+        scheduleLessonReminders(isDemo: loaded.freshness == .demo)
+    }
+
+    /// Hands every loaded lesson to `NotificationScheduler`, which decides what deserves a
+    /// reminder and drops the rest.
+    ///
+    /// All loaded weeks are sent, not just the one that just landed: the scheduler treats its
+    /// input as the complete picture and clears anything missing from it, so passing a single
+    /// week would delete the neighbours' reminders every time the student paged.
+    private func scheduleLessonReminders(isDemo: Bool) {
+        let lessons = weeks.values.flatMap { $0.days.flatMap(\.events) }
+        Task { await NotificationScheduler.shared.updateLessons(lessons, isDemo: isDemo) }
     }
 
     // MARK: - Errors

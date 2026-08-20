@@ -1,0 +1,28 @@
+//  Signing.xcconfig
+//  BetterW4
+//
+//  The single place the Apple Developer team is set. It is applied at the *project* level, so
+//  the app target and the test target cannot drift apart again — they did, and a mismatched
+//  team is the kind of thing that only surfaces at archive time with a signing error that does
+//  not mention the mismatch.
+//
+//  ┌─────────────────────────────────────────────────────────────────────────────────────────┐
+//  │ TODO — CONFIRM BEFORE THE FIRST ARCHIVE                                                 │
+//  │                                                                                          │
+//  │ Set DEVELOPMENT_TEAM below to the Apple Developer Program team that owns                │
+//  │ dk.jonathanb.w4 in App Store Connect. The value here is the one that was already on     │
+//  │ the app target; docs/RELEASE.md previously claimed a different one (9ULRK8DH95), which  │
+//  │ is what the test target carried. Only one of them can be right.                         │
+//  │                                                                                          │
+//  │ Find yours: Xcode ▸ Settings ▸ Accounts ▸ (your account) ▸ the 10-character Team ID,    │
+//  │ or developer.apple.com/account ▸ Membership details.                                    │
+//  │                                                                                          │
+//  │ Setting the team in the Xcode UI instead is fine — Xcode writes DEVELOPMENT_TEAM onto   │
+//  │ the target, which overrides this file. Do it on *both* targets if you go that way.      │
+//  └─────────────────────────────────────────────────────────────────────────────────────────┘
+
+DEVELOPMENT_TEAM = 5L74RXWG44
+
+//  Simulator builds sign ad hoc and ignore the team entirely, which is why CI stays green
+//  whatever this says. A device build or an archive does not.
+CODE_SIGN_STYLE = Automatic

@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import UserNotifications
 
 @main
 struct BetterW4App: App {
@@ -19,24 +18,18 @@ struct BetterW4App: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .task {
-                    await requestNotificationsIfNeeded()
-                }
-        }
-    }
-
-    private func requestNotificationsIfNeeded() async {
-        let center = UNUserNotificationCenter.current()
-        let settings = await center.notificationSettings()
-        guard settings.authorizationStatus == .notDetermined else { return }
-
-        do {
-            let granted = try await center.requestAuthorization(options: [.alert, .badge, .sound])
-            await MainActor.run {
-                SettingsStore.shared.saveNotificationsEnabled(granted)
-            }
-        } catch {
-            print("Notification permission error: \(error)")
         }
     }
 }
+
+//  Notification permission is deliberately *not* requested here.
+//
+//  It used to be: the root view ran `requestAuthorization` from `.task` on first launch, so the
+//  very first thing a new student saw was a system prompt — asked before they had opened a single
+//  screen, and with nothing behind it, because no notification was ever sent. A student who
+//  declined could not be asked again.
+//
+//  It is now asked lazily by `SettingsView`, the first time the "Allow notifications" toggle is
+//  turned on, which is the only moment the app has something concrete to schedule.
+//  `NotificationScheduler` does the scheduling from timetable and assessment data the app has
+//  already loaded.

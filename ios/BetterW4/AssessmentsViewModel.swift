@@ -449,6 +449,13 @@ final class AssessmentsViewModel: ObservableObject {
             freshness = loaded.freshness
             errorMessage = nil
             await refreshWriteAvailability(generation, target)
+            // Due-date reminders are scheduled from whatever month is loaded. The scheduler
+            // treats this as the complete set and clears anything not in it, which is what makes
+            // an assessment marked done on the server stop reminding.
+            await NotificationScheduler.shared.updateAssessments(
+                loaded.value,
+                isDemo: loaded.freshness == .demo
+            )
         } catch {
             guard isCurrent(generation, target) else { return }
             // Rule 7: a cancelled load is not a failure and must not be shown.

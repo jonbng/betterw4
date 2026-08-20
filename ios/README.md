@@ -79,7 +79,7 @@ to a third party; a surviving `gymId` would put a school scope into a cache key 
 college. Both scripts exempt comment lines — a note explaining *why* there is no `__VIEWSTATE` is
 what stops someone reintroducing it.
 
-Current state: **743 tests passing, both gates clean.**
+Current state: **759 tests passing, both gates clean.**
 
 ---
 
@@ -144,10 +144,15 @@ behind them yet.
 
 ### Known defects
 
-Written down rather than quietly carried: preferences do not persist on device (an app-group
-`UserDefaults` suite with no entitlement), the notification toggles are write-only with no background
-refresh behind them, and `Localizable.strings` is a stale Lectio-era file the app does not read. Full
-list with file and line references in **`docs/W4_PORT_PLAN.md` §0.3**.
+The App Store readiness pass on 2026-08-18 closed five of the six: preferences now persist
+(`UserDefaults.standard`, not a phantom app-group suite), notifications actually fire
+(`NotificationScheduler` schedules lesson and assessment reminders locally; the two toggles that
+needed background refresh were removed), permission is asked on first opt-in rather than at launch,
+the unused `UIBackgroundModes` is gone, and the stale Lectio-era `Localizable.strings` is deleted.
+
+**Still open:** the login state machine has no tests — 729 lines carrying the ordering bug that
+matters most, with nothing asserting it. Full list with file and line references in
+**`docs/W4_PORT_PLAN.md` §0.3**.
 
 ---
 
@@ -157,7 +162,8 @@ list with file and line references in **`docs/W4_PORT_PLAN.md` §0.3**.
 |---|---|
 | `docs/BUILD.md` | Clone to running app. Start here. |
 | `docs/W4_PORT_PLAN.md` | The master plan. **§0 is the current state, wave by wave**, including what diverged from the plan and why. §2 is where the five specs disagreed and how each conflict was settled. |
-| `docs/RELEASE.md` | App Store submission: the review path, the privacy answer, entitlements, and what still blocks a submission. |
+| `docs/RELEASE.md` | App Store reference: the review path, the privacy answer, entitlements, and what still blocks a submission. |
+| `../IOSGuide.md` | **The ordered App Store walkthrough** — what was fixed, what you still have to do, and every App Store Connect field. Start here for a submission. |
 | `docs/spec/parsers.md` | Every selector, with a bug register of places the Android port is wrong. |
 | `docs/spec/reviewer-notes.md` | Verified versus assumed, in more detail than this page. |
 | `../README.md` | The W4 protocol brief — routes, the login flow, cookies, session-death rules. Shared with the Android app. |

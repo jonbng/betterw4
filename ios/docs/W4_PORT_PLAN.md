@@ -85,12 +85,15 @@ rename whenever someone wants it, and not worth a red build on its own.
 | 7.5: `MoreView.swift` (new file) | `MoreView` lives inside `ContentView.swift:201` | No behavioural difference. |
 | 7.2: `MailboxView.swift`, `MessagesView.swift` deleted | `MessagesView.swift` kept as the mail list | Name only. |
 
-### 0.3 Known defects — found while documenting, deliberately not fixed
+### 0.3 Known defects — five of six fixed in the App Store readiness pass (2026-08-18)
 
-These are written down rather than repaired because this pass was documentation-only. Each is real,
-each was verified in the tree, and each is a genuine bug against a Done criterion in this plan.
+These were written down on 2026-08-16 rather than repaired, because that pass was documentation-only.
+Items 1–5 were fixed on 2026-08-18 while preparing the App Store submission — each was a blocker or a
+review risk, not just a tidiness point. Item 6 is still open. The original text of each is kept so the
+diagnosis is not lost.
 
-1. **Every user preference is silently discarded on a real device.** `SettingsStore.swift:82` declares
+1. ~~**Every user preference is silently discarded on a real device.**~~ **FIXED 2026-08-18** —
+   `SettingsStore` now opens `UserDefaults.standard`; `appGroupIdentifier` is gone. Original: `SettingsStore.swift:82` declares
    `appGroupIdentifier = "group.dk.elliottf.betterw4"` and line 123 opens
    `UserDefaults(suiteName:)` on it; all 15 preference writes go through that optional. The app has
    **no app-group entitlement** — `BetterW4/BetterW4.entitlements` contains only
@@ -98,28 +101,38 @@ each was verified in the tree, and each is a genuine bug against a Done criterio
    style, subject colours and every notification toggle are affected. The one-line fix is
    `UserDefaults.standard`; it is one line because the plan already decided it, and it is left undone
    only because this pass does not touch Swift.
-2. **The four notification toggles are write-only, and the app promises something it does not do.**
+2. ~~**The four notification toggles are write-only.**~~ **FIXED 2026-08-18** — `NotificationScheduler.swift`
+   schedules `UNCalendarNotificationTrigger` reminders for lessons and assessment due dates from data
+   already on disk, so no background refresh is needed. `notifyNewMail` and `notifyTimetableChanges`
+   were **removed** rather than backed: both need a scheduled fetch-and-diff the app does not do. The
+   Settings footer now says what actually happens. `NotificationPlannerTests` covers the rules.
+   Original:
    `notifyNewMail`, `notifyAssessments`, `notifyTimetableChanges`, `notifyLessonReminder` and
    `lessonReminderMinutes` have zero readers outside `SettingsView`/`SettingsStore`. Wave 9.3 never
    landed: there is no `BackgroundRefresh.swift`, no `NotificationScheduler.swift`, no
    `NotificationDiff.swift`, and no `BGTaskScheduler` call anywhere. Meanwhile
    `SettingsView.swift:189` tells the student "BetterW4 checks W4 in the background and notifies you
    on this device only." It does not. Either build 9.3 or delete the section.
-3. **The app asks for notification permission on first launch and never sends a notification.**
+3. ~~**The app asks for notification permission on first launch.**~~ **FIXED 2026-08-18** — the
+   request moved out of `BetterW4App` entirely; `SettingsView` asks on first opt-in, as 9.3 wanted.
+   Original:
    `BetterW4App.swift:28` requests authorisation from `.task` on the root view. The plan wanted it
    requested lazily on first toggle (9.3). Combined with (2), this is a permission prompt with
    nothing behind it — and an App Review question waiting to happen.
-4. **`UIBackgroundModes = fetch` is declared and unused.** `project.pbxproj:367,405` sets
+4. ~~**`UIBackgroundModes = fetch` is declared and unused.**~~ **FIXED 2026-08-18** — removed from
+   both configurations; verified absent from a built `Info.plist`. Original: `project.pbxproj:367,405` sets
    `INFOPLIST_KEY_UIBackgroundModes = fetch` with no background work to justify it. Remove it or
    implement 9.3 before submitting.
-5. **`Localizable.strings` is dead, and localisation was never actually adopted.** The file is 86
+5. ~~**`Localizable.strings` is dead.**~~ **FIXED 2026-08-18** — `BetterW4/en.lproj/` deleted. Every
+   `String(localized:)` call site already carried a `defaultValue`, so nothing changed on screen.
+   Original: The file is 86
    lines of Lectio-era keys — `browser_extension.*`, `profile_picture.*`, and the `message.*`
    reaction/edit keys Wave 9.5 said to delete — while the whole app has exactly **4**
    `NSLocalizedString` / `String(localized:)` call sites across 129 files. Every string the user
    reads is a hardcoded English literal. That is a defensible choice for an English-only app, but
    then the strings file should go; as it stands it is a stale artefact that will mislead the next
    person. Note also that `check-english.sh` scans Swift only, so it would not catch Danish here.
-6. **The login state machine has no tests.** `W4LoginClient.swift` is 729 lines carrying the ordering
+6. **STILL OPEN — the login state machine has no tests.** `W4LoginClient.swift` is 729 lines carrying the ordering
    bug that matters most — a `verify2fa` page also renders `Welcome,`, so OTP must be classified
    before authenticated — and nothing asserts it. The plan's `W4LoginFlowTests` and its two synthetic
    fixtures were never written. This is the largest untested surface in the app and it is the one

@@ -181,6 +181,11 @@ final class AuthenticationViewModel: ObservableObject {
         await authService.logout(student: student)
         isSubmitting = false
 
+        // Pending reminders name this student's lessons and assessments. They have to go with the
+        // session, for the same reason the caches do: the next person to hold the phone must not
+        // get a notification about the last one's timetable.
+        await NotificationScheduler.shared.clearAll()
+
         otpChallenge = nil
         errorMessage = nil
         authState = .unauthenticated

@@ -13,7 +13,7 @@ they talk to `w4.uwcrcn.no` and nothing else, and store everything on the device
 
 | Path | What it is | Start at |
 |---|---|---|
-| **`ios/`** | **BetterW4 for iOS** — SwiftUI, iOS 18.5+, iPhone and iPad. Native login + 2FA, four tabs (Timetable · Mail · Assessments · More), offline-first caching, demo mode. Builds green; 743 tests passing. | **[`ios/README.md`](ios/README.md)** — features, how to build, and an honest per-surface status of what is verified against real W4 markup versus synthesized fixtures. |
+| **`ios/`** | **BetterW4 for iOS** — SwiftUI, iOS 18.5+, iPhone and iPad. Native login + 2FA, four tabs (Timetable · Mail · Assessments · More), offline-first caching, demo mode. Builds green; 759 tests passing. | **[`ios/README.md`](ios/README.md)** — features, how to build, and an honest per-surface status of what is verified against real W4 markup versus synthesized fixtures. For a submission, start at **[`IOSGuide.md`](IOSGuide.md)**. |
 | **`android/`** | **BetterW4 for Android** — Kotlin + Jetpack Compose, min SDK 29, plus a Wear module. | [`android/README.md`](android/README.md) · [`android/NATIVE_ANDROID_PLAN.md`](android/NATIVE_ANDROID_PLAN.md) |
 | **`references/`** | The evidence both apps were built from: a HAR, saved W4 pages, and the BetterLectio Android client being ported. | §2 below |
 | **the rest of this file** | **The protocol brief** — routes, cookies, the login flow, session-death rules, form payloads. Shared by both apps and authoritative for both. | §1 onward |

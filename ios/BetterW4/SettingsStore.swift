@@ -79,20 +79,16 @@ enum LessonReminderLead: Int, CaseIterable, Identifiable {
 final class SettingsStore: ObservableObject {
     static let shared = SettingsStore()
 
-    static let appGroupIdentifier = "group.dk.elliottf.betterw4"
-
     /// Subject mappings are scoped `"w4::<uwcId>"`; W4 is one school, so the namespace is fixed.
     static let scopeNamespace = "w4"
 
-    private let userDefaults: UserDefaults?
+    private let userDefaults: UserDefaults
 
     // MARK: - Keys
     private enum Keys {
         static let lessonMappingCache = "w4.settings.subjectMappings"
         static let notificationsEnabled = "notificationsEnabled"
-        static let notifyNewMail = "w4.notify.newMail"
         static let notifyAssessments = "w4.notify.assessments"
-        static let notifyTimetableChanges = "w4.notify.timetableChanges"
         static let notifyLessonReminder = "w4.notify.lessonReminder"
         static let lessonReminderMinutes = "w4.notify.lessonReminderMinutes"
         static let calendarStyle = "calendarStyle"
@@ -108,10 +104,14 @@ final class SettingsStore: ObservableObject {
     @Published var useSubjectColors: Bool = true
 
     /// Master switch. Every per-type toggle below is only honoured while this is on.
+    ///
+    /// There used to be two more — `notifyNewMail` and `notifyTimetableChanges`. Both were
+    /// removed rather than fixed: answering either question means fetching W4 on a schedule and
+    /// diffing the result, which needs background refresh this app does not implement. They were
+    /// write-only switches over nothing. What survives is what `NotificationPlanner` can actually
+    /// schedule ahead of time from data already on disk.
     @Published var notificationsEnabled: Bool = false
-    @Published var notifyNewMail: Bool = true
     @Published var notifyAssessments: Bool = true
-    @Published var notifyTimetableChanges: Bool = true
     @Published var notifyLessonReminder: Bool = false
     @Published var lessonReminderMinutes: LessonReminderLead = .ten
 
@@ -120,7 +120,15 @@ final class SettingsStore: ObservableObject {
 
     // MARK: - Initialization
     private init() {
-        self.userDefaults = UserDefaults(suiteName: Self.appGroupIdentifier)
+        // `UserDefaults.standard`, not an app-group suite. This used to open
+        // `UserDefaults(suiteName: "group.dk.elliottf.betterw4")` against an entitlements file
+        // that declares no app group, so the suite was always nil and every preference write in
+        // this file was silently discarded on a real device — theme, calendar style, subject
+        // colours and the notification toggles all forgot themselves on relaunch. Nothing shares
+        // these preferences with an extension, so the app's own defaults are the right home for
+        // them. Adding the entitlement instead would also change the privacy manifest's
+        // UserDefaults reason away from CA92.1.
+        self.userDefaults = .standard
         loadSettings()
 
         SubjectMapper.mappingProvider = { [weak self] canonicalKey in
@@ -150,28 +158,26 @@ final class SettingsStore: ObservableObject {
 
     // MARK: - Loading
     private func loadSettings() {
-        if let data = userDefaults?.data(forKey: Keys.lessonMappingCache),
+        if let data = userDefaults.data(forKey: Keys.lessonMappingCache),
            let cached = try? JSONDecoder().decode([String: [String: SubjectMapper.ResolvedLessonMapping]].self, from: data) {
             cachedLessonMappingsByScope = cached
         }
 
         notificationsEnabled = bool(Keys.notificationsEnabled, default: false)
-        notifyNewMail = bool(Keys.notifyNewMail, default: true)
         notifyAssessments = bool(Keys.notifyAssessments, default: true)
-        notifyTimetableChanges = bool(Keys.notifyTimetableChanges, default: true)
         notifyLessonReminder = bool(Keys.notifyLessonReminder, default: false)
 
-        if let raw = userDefaults?.object(forKey: Keys.lessonReminderMinutes) as? Int,
+        if let raw = userDefaults.object(forKey: Keys.lessonReminderMinutes) as? Int,
            let lead = LessonReminderLead(rawValue: raw) {
             lessonReminderMinutes = lead
         }
 
-        if let raw = userDefaults?.string(forKey: Keys.calendarStyle),
+        if let raw = userDefaults.string(forKey: Keys.calendarStyle),
            let style = CalendarStyle(rawValue: raw) {
             calendarStyle = style
         }
 
-        if let raw = userDefaults?.string(forKey: Keys.appearanceMode),
+        if let raw = userDefaults.string(forKey: Keys.appearanceMode),
            let mode = AppearanceMode(rawValue: raw) {
             appearanceMode = mode
         }
@@ -181,59 +187,49 @@ final class SettingsStore: ObservableObject {
 
     /// `UserDefaults.bool` cannot tell "false" from "never set", so the default is applied here.
     private func bool(_ key: String, default fallback: Bool) -> Bool {
-        guard let stored = userDefaults?.object(forKey: key) as? Bool else { return fallback }
+        guard let stored = userDefaults.object(forKey: key) as? Bool else { return fallback }
         return stored
     }
 
     // MARK: - Saving
     private func saveLessonMappingCache() {
         guard let data = try? JSONEncoder().encode(cachedLessonMappingsByScope) else { return }
-        userDefaults?.set(data, forKey: Keys.lessonMappingCache)
+        userDefaults.set(data, forKey: Keys.lessonMappingCache)
     }
 
     func saveNotificationsEnabled(_ enabled: Bool) {
         notificationsEnabled = enabled
-        userDefaults?.set(enabled, forKey: Keys.notificationsEnabled)
-    }
-
-    func saveNotifyNewMail(_ enabled: Bool) {
-        notifyNewMail = enabled
-        userDefaults?.set(enabled, forKey: Keys.notifyNewMail)
+        userDefaults.set(enabled, forKey: Keys.notificationsEnabled)
     }
 
     func saveNotifyAssessments(_ enabled: Bool) {
         notifyAssessments = enabled
-        userDefaults?.set(enabled, forKey: Keys.notifyAssessments)
-    }
-
-    func saveNotifyTimetableChanges(_ enabled: Bool) {
-        notifyTimetableChanges = enabled
-        userDefaults?.set(enabled, forKey: Keys.notifyTimetableChanges)
+        userDefaults.set(enabled, forKey: Keys.notifyAssessments)
     }
 
     func saveNotifyLessonReminder(_ enabled: Bool) {
         notifyLessonReminder = enabled
-        userDefaults?.set(enabled, forKey: Keys.notifyLessonReminder)
+        userDefaults.set(enabled, forKey: Keys.notifyLessonReminder)
     }
 
     func saveLessonReminderMinutes(_ lead: LessonReminderLead) {
         lessonReminderMinutes = lead
-        userDefaults?.set(lead.rawValue, forKey: Keys.lessonReminderMinutes)
+        userDefaults.set(lead.rawValue, forKey: Keys.lessonReminderMinutes)
     }
 
     func saveCalendarStyle(_ style: CalendarStyle) {
         calendarStyle = style
-        userDefaults?.set(style.rawValue, forKey: Keys.calendarStyle)
+        userDefaults.set(style.rawValue, forKey: Keys.calendarStyle)
     }
 
     func saveAppearanceMode(_ mode: AppearanceMode) {
         appearanceMode = mode
-        userDefaults?.set(mode.rawValue, forKey: Keys.appearanceMode)
+        userDefaults.set(mode.rawValue, forKey: Keys.appearanceMode)
     }
 
     func saveUseSubjectColors(_ enabled: Bool) {
         useSubjectColors = enabled
-        userDefaults?.set(enabled, forKey: Keys.useSubjectColors)
+        userDefaults.set(enabled, forKey: Keys.useSubjectColors)
     }
 
     /// Timetable block accent: the subject hue when enabled, otherwise the status palette.
