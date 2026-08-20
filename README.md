@@ -24,6 +24,7 @@ Not made by, endorsed by, or affiliated with the college.
 |---|---|
 | [`ios/`](ios/) | SwiftUI app. See [`ios/README.md`](ios/README.md). |
 | [`android/`](android/) | Kotlin + Compose app. See [`android/README.md`](android/README.md). |
+| [`extension/`](extension/) | Browser extension (WXT + Preact) for `w4.uwcrcn.no`. See [`extension/README.md`](extension/README.md). |
 | [`PROTOCOL.md`](PROTOCOL.md) | How W4's login, cookies and pages actually work. |
 | [`PRIVACY.md`](PRIVACY.md) | What the apps store and what they don't. |
 | `references/` | Saved W4 pages, and the BetterLectio client these apps were ported from. |
@@ -46,6 +47,15 @@ cd android
 ```
 
 Log in with a real W4 account, or tap demo on the login screen.
+
+**Browser extension** — [Bun](https://bun.sh/), then:
+
+```bash
+cd extension
+bun install
+bun run dev          # Chrome
+# bun run dev:firefox
+```
 
 ## Privacy
 
