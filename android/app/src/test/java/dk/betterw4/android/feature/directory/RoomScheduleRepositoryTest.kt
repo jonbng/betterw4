@@ -7,6 +7,22 @@ import org.junit.Test
 class RoomScheduleRepositoryTest {
 
     @Test
+    fun person_and_room_cache_keys_do_not_collide_with_own_schedule() {
+        assertEquals(
+            "person_schedule_nc25eros_2026_35",
+            dk.betterw4.android.feature.schedule.TimetableWeekCache.personAcKey("nc25eros", 2026, 35),
+        )
+        assertEquals(
+            "room_schedule_a16_2026_34",
+            dk.betterw4.android.feature.schedule.TimetableWeekCache.roomAcKey("a16", 2026, 34),
+        )
+        assertEquals(
+            "schedule_nc26test_2026_35",
+            dk.betterw4.android.feature.schedule.TimetableWeekCache.ownAcKey("nc26test", 2026, 35),
+        )
+    }
+
+    @Test
     fun week_query_puts_id_year_and_week_as_siblings() {
         assertEquals(
             mapOf("uwc_id" to "nc25eros", "year" to "2026", "week" to "35"),

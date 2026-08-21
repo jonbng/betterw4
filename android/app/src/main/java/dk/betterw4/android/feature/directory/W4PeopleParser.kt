@@ -3,7 +3,6 @@ package dk.betterw4.android.feature.directory
 import dk.betterw4.android.core.w4.W4Hosts
 import dk.betterw4.android.core.w4.W4Html
 import dk.betterw4.android.core.w4.W4Urls
-import dk.betterw4.android.feature.classes.ClassLevel
 import dk.betterw4.android.feature.classes.W4ClassParser
 import dk.betterw4.android.feature.schedule.PersonClass
 import org.jsoup.Jsoup
@@ -72,27 +71,28 @@ object W4PeopleParser {
         val name = listOfNotNull(first, last).joinToString(" ").ifBlank { null }
             ?: fullName
             ?: preferred
-        val year = fields.entry("year", "ib year")
+        val yearRaw = fields["study year"] ?: fields["year"] ?: fields["ib year"]
+        val year = DirectoryYear.parse(yearRaw) ?: yearRaw
         val house = fields.entry("house")
+        val houseId = parseHouseId(root)
+        val room = fields["room"]
         val country = fields.entry("country", "nationality")
             ?: sidebarCountry(root)
-        val pronouns = fields.entry("pronouns")
+        val pronouns = fields.entry("pronouns", "pronoun")
         val email = fields.entry("email", "e-mail", "e mail")
             ?: "$uwcId@uwcrcn.no"
         val positions = StaffRoles.parse(fields.entry("position", "positions", "role", "roles"))
         val officeTel = fields.entry("office tel", "office telephone", "office phone", "office")
-        val mobile = fields.entry("mobile", "mobile phone", "cell", "phone")
+        val mobile = fields.entry("mobile", "mobile phone", "cell")
         val birthday = fields.entry("birthday", "date of birth", "birth date", "dob")
+        val graduationYear = fields["graduation year"]
+        val advisor = parseAdvisor(root)
         val classes = parseTaughtClasses(root)
         val activities = parseStaffActivities(root)
         val photo = profilePhoto(root, uwcId)
         val kind = explicitKind
             ?: profileKind(root, uwcId)
-            ?: if (positions.isNotEmpty() || classes.isNotEmpty() || activities.isNotEmpty()) {
-                DirectoryEntityKind.TEACHER
-            } else {
-                DirectoryEntityKind.STUDENT
-            }
+            ?: inferredKind(positions, activities, fields)
         val subtitle = if (kind == DirectoryEntityKind.TEACHER) {
             listOfNotNull(
                 positions.take(3).joinToString(" · ").ifBlank { null },
@@ -121,6 +121,10 @@ object W4PeopleParser {
             birthday = birthday,
             officeTel = officeTel,
             mobile = mobile,
+            houseId = houseId,
+            room = room,
+            graduationYear = graduationYear,
+            advisor = advisor,
             positions = positions,
             classes = classes,
             activities = activities,
@@ -266,9 +270,8 @@ object W4PeopleParser {
                 id = id,
                 name = parsed?.subject ?: caption.substringAfter(": ").ifBlank { caption },
                 year = parsed?.year,
-                levelLabel = parsed?.level?.badge?.takeIf { it.isNotEmpty() }
-                    ?: parsed?.level?.takeIf { it != ClassLevel.UNKNOWN && it != ClassLevel.NONE }
-                        ?.name,
+                levelLabel = parsed?.level?.badge?.takeIf { it.isNotEmpty() },
+                teacher = parsed?.teacher,
                 room = parsed?.room,
             )
             out.putIfAbsent(id.lowercase(), item)
@@ -315,6 +318,47 @@ object W4PeopleParser {
         return pretty?.let { absPhotoUrl(it.absUrl("href").ifBlank { it.attr("href") }, uwcId) }
     }
 
+    private fun inferredKind(
+        positions: List<String>,
+        activities: List<StaffActivity>,
+        fields: Map<String, String>,
+    ): DirectoryEntityKind {
+        if (positions.isNotEmpty() || activities.isNotEmpty()) return DirectoryEntityKind.TEACHER
+        if (fields.containsKey("study year") || fields.containsKey("graduation year")) {
+            return DirectoryEntityKind.STUDENT
+        }
+        return DirectoryEntityKind.STUDENT
+    }
+
+    private fun parseAdvisor(root: Element): ProfileAdvisor? {
+        for (dt in root.select("dl dt")) {
+            if (dt.text().trim().lowercase() != "advisor") continue
+            val dd = dt.nextElementSibling()?.takeIf { it.tagName().equals("dd", ignoreCase = true) }
+                ?: continue
+            val anchor = dd.selectFirst("a[href*=uwc_id]") ?: continue
+            val href = anchor.attr("abs:href").ifBlank { anchor.attr("href") }
+            val id = personId(href) ?: continue
+            val name = anchor.text().replace('\u00a0', ' ').trim()
+            if (name.isEmpty()) continue
+            return ProfileAdvisor(id = id, name = name)
+        }
+        return null
+    }
+
+    private fun parseHouseId(root: Element): String? {
+        for (dt in root.select("dl dt")) {
+            if (dt.text().trim().lowercase() != "house") continue
+            val dd = dt.nextElementSibling()?.takeIf { it.tagName().equals("dd", ignoreCase = true) }
+                ?: continue
+            val href = dd.selectFirst("a[href*=house_id]")
+                ?.attr("abs:href")
+                ?.ifBlank { dd.selectFirst("a[href*=house_id]")?.attr("href") }
+                ?: continue
+            return W4HouseParser.houseIdFromHref(href)
+        }
+        return null
+    }
+
     private fun profileKind(root: Element, uwcId: String): DirectoryEntityKind? {
         for (anchor in root.select("a[href*=uwc_id]")) {
             val href = anchor.attr("abs:href").ifBlank { anchor.attr("href") }
@@ -340,6 +384,18 @@ object W4PeopleParser {
     private val PERSON_ID = Regex("""\b([A-Za-z]{2}\d{2}[A-Za-z]+)\b""")
 }
 
+data class ProfileAdvisor(
+    val id: String,
+    val name: String,
+) {
+    val entity: DirectoryEntity
+        get() = DirectoryEntity(
+            id = id,
+            name = name,
+            kind = DirectoryEntityKind.TEACHER,
+        )
+}
+
 data class W4PersonProfile(
     val entity: DirectoryEntity,
     val email: String? = null,
@@ -350,6 +406,10 @@ data class W4PersonProfile(
     val birthday: String? = null,
     val officeTel: String? = null,
     val mobile: String? = null,
+    val houseId: String? = null,
+    val room: String? = null,
+    val graduationYear: String? = null,
+    val advisor: ProfileAdvisor? = null,
     val positions: List<String> = emptyList(),
     val classes: List<PersonClass> = emptyList(),
     val activities: List<StaffActivity> = emptyList(),

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>Register absences</title>
+</head>
+<body>
+<div id="content_inner">
+<h2>Register absences</h2>
+<p>Use the form below to self-register yourself as absent in selected classes/activities.</p>
+<div class="form" style="width: 800px">
+    <form class="main" id="student-absence-form" action="/index.php?r=people/students/absences/register&amp;date=31-Aug-2026" method="post">
+    <div class="row">
+        <label for="StudentAbsenceForm_absence_date">Absence date</label>        <input size="10" id="StudentAbsenceForm_absence_date" name="StudentAbsenceForm[absence_date]" type="text" value="31-Aug-2026" />    <div class="errorMessage" id="StudentAbsenceForm_absence_date_em_" style="display:none"></div>    </div>
+            <div class="row">
+            <label for="StudentAbsenceForm_absences">Class/activity</label>            <input id="ytStudentAbsenceForm_absences" type="hidden" value="" name="StudentAbsenceForm[absences]" /><span id="StudentAbsenceForm_absences"><input id="StudentAbsenceForm_absences_all" value="1" type="checkbox" name="StudentAbsenceForm_absences_all" /> <label style="display:inline" for="StudentAbsenceForm_absences_all">Whole day</label><br /><input id="StudentAbsenceForm_absences_0" value="1EA16CECOX_08:15" type="checkbox" name="StudentAbsenceForm[absences][]" /> <label style="display:inline" for="StudentAbsenceForm_absences_0">Economics with M. Onstad (08:15 to 09:55)</label><br /><input id="StudentAbsenceForm_absences_1" value="1CA24CPHIX_10:10" type="checkbox" name="StudentAbsenceForm[absences][]" /> <label style="display:inline" for="StudentAbsenceForm_absences_1">Philosophy with L. Melone (10:10 to 11:45)</label><br /><input id="StudentAbsenceForm_absences_2" value="1BE12CPHYX_13:25" type="checkbox" name="StudentAbsenceForm[absences][]" /> <label style="display:inline" for="StudentAbsenceForm_absences_2">Physics with M. Purkis (13:25 to 15:00)</label></span>            <div class="errorMessage" id="StudentAbsenceForm_absences_em_" style="display:none"></div>        </div>
+
+        <div class="row">
+            <label for="StudentAbsenceForm_reason" class="required">Absence reason <span class="required">*</span></label>            <input size="60" name="StudentAbsenceForm[reason]" id="StudentAbsenceForm_reason" type="text" maxlength="60" />            <div class="errorMessage" id="StudentAbsenceForm_reason_em_" style="display:none"></div>        </div>
+                <div class="row buttons">
+            <input type="submit" name="yt0" value="Register absences" />            <input onclick="location.href=&#039;/index.php?r=people/students/absences/list&#039;" name="yt1" type="button" value="Cancel" />        </div>
+        </form>
+</div><!-- form --> </div>
+</div>
+</body>
+</html>

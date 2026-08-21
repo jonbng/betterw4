@@ -1,5 +1,6 @@
 package dk.betterw4.android.feature.directory
 
+import dk.betterw4.android.core.cache.SimpleCache
 import dk.betterw4.android.core.result.AppError
 import dk.betterw4.android.core.result.AppResult
 import dk.betterw4.android.core.w4.W4Client
@@ -9,7 +10,7 @@ import dk.betterw4.android.core.w4.model.FetchPriority
 import dk.betterw4.android.core.w4.session.SessionController
 import dk.betterw4.android.feature.demo.DemoData
 import dk.betterw4.android.feature.schedule.ScheduleWeek
-import dk.betterw4.android.feature.schedule.W4TimetableParser
+import dk.betterw4.android.feature.schedule.TimetableWeekCache
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import javax.inject.Inject
@@ -18,6 +19,7 @@ import javax.inject.Singleton
 @Singleton
 class RoomScheduleRepository @Inject constructor(
     private val client: W4Client,
+    private val cache: SimpleCache,
     private val session: SessionController,
 ) {
     suspend fun listRoomsWithOccupancy(): AppResult<List<RoomParser.RoomWithOccupancy>> =
@@ -29,10 +31,46 @@ class RoomScheduleRepository @Inject constructor(
      * W4: `academics/timetable/timetable&uwc_id=` plus the matching EA route.
      * `mytimetable&uwc_id=` is ignored and always returns the signed-in student.
      */
+    fun cachedPersonWeek(
+        entity: DirectoryEntity,
+        year: Int,
+        week: Int,
+    ): ScheduleWeek? {
+        val student = session.currentStudent ?: return null
+        if (student.isDemo) return DemoData.scheduleWeek(year, week)
+        val uwcId = W4TimetableTargets.uwcId(entity.id) ?: return null
+        return TimetableWeekCache.read(
+            cache,
+            TimetableWeekCache.personAcKey(uwcId, year, week),
+            TimetableWeekCache.personEaKey(uwcId, year, week),
+            year,
+            week,
+        )?.week
+    }
+
+    fun cachedRoomWeek(
+        roomId: String,
+        year: Int,
+        week: Int,
+    ): ScheduleWeek? {
+        val student = session.currentStudent ?: return null
+        if (student.isDemo) return DemoData.scheduleWeek(year, week)
+        val id = W4TimetableTargets.roomId(roomId)
+        if (id.isBlank()) return null
+        return TimetableWeekCache.read(
+            cache,
+            TimetableWeekCache.roomAcKey(id, year, week),
+            eaKey = null,
+            year,
+            week,
+        )?.week
+    }
+
     suspend fun loadPersonWeek(
         entity: DirectoryEntity,
         year: Int,
         week: Int,
+        forceRefresh: Boolean = false,
     ): AppResult<ScheduleWeek> {
         val student = session.currentStudent ?: return AppResult.Failure(AppError.Unauthorized)
         if (student.isDemo) {
@@ -51,6 +89,9 @@ class RoomScheduleRepository @Inject constructor(
             query = W4TimetableTargets.weekQuery("uwc_id", uwcId, year, week),
             year = year,
             week = week,
+            acCacheKey = TimetableWeekCache.personAcKey(uwcId, year, week),
+            eaCacheKey = TimetableWeekCache.personEaKey(uwcId, year, week),
+            forceRefresh = forceRefresh,
         )
     }
 
@@ -58,6 +99,7 @@ class RoomScheduleRepository @Inject constructor(
         roomId: String,
         year: Int,
         week: Int,
+        forceRefresh: Boolean = false,
     ): AppResult<ScheduleWeek> {
         val student = session.currentStudent ?: return AppResult.Failure(AppError.Unauthorized)
         if (student.isDemo) {
@@ -73,6 +115,9 @@ class RoomScheduleRepository @Inject constructor(
             query = W4TimetableTargets.weekQuery("room_id", id, year, week),
             year = year,
             week = week,
+            acCacheKey = TimetableWeekCache.roomAcKey(id, year, week),
+            eaCacheKey = null,
+            forceRefresh = forceRefresh,
         )
     }
 
@@ -82,32 +127,39 @@ class RoomScheduleRepository @Inject constructor(
         query: Map<String, String>,
         year: Int,
         week: Int,
-    ): AppResult<ScheduleWeek> = coroutineScope {
-        val acDeferred = async {
-            client.get(acRoute, query = query, priority = FetchPriority.Important)
+        acCacheKey: String,
+        eaCacheKey: String?,
+        forceRefresh: Boolean,
+    ): AppResult<ScheduleWeek> {
+        val cached = TimetableWeekCache.read(cache, acCacheKey, eaCacheKey, year, week)
+        if (!forceRefresh && cached != null && cached.isFresh) {
+            return AppResult.Success(cached.week)
         }
-        val eaDeferred = eaRoute?.let { route ->
-            async {
-                client.get(route, query = query, priority = FetchPriority.Opportunistic)
+        return coroutineScope {
+            val acDeferred = async {
+                client.get(acRoute, query = query, priority = FetchPriority.Important)
             }
+            val eaDeferred = eaRoute?.let { route ->
+                async {
+                    client.get(route, query = query, priority = FetchPriority.Opportunistic)
+                }
+            }
+            val acResult = acDeferred.await()
+            val acHtml = when (acResult) {
+                is AppResult.Success -> acResult.data.body
+                is AppResult.Failure -> cache.get(acCacheKey)
+                    ?: return@coroutineScope acResult
+            }
+            val eaHtml = eaDeferred?.let { deferred ->
+                (deferred.await() as? AppResult.Success)?.data?.body
+            }
+            if (acResult is AppResult.Success) {
+                TimetableWeekCache.write(cache, acCacheKey, acHtml, eaCacheKey, eaHtml)
+            }
+            val merged = TimetableWeekCache.mergeHtml(acHtml, eaHtml, year, week)
+                ?: return@coroutineScope AppResult.Failure(AppError.Unknown("Empty timetable page"))
+            AppResult.Success(merged)
         }
-        val acHtml = when (val ac = acDeferred.await()) {
-            is AppResult.Success -> ac.data.body
-            is AppResult.Failure -> return@coroutineScope ac
-        }
-        val acWeek = W4TimetableParser.parseWeek(acHtml, year, week, source = "ac")
-        val eaHtml = eaDeferred?.let { deferred ->
-            (deferred.await() as? AppResult.Success)?.data?.body
-        }
-        val merged = if (eaHtml != null) {
-            W4TimetableParser.mergeWeeks(
-                acWeek,
-                W4TimetableParser.parseWeek(eaHtml, year, week, source = "ea"),
-            )
-        } else {
-            acWeek
-        }
-        AppResult.Success(merged)
     }
 }
 

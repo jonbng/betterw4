@@ -21,14 +21,26 @@ extension TimetableEvent {
     // MARK: - Naming and colour
 
     /// The subject name the student renamed it to, or W4's own label.
+    ///
+    /// Google Calendar overlay events keep the calendar's own title: they are
+    /// college-wide, not IB subjects, and must not go through `SubjectMapper`.
     var displayTitle: String {
+        if SchoolCalendar.isSchoolCalendarEvent(self) || CustomEvents.isCustomEvent(self) {
+            return title
+        }
         let mapped = SubjectMapper.displayName(for: subject)
         return mapped.isEmpty ? title : mapped
     }
 
-    /// SF Symbol for the subject group.
+    /// SF Symbol for the subject group, or the calendar mark for overlay events.
     var iconName: String {
-        SubjectMapper.iconName(for: subject)
+        if SchoolCalendar.isSchoolCalendarEvent(self) {
+            return "calendar"
+        }
+        if CustomEvents.isCustomEvent(self) {
+            return "calendar.badge.plus"
+        }
+        return SubjectMapper.iconName(for: subject)
     }
 
     /// Subject hue, or the status colour when subject colours are switched off.
@@ -38,6 +50,9 @@ extension TimetableEvent {
     func accentColor(useSubjectColors: Bool) -> Color {
         if SchoolCalendar.isSchoolCalendarEvent(self) {
             return Color(red: 11 / 255, green: 128 / 255, blue: 67 / 255) // #0B8043
+        }
+        if CustomEvents.isCustomEvent(self) {
+            return CustomEvents.accent
         }
         if useSubjectColors {
             return SubjectMapper.color(for: subject)

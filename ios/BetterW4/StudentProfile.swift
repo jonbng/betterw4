@@ -27,13 +27,15 @@ struct StudentProfile: Equatable, Identifiable, Sendable {
     let house: String?
     /// W4 `house_id` slug (`denmark`) so the About tab can open the house page.
     let houseId: String?
-    /// Boarding-house room heading from `people/students/byhouse` (`Room 101`).
+    /// Boarding-house room from the profile page, or `people/students/byhouse`.
     let room: String?
-    /// Academic classes from the person's public timetable.
+    /// Academic classes from the person's public profile page.
     let classes: [PersonClass]
     let country: String?
     let pronouns: String?
     let birthday: String?
+    let graduationYear: String?
+    let advisor: ProfileAdvisor?
     let lastLogin: String?
     /// The address printed on the profile page, when there was one.
     let scrapedEmail: String?
@@ -62,6 +64,8 @@ struct StudentProfile: Equatable, Identifiable, Sendable {
         country: String?,
         pronouns: String?,
         birthday: String?,
+        graduationYear: String?,
+        advisor: ProfileAdvisor?,
         lastLogin: String?,
         scrapedEmail: String?,
         officeTel: String?,
@@ -82,6 +86,8 @@ struct StudentProfile: Equatable, Identifiable, Sendable {
         self.country = country
         self.pronouns = pronouns
         self.birthday = birthday
+        self.graduationYear = graduationYear
+        self.advisor = advisor
         self.lastLogin = lastLogin
         self.scrapedEmail = scrapedEmail
         self.officeTel = officeTel
@@ -105,6 +111,8 @@ struct StudentProfile: Equatable, Identifiable, Sendable {
         self.country = Self.nonEmpty(person.country)
         self.pronouns = Self.nonEmpty(person.pronouns)
         self.birthday = nil
+        self.graduationYear = nil
+        self.advisor = nil
         self.lastLogin = nil
         self.scrapedEmail = nil
         self.officeTel = nil
@@ -124,12 +132,14 @@ struct StudentProfile: Equatable, Identifiable, Sendable {
         self.kind = person.kind
         self.year = Self.nonEmpty(person.year)
         self.house = Self.nonEmpty(person.house)
-        self.houseId = nil
-        self.room = nil
+        self.houseId = Self.nonEmpty(profile.houseId)
+        self.room = Self.nonEmpty(profile.room)
         self.classes = profile.taughtClasses
         self.country = Self.nonEmpty(person.country)
         self.pronouns = Self.nonEmpty(person.pronouns)
         self.birthday = Self.nonEmpty(profile.birthday)
+        self.graduationYear = Self.nonEmpty(profile.graduationYear)
+        self.advisor = profile.advisor
         self.lastLogin = Self.nonEmpty(profile.lastLogin)
         self.scrapedEmail = Self.nonEmpty(profile.scrapedEmail)
         self.officeTel = Self.nonEmpty(profile.officeTel)
@@ -148,10 +158,12 @@ struct StudentProfile: Equatable, Identifiable, Sendable {
     /// Labels rendered as their own row, so `extraFields` does not print them twice.
     private static let knownLabels: Set<String> = [
         "uwc id", "uwcid", "id", "name", "full name", "preferred name",
-        "year", "ib year", "house", "room", "country", "pronouns", "email",
-        "e mail", "birthday", "date of birth", "birth date", "last login",
-        "position", "positions", "office tel", "office telephone", "mobile",
-        "advisees", "ac timetable", "ea timetable"
+        "year", "ib year", "study year", "house", "room", "country", "pronouns",
+        "pronoun", "personal pronoun", "email", "e mail", "birthday",
+        "date of birth", "birth date", "last login", "position", "positions",
+        "office tel", "office telephone", "mobile", "advisees", "advisor",
+        "graduation year", "ac timetable", "ea timetable", "assessments",
+        "teachers leaders", "teachersleaders"
     ]
 
     // MARK: - Display
@@ -187,7 +199,7 @@ struct StudentProfile: Equatable, Identifiable, Sendable {
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
-    func applying(placement: HousePlacement?, classes incoming: [PersonClass]) -> StudentProfile {
+    func applying(placement: HousePlacement?) -> StudentProfile {
         let placedHouse = kind == .staff ? house : (placement?.house.name ?? house)
         let placedHouseId = kind == .staff ? houseId : (placement?.house.id ?? houseId)
         let placedRoom = kind == .staff ? room : (placement?.room?.name ?? room)
@@ -201,10 +213,12 @@ struct StudentProfile: Equatable, Identifiable, Sendable {
             house: placedHouse,
             houseId: placedHouseId,
             room: placedRoom,
-            classes: PersonClasses.merge(classes, incoming),
+            classes: classes,
             country: country ?? placement?.resident.country,
             pronouns: pronouns,
             birthday: birthday,
+            graduationYear: graduationYear,
+            advisor: advisor,
             lastLogin: lastLogin,
             scrapedEmail: scrapedEmail,
             officeTel: officeTel,
@@ -214,6 +228,8 @@ struct StudentProfile: Equatable, Identifiable, Sendable {
             extraFields: extraFields
         )
     }
+
+    var parsedBirthday: PersonBirthday? { PersonBirthday.parse(birthday) }
 
     /// Derived, never scraped: every W4 account's address is `{uwc_id}@uwcrcn.no` (README §6).
     nonisolated var email: String {

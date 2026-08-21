@@ -19,8 +19,14 @@ import dk.betterw4.android.feature.absence.AbsenceOverview
 import dk.betterw4.android.feature.absence.AbsenceRepository
 import dk.betterw4.android.feature.classes.MyClass
 import dk.betterw4.android.feature.classes.MyClassRepository
+import dk.betterw4.android.feature.teachers.MyTeacher
+import dk.betterw4.android.feature.teachers.MyTeacherRepository
+import dk.betterw4.android.feature.schedule.ClassNextLesson
+import dk.betterw4.android.feature.schedule.ClassNextLessons
 import dk.betterw4.android.feature.schedule.PersonClass
+import dk.betterw4.android.feature.schedule.ScheduleRepository
 import dk.betterw4.android.feature.classes.W4ClassParser
+import dk.betterw4.android.core.w4.W4Dates
 import dk.betterw4.android.core.util.IsoDateUtils
 import dk.betterw4.android.feature.directory.DirectoryEntity
 import dk.betterw4.android.feature.directory.DirectoryEntityKind
@@ -32,7 +38,6 @@ import dk.betterw4.android.feature.directory.HouseRepository
 import dk.betterw4.android.feature.directory.RoomScheduleRepository
 import dk.betterw4.android.feature.directory.StudentProfile
 import dk.betterw4.android.feature.directory.placementOf
-import dk.betterw4.android.feature.schedule.PersonClasses
 import dk.betterw4.android.feature.documents.W4DocumentKind
 import dk.betterw4.android.feature.documents.W4DocumentNode
 import dk.betterw4.android.feature.documents.W4DocumentsRepository
@@ -66,6 +71,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -74,9 +80,9 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 enum class MoreDestination {
-    ROOT, HOME, NOTIFICATIONS, GRADES, ABSENCE, EXTRA_ACADEMICS, EA_PAGE,
+    ROOT, HOME, NOTIFICATIONS, GRADES, ASSESSMENTS, ABSENCE, EXTRA_ACADEMICS, EA_PAGE,
     DIRECTORY, MAIL, ROOMS, HOUSES, STUDIEKORT, PLANS, MODULE_STATS, TERM, SETTINGS, SETTINGS_PRIVACY,
-    DOCUMENTS, TRIPS, ON_DUTY, MY_CLASSES,
+    DOCUMENTS, TRIPS, ON_DUTY, BIRTHDAYS, MY_CLASSES, MY_TEACHERS,
 }
 
 data class DocumentNav(
@@ -130,6 +136,8 @@ data class MoreUiState(
     val selectedHouseId: String? = null,
     val myClasses: List<MyClass> = emptyList(),
     val selectedClassId: String? = null,
+    val classNextLessons: Map<String, ClassNextLesson> = emptyMap(),
+    val myTeachers: List<MyTeacher> = emptyList(),
     val card: StudentCard? = null,
     val plans: List<StudyPlan> = emptyList(),
     val planDetail: StudyPlan? = null,
@@ -158,6 +166,8 @@ class MoreViewModel @Inject constructor(
     private val pinRepo: DirectoryPinRepository,
     private val houseRepo: HouseRepository,
     private val myClassRepo: MyClassRepository,
+    private val myTeacherRepo: MyTeacherRepository,
+    private val scheduleRepo: ScheduleRepository,
     private val roomScheduleRepo: RoomScheduleRepository,
     private val pendingCompose: PendingComposeRecipient,
     private val studiekortRepo: StudiekortRepository,
@@ -178,6 +188,9 @@ class MoreViewModel @Inject constructor(
         ),
     )
     val state: StateFlow<MoreUiState> = _state.asStateFlow()
+
+    private val personWeekCache = ConcurrentHashMap<String, ScheduleWeek>()
+    private val roomWeekCache = ConcurrentHashMap<String, ScheduleWeek>()
 
     init {
         viewModelScope.launch {
@@ -248,6 +261,7 @@ class MoreViewModel @Inject constructor(
             MoreDestination.ROOMS -> loadRoomsOccupancy()
             MoreDestination.HOUSES -> loadHouses()
             MoreDestination.MY_CLASSES -> loadMyClasses()
+            MoreDestination.MY_TEACHERS -> loadMyTeachers()
             MoreDestination.STUDIEKORT -> {
                 loadCard()
             }
@@ -266,7 +280,9 @@ class MoreViewModel @Inject constructor(
             MoreDestination.HOME,
             MoreDestination.NOTIFICATIONS,
             MoreDestination.ON_DUTY,
+            MoreDestination.BIRTHDAYS,
             MoreDestination.MAIL,
+            MoreDestination.ASSESSMENTS,
             MoreDestination.EXTRA_ACADEMICS,
             MoreDestination.EA_PAGE,
             MoreDestination.SETTINGS_PRIVACY,
@@ -461,6 +477,7 @@ class MoreViewModel @Inject constructor(
             )
         }
         if (existing?.loaded != true) loadMyClass(id)
+        loadClassNextLessons()
     }
 
     fun selectedClass(): MyClass? {
@@ -471,6 +488,7 @@ class MoreViewModel @Inject constructor(
     fun openMyClass(item: MyClass) {
         _state.update { it.copy(selectedClassId = item.id, message = null) }
         if (!item.loaded) loadMyClass(item.id)
+        loadClassNextLessons()
     }
 
     fun openClassRoom(room: dk.betterw4.android.feature.classes.ClassRoom) {
@@ -478,9 +496,49 @@ class MoreViewModel @Inject constructor(
         openRoomSchedule(RoomTarget(id = id, name = room.name))
     }
 
-    private fun loadMyClasses() = viewModelScope.launch {
-        _state.update { it.copy(loading = _state.value.myClasses.isEmpty(), message = null) }
-        when (val res = myClassRepo.loadIndex()) {
+    fun openMyTeacher(item: MyTeacher) {
+        openStudentProfile(item.entity)
+    }
+
+    private fun loadMyTeachers() = viewModelScope.launch {
+        _state.update { it.copy(loading = _state.value.myTeachers.isEmpty(), message = null) }
+        when (val res = myTeacherRepo.load()) {
+            is AppResult.Failure -> _state.update {
+                it.copy(loading = false, message = res.error.toUiText())
+            }
+            is AppResult.Success -> _state.update {
+                it.copy(myTeachers = res.data, loading = false)
+            }
+        }
+    }
+
+    fun selfClassMemberId(): String? {
+        val student = _state.value.student ?: session.currentStudent ?: return null
+        if (student.isDemo) return "S1"
+        return student.studentId
+    }
+
+    fun refreshMyClasses() {
+        val selected = _state.value.selectedClassId ?: _state.value.personOpenedClass?.id
+        if (selected != null) {
+            loadMyClass(selected, force = true)
+        } else {
+            loadMyClasses(force = true)
+        }
+    }
+
+    private fun loadClassNextLessons() = viewModelScope.launch {
+        val week = scheduleRepo.cachedWeek()
+        val next = week?.let { ClassNextLessons.map(it, W4Dates.now()) }.orEmpty()
+        _state.update { it.copy(classNextLessons = next) }
+    }
+
+    private fun loadMyClasses() = loadMyClasses(force = false)
+
+    private fun loadMyClasses(force: Boolean) = viewModelScope.launch {
+        _state.update { it.copy(loading = force || it.myClasses.isEmpty(), message = null) }
+        loadClassNextLessons()
+        when (val res = myClassRepo.loadIndex(force = force)) {
             is AppResult.Failure -> _state.update {
                 it.copy(loading = false, message = res.error.toUiText())
             }
@@ -513,8 +571,10 @@ class MoreViewModel @Inject constructor(
         }
     }
 
-    private fun loadMyClass(classId: String) = viewModelScope.launch {
-        when (val res = myClassRepo.loadClass(classId)) {
+    private fun loadMyClass(classId: String, force: Boolean = false) = viewModelScope.launch {
+        if (force) _state.update { it.copy(loading = true, message = null) }
+        loadClassNextLessons()
+        when (val res = myClassRepo.loadClass(classId, force = force)) {
             is AppResult.Success -> _state.update { state ->
                 val base = state.myClasses.firstOrNull { it.id.equals(classId, ignoreCase = true) }
                 val merged = if (base != null) W4ClassParser.merge(base, res.data) else res.data
@@ -758,12 +818,17 @@ class MoreViewModel @Inject constructor(
         val week = IsoDateUtils.isoWeek()
         val isStaff = entity.kind == DirectoryEntityKind.TEACHER
         val cachedPlacement = if (isStaff) null else _state.value.houses.placementOf(entity.id)
+        val cachedWeek = personWeekCache[personWeekKey(entity.id, year, week)]
+            ?: roomScheduleRepo.cachedPersonWeek(entity, year, week)
+        if (cachedWeek != null) {
+            personWeekCache[personWeekKey(entity.id, year, week)] = cachedWeek
+        }
         _state.update {
             it.copy(
                 selectedPerson = null,
-                loading = true,
+                loading = cachedWeek == null,
                 personEntity = entity,
-                personSchedule = null,
+                personSchedule = cachedWeek,
                 studentProfile = StudentProfile.from(entity, cachedPlacement),
                 personTab = if (isStaff) PersonProfileTab.ABOUT else PersonProfileTab.SCHEDULE,
                 personOpenedHouseId = null,
@@ -782,15 +847,15 @@ class MoreViewModel @Inject constructor(
             val placement = placementDeferred.await()
             val parsed = (profileDeferred.await() as? AppResult.Success)?.data
             rememberPlacement(placement)
-            val classes = when (weekRes) {
-                is AppResult.Success -> PersonClasses.fromWeek(weekRes.data)
-                is AppResult.Failure -> emptyList()
+            val weekData = (weekRes as? AppResult.Success)?.data
+            if (weekData != null) {
+                personWeekCache[personWeekKey(entity.id, year, week)] = weekData
             }
             _state.update {
                 it.copy(
                     loading = false,
-                    personSchedule = (weekRes as? AppResult.Success)?.data,
-                    studentProfile = StudentProfile.from(entity, placement, classes, parsed),
+                    personSchedule = weekData ?: it.personSchedule,
+                    studentProfile = StudentProfile.from(entity, placement, parsed),
                     message = (weekRes as? AppResult.Failure)?.error?.toUiText() ?: it.message,
                 )
             }
@@ -831,28 +896,42 @@ class MoreViewModel @Inject constructor(
         ) {
             return@launch
         }
-        _state.update { it.copy(loading = true) }
+        val cacheKey = personWeekKey(entity.id, year, week)
+        val memory = personWeekCache[cacheKey]
+        val cached = memory ?: roomScheduleRepo.cachedPersonWeek(entity, year, week)
+        if (cached != null) {
+            personWeekCache[cacheKey] = cached
+        }
+        _state.update {
+            it.copy(
+                loading = cached == null,
+                personWeekYear = year,
+                personWeek = week,
+                personSchedule = cached,
+            )
+        }
+        if (memory != null) return@launch
         when (val res = roomScheduleRepo.loadPersonWeek(entity, year, week)) {
-            is AppResult.Success -> _state.update {
-                val merged = PersonClasses.merge(
-                    it.studentProfile?.classes.orEmpty(),
-                    PersonClasses.fromWeek(res.data),
-                )
-                it.copy(
-                    loading = false,
-                    personWeekYear = year,
-                    personWeek = week,
-                    personSchedule = res.data,
-                    studentProfile = (it.studentProfile
-                        ?: StudentProfile(id = entity.id, name = entity.name, kind = entity.kind))
-                        .copy(classes = merged),
-                )
+            is AppResult.Success -> {
+                personWeekCache[cacheKey] = res.data
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        personWeekYear = year,
+                        personWeek = week,
+                        personSchedule = res.data,
+                    )
+                }
             }
             is AppResult.Failure -> _state.update {
                 it.copy(loading = false, message = res.error.toUiText())
             }
         }
     }
+
+    private fun personWeekKey(id: String, year: Int, week: Int) = "$id-$year-$week"
+
+    private fun roomWeekKey(id: String, year: Int, week: Int) = "room-$id-$year-$week"
 
     private fun rememberPlacement(placement: HousePlacement?) {
         val house = placement?.house ?: return
@@ -892,18 +971,24 @@ class MoreViewModel @Inject constructor(
     fun openRoomSchedule(target: RoomTarget) = viewModelScope.launch {
         val year = IsoDateUtils.isoWeekYear()
         val week = IsoDateUtils.isoWeek()
+        val cached = roomWeekCache[roomWeekKey(target.id, year, week)]
+            ?: roomScheduleRepo.cachedRoomWeek(target.id, year, week)
+        if (cached != null) {
+            roomWeekCache[roomWeekKey(target.id, year, week)] = cached
+        }
         _state.update {
             it.copy(
-                loading = true,
+                loading = cached == null,
                 roomTarget = target,
-                roomSchedule = null,
+                roomSchedule = cached,
                 roomWeekYear = year,
                 roomWeek = week,
             )
         }
         when (val res = roomScheduleRepo.loadRoomWeek(target.id, year, week)) {
-            is AppResult.Success -> _state.update {
-                it.copy(loading = false, roomSchedule = res.data)
+            is AppResult.Success -> {
+                roomWeekCache[roomWeekKey(target.id, year, week)] = res.data
+                _state.update { it.copy(loading = false, roomSchedule = res.data) }
             }
             is AppResult.Failure -> _state.update {
                 it.copy(loading = false, message = res.error.toUiText())
@@ -942,15 +1027,32 @@ class MoreViewModel @Inject constructor(
         ) {
             return@launch
         }
-        _state.update { it.copy(loading = true) }
+        val cacheKey = roomWeekKey(target.id, year, week)
+        val memory = roomWeekCache[cacheKey]
+        val cached = memory ?: roomScheduleRepo.cachedRoomWeek(target.id, year, week)
+        if (cached != null) {
+            roomWeekCache[cacheKey] = cached
+        }
+        _state.update {
+            it.copy(
+                loading = cached == null,
+                roomWeekYear = year,
+                roomWeek = week,
+                roomSchedule = cached,
+            )
+        }
+        if (memory != null) return@launch
         when (val res = roomScheduleRepo.loadRoomWeek(target.id, year, week)) {
-            is AppResult.Success -> _state.update {
-                it.copy(
-                    loading = false,
-                    roomWeekYear = year,
-                    roomWeek = week,
-                    roomSchedule = res.data,
-                )
+            is AppResult.Success -> {
+                roomWeekCache[cacheKey] = res.data
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        roomWeekYear = year,
+                        roomWeek = week,
+                        roomSchedule = res.data,
+                    )
+                }
             }
             is AppResult.Failure -> _state.update {
                 it.copy(loading = false, message = res.error.toUiText())

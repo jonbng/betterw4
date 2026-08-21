@@ -45,6 +45,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Class
@@ -52,10 +53,10 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.EventBusy
 import androidx.compose.material.icons.filled.FlightTakeoff
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Grade
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Apartment
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Mail
@@ -163,6 +164,7 @@ import dk.betterw4.android.ui.components.W4ChromeActions
 import dk.betterw4.android.ui.components.W4WebSheet
 import dk.betterw4.android.ui.components.W4WebTarget
 import dk.betterw4.android.core.FeatureFlags
+import dk.betterw4.android.ui.screens.homework.HomeworkScreen
 import dk.betterw4.android.ui.screens.messages.MessagesScreen
 import dk.betterw4.android.feature.notifications.BackgroundPermission
 import dk.betterw4.android.feature.documents.W4DocumentKind
@@ -182,6 +184,7 @@ fun MoreScreen(
     onComposeToPerson: ((MessageRecipient) -> Unit)? = null,
     isStudentsTab: Boolean = false,
     openMailToken: Int = 0,
+    openAssessmentsToken: Int = 0,
     onOpenMail: (() -> Unit)? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -262,6 +265,11 @@ fun MoreScreen(
             viewModel.navigate(MoreDestination.MAIL)
         }
     }
+    LaunchedEffect(openAssessmentsToken) {
+        if (!isStudentsTab && openAssessmentsToken > 0) {
+            viewModel.navigate(MoreDestination.ASSESSMENTS)
+        }
+    }
     LaunchedEffect(state.destination) {
         if (!FeatureFlags.MAIL_ENABLED && state.destination == MoreDestination.MAIL) {
             viewModel.popToRoot()
@@ -309,6 +317,12 @@ fun MoreScreen(
         return
     }
 
+    if (state.destination == MoreDestination.ASSESSMENTS) {
+        BackHandler { viewModel.back() }
+        HomeworkScreen(onBackToMore = viewModel::back)
+        return
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -344,6 +358,7 @@ fun MoreScreen(
                                 stringResource(R.string.more_students)
                             state.destination == MoreDestination.ROOT -> stringResource(R.string.tab_more)
                             state.destination == MoreDestination.GRADES -> stringResource(R.string.more_grades)
+                            state.destination == MoreDestination.ASSESSMENTS -> stringResource(R.string.more_assessments)
                             state.destination == MoreDestination.ABSENCE -> stringResource(R.string.more_absence)
                             state.destination == MoreDestination.DIRECTORY ->
                                 stringResource(
@@ -376,8 +391,12 @@ fun MoreScreen(
                                 stringResource(R.string.more_trips_and_travel)
                             state.destination == MoreDestination.ON_DUTY ->
                                 stringResource(R.string.more_on_duty)
+                            state.destination == MoreDestination.BIRTHDAYS ->
+                                stringResource(R.string.more_birthdays)
                             state.destination == MoreDestination.MY_CLASSES ->
                                 stringResource(R.string.more_my_classes)
+                            state.destination == MoreDestination.MY_TEACHERS ->
+                                stringResource(R.string.more_my_teachers)
                             state.destination == MoreDestination.HOME -> stringResource(R.string.more_home)
                             state.destination == MoreDestination.NOTIFICATIONS ->
                                 stringResource(R.string.more_notifications)
@@ -432,6 +451,7 @@ fun MoreScreen(
                 )
             }
             MoreDestination.MAIL -> Unit
+            MoreDestination.ASSESSMENTS -> Unit
             MoreDestination.GRADES -> {
                 if (state.loading) LoadingBox(Modifier.padding(padding))
                 else if (state.gradeDetail != null) {
@@ -486,6 +506,10 @@ fun MoreScreen(
                                     },
                                     onLongPressPerson = { previewDirectoryPersonPhoto(it) },
                                     onOpenRoom = viewModel::openClassRoom,
+                                    nextLessons = state.classNextLessons,
+                                    signedInId = viewModel.selfClassMemberId(),
+                                    useSubjectColors = useSubjectColors,
+                                    onRefresh = viewModel::refreshMyClasses,
                                 )
                                 state.personOpenedHouseId != null -> HousesContent(
                                     padding = PaddingValues(0.dp),
@@ -524,6 +548,7 @@ fun MoreScreen(
                                 onOpenHouse = viewModel::openPersonHouse,
                                 onOpenRoom = viewModel::openPersonRoom,
                                 onOpenClass = viewModel::openPersonClass,
+                                onOpenAdvisor = viewModel::openStudentProfile,
                                 onPrevWeek = { viewModel.shiftPersonWeek(-1) },
                                 onNextWeek = { viewModel.shiftPersonWeek(1) },
                                 onGoToToday = viewModel::goToPersonToday,
@@ -676,6 +701,10 @@ fun MoreScreen(
                                     },
                                     onLongPressPerson = { previewDirectoryPersonPhoto(it) },
                                     onOpenRoom = viewModel::openClassRoom,
+                                    nextLessons = state.classNextLessons,
+                                    signedInId = viewModel.selfClassMemberId(),
+                                    useSubjectColors = useSubjectColors,
+                                    onRefresh = viewModel::refreshMyClasses,
                                 )
                                 state.personOpenedHouseId != null -> HousesContent(
                                     padding = PaddingValues(0.dp),
@@ -714,6 +743,7 @@ fun MoreScreen(
                                 onOpenHouse = viewModel::openPersonHouse,
                                 onOpenRoom = viewModel::openPersonRoom,
                                 onOpenClass = viewModel::openPersonClass,
+                                onOpenAdvisor = viewModel::openStudentProfile,
                                 onPrevWeek = { viewModel.shiftPersonWeek(-1) },
                                 onNextWeek = { viewModel.shiftPersonWeek(1) },
                                 onGoToToday = viewModel::goToPersonToday,
@@ -1263,6 +1293,148 @@ fun MoreScreen(
             )
             MoreDestination.TRIPS -> TripsTravelSurface(padding = padding)
             MoreDestination.ON_DUTY -> OnDutySurface(padding = padding)
+            MoreDestination.BIRTHDAYS -> {
+                if (state.personEntity != null) {
+                    val person = state.personEntity!!
+                    Column(Modifier.padding(padding).fillMaxSize()) {
+                        when {
+                            state.personOpenedClass != null -> MyClassesContent(
+                                padding = PaddingValues(0.dp),
+                                listState = listState,
+                                loading = state.loading,
+                                classes = emptyList(),
+                                selectedClass = state.personOpenedClass,
+                                onOpenClass = {},
+                                onOpenPerson = { entity ->
+                                    viewModel.openStudentProfile(entity)
+                                },
+                                onLongPressPerson = { previewDirectoryPersonPhoto(it) },
+                                onOpenRoom = viewModel::openClassRoom,
+                                nextLessons = state.classNextLessons,
+                                signedInId = viewModel.selfClassMemberId(),
+                                useSubjectColors = useSubjectColors,
+                                onRefresh = viewModel::refreshMyClasses,
+                            )
+                            state.personOpenedHouseId != null -> HousesContent(
+                                padding = PaddingValues(0.dp),
+                                listState = listState,
+                                loading = state.loading,
+                                houses = state.houses,
+                                selectedHouse = state.houses.firstOrNull {
+                                    it.id == state.personOpenedHouseId
+                                },
+                                onOpenHouse = viewModel::openHouse,
+                                onOpenResident = { entity ->
+                                    viewModel.openStudentProfile(entity)
+                                },
+                                onLongPressResident = { previewDirectoryPersonPhoto(it) },
+                            )
+                            else -> StudentProfileScreen(
+                                loading = state.loading,
+                                entity = person,
+                                profile = state.studentProfile,
+                                week = state.personSchedule,
+                                weekNumber = state.personWeek,
+                                weekYear = state.personWeekYear,
+                                pinned = state.pinnedIds.contains(person.id),
+                                tab = state.personTab,
+                                defaultCalendarStyle = calendarStyle,
+                                displayTitle = viewModel::displayTitleForEvent,
+                                accentFor = { Color(viewModel.accentArgbForEvent(it)) },
+                                onWriteMessage = { openCompose(person) },
+                                onTogglePin = { viewModel.togglePin(person) },
+                                onSelectTab = viewModel::setPersonTab,
+                                onOpenHouse = viewModel::openPersonHouse,
+                                onOpenRoom = viewModel::openPersonRoom,
+                                onOpenClass = viewModel::openPersonClass,
+                                onOpenAdvisor = viewModel::openStudentProfile,
+                                onPrevWeek = { viewModel.shiftPersonWeek(-1) },
+                                onNextWeek = { viewModel.shiftPersonWeek(1) },
+                                onGoToToday = viewModel::goToPersonToday,
+                                onLoadWeekForDate = viewModel::loadPersonWeekForDate,
+                            )
+                        }
+                    }
+                } else {
+                    BirthdaysSurface(
+                        padding = padding,
+                        onOpenPerson = viewModel::openStudentProfile,
+                    )
+                }
+            }
+            MoreDestination.MY_TEACHERS -> {
+                if (state.personEntity != null) {
+                    val person = state.personEntity!!
+                    Column(Modifier.padding(padding).fillMaxSize()) {
+                        when {
+                            state.personOpenedClass != null -> MyClassesContent(
+                                padding = PaddingValues(0.dp),
+                                listState = listState,
+                                loading = state.loading,
+                                classes = emptyList(),
+                                selectedClass = state.personOpenedClass,
+                                onOpenClass = {},
+                                onOpenPerson = { entity ->
+                                    viewModel.openStudentProfile(entity)
+                                },
+                                onLongPressPerson = { previewDirectoryPersonPhoto(it) },
+                                onOpenRoom = viewModel::openClassRoom,
+                                nextLessons = state.classNextLessons,
+                                signedInId = viewModel.selfClassMemberId(),
+                                useSubjectColors = useSubjectColors,
+                                onRefresh = viewModel::refreshMyClasses,
+                            )
+                            state.personOpenedHouseId != null -> HousesContent(
+                                padding = PaddingValues(0.dp),
+                                listState = listState,
+                                loading = state.loading,
+                                houses = state.houses,
+                                selectedHouse = state.houses.firstOrNull {
+                                    it.id == state.personOpenedHouseId
+                                },
+                                onOpenHouse = viewModel::openHouse,
+                                onOpenResident = { entity ->
+                                    viewModel.openStudentProfile(entity)
+                                },
+                                onLongPressResident = { previewDirectoryPersonPhoto(it) },
+                            )
+                            else -> StudentProfileScreen(
+                                loading = state.loading,
+                                entity = person,
+                                profile = state.studentProfile,
+                                week = state.personSchedule,
+                                weekNumber = state.personWeek,
+                                weekYear = state.personWeekYear,
+                                pinned = state.pinnedIds.contains(person.id),
+                                tab = state.personTab,
+                                defaultCalendarStyle = calendarStyle,
+                                displayTitle = viewModel::displayTitleForEvent,
+                                accentFor = { Color(viewModel.accentArgbForEvent(it)) },
+                                onWriteMessage = { openCompose(person) },
+                                onTogglePin = { viewModel.togglePin(person) },
+                                onSelectTab = viewModel::setPersonTab,
+                                onOpenHouse = viewModel::openPersonHouse,
+                                onOpenRoom = viewModel::openPersonRoom,
+                                onOpenClass = viewModel::openPersonClass,
+                                onOpenAdvisor = viewModel::openStudentProfile,
+                                onPrevWeek = { viewModel.shiftPersonWeek(-1) },
+                                onNextWeek = { viewModel.shiftPersonWeek(1) },
+                                onGoToToday = viewModel::goToPersonToday,
+                                onLoadWeekForDate = viewModel::loadPersonWeekForDate,
+                            )
+                        }
+                    }
+                } else {
+                    MyTeachersContent(
+                        padding = padding,
+                        listState = listState,
+                        loading = state.loading,
+                        teachers = state.myTeachers,
+                        onOpenTeacher = viewModel::openMyTeacher,
+                        onLongPressTeacher = { previewDirectoryPersonPhoto(it) },
+                    )
+                }
+            }
             MoreDestination.MY_CLASSES -> {
                 if (state.personEntity != null) {
                     val person = state.personEntity!!
@@ -1288,6 +1460,10 @@ fun MoreScreen(
                                     },
                                     onLongPressPerson = { previewDirectoryPersonPhoto(it) },
                                     onOpenRoom = viewModel::openClassRoom,
+                                    nextLessons = state.classNextLessons,
+                                    signedInId = viewModel.selfClassMemberId(),
+                                    useSubjectColors = useSubjectColors,
+                                    onRefresh = viewModel::refreshMyClasses,
                                 )
                                 state.personOpenedHouseId != null -> HousesContent(
                                     padding = PaddingValues(0.dp),
@@ -1326,6 +1502,7 @@ fun MoreScreen(
                                 onOpenHouse = viewModel::openPersonHouse,
                                 onOpenRoom = viewModel::openPersonRoom,
                                 onOpenClass = viewModel::openPersonClass,
+                                onOpenAdvisor = viewModel::openStudentProfile,
                                 onPrevWeek = { viewModel.shiftPersonWeek(-1) },
                                 onNextWeek = { viewModel.shiftPersonWeek(1) },
                                 onGoToToday = viewModel::goToPersonToday,
@@ -1402,6 +1579,10 @@ fun MoreScreen(
                         },
                         onLongPressPerson = { previewDirectoryPersonPhoto(it) },
                         onOpenRoom = viewModel::openClassRoom,
+                        nextLessons = state.classNextLessons,
+                        signedInId = viewModel.selfClassMemberId(),
+                        useSubjectColors = useSubjectColors,
+                        onRefresh = viewModel::refreshMyClasses,
                     )
                 }
             }
@@ -2575,9 +2756,9 @@ private fun MoreRoot(
         item { SectionHeader(stringResource(R.string.more_section_academics)) }
         item {
             MoreLink(
-                icon = Icons.Default.Class,
-                title = stringResource(R.string.more_my_classes),
-                onClick = { onNavigate(MoreDestination.MY_CLASSES) },
+                icon = Icons.Default.Description,
+                title = stringResource(R.string.more_assessments),
+                onClick = { onNavigate(MoreDestination.ASSESSMENTS) },
             )
         }
         item {
@@ -2589,9 +2770,16 @@ private fun MoreRoot(
         }
         item {
             MoreLink(
-                icon = Icons.Default.EventBusy,
-                title = stringResource(R.string.more_absence),
-                onClick = { onNavigate(MoreDestination.ABSENCE) },
+                icon = Icons.Default.Class,
+                title = stringResource(R.string.more_my_classes),
+                onClick = { onNavigate(MoreDestination.MY_CLASSES) },
+            )
+        }
+        item {
+            MoreLink(
+                icon = Icons.Default.Groups,
+                title = stringResource(R.string.more_my_teachers),
+                onClick = { onNavigate(MoreDestination.MY_TEACHERS) },
             )
         }
         item {
@@ -2614,6 +2802,13 @@ private fun MoreRoot(
                 icon = Icons.Default.Phone,
                 title = stringResource(R.string.more_on_duty),
                 onClick = { onNavigate(MoreDestination.ON_DUTY) },
+            )
+        }
+        item {
+            MoreLink(
+                icon = Icons.Default.Cake,
+                title = stringResource(R.string.more_birthdays),
+                onClick = { onNavigate(MoreDestination.BIRTHDAYS) },
             )
         }
         item { SectionHeader(stringResource(R.string.more_section_boarding)) }
@@ -2661,13 +2856,14 @@ private fun MoreRoot(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AbsenceScreenContent(
+fun AbsenceScreenContent(
     loading: Boolean,
     overview: AbsenceOverview?,
     causes: List<String>,
     onSaveCause: (id: String, cause: String, note: String) -> Unit,
     isDemo: Boolean,
     modifier: Modifier = Modifier,
+    scrollToTopToken: Int = 0,
 ) {
     if (loading && overview == null) {
         LoadingBox(modifier)
@@ -2678,6 +2874,7 @@ private fun AbsenceScreenContent(
         W4AbsenceScreen(
             overview = overview,
             isDemo = isDemo,
+            scrollToTopToken = scrollToTopToken,
             modifier = modifier,
         )
         return
@@ -2737,9 +2934,14 @@ private fun W4AbsenceScreen(
     overview: AbsenceOverview,
     isDemo: Boolean,
     modifier: Modifier = Modifier,
+    scrollToTopToken: Int = 0,
 ) {
     var ledger by remember { mutableIntStateOf(0) }
     var webTarget by remember { mutableStateOf<W4WebTarget?>(null) }
+    val listState = rememberLazyListState()
+    LaunchedEffect(scrollToTopToken) {
+        if (scrollToTopToken > 0) listState.animateScrollToItem(0)
+    }
     val registerTitle = stringResource(R.string.absence_register)
     val filled = AbsencePresentation.sortNewestFirst(overview.registrations)
     val ac = filled.filter { it.lessonTitle.equals("Academics", ignoreCase = true) }
@@ -2795,7 +2997,7 @@ private fun W4AbsenceScreen(
                 )
             }
         } else {
-            LazyColumn(Modifier.weight(1f)) {
+            LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
                 items(shown, key = { it.id }) { reg ->
                     AbsenceRegistrationRow(reg = reg, onClick = null)
                     AppListDivider()

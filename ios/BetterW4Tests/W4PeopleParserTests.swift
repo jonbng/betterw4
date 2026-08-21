@@ -11,6 +11,9 @@
 //    people-list.html — **[I] SYNTHESIZED.** No W4 people list page has ever been
 //        captured. Every assertion made against it verifies `W4PeopleParser`, not
 //        W4's markup.
+//    student-profile.html — live `people/students/student` markup shape captured
+//        21 Aug 2026 (`dl/dt/dd`, `Birth date` as `28-Jan`, `{name}'s classes`).
+//        Identities in the fixture are invented.
 //    home.html — **[V]** real capture of the Home page, used here only to prove
 //        that the people parser refuses to read Home's birthday block as a
 //        directory. The markup is real; the "should be empty" part is this port's
@@ -542,6 +545,42 @@ final class W4PeopleParserTests: XCTestCase {
         XCTAssertTrue(profile.taughtClasses.isEmpty)
         XCTAssertTrue(profile.activities.isEmpty)
         XCTAssertEqual(profile.person.country, "Norway")
+    }
+
+    /// Live `people/students/student` shape captured 21 Aug 2026: `dl/dt/dd`,
+    /// `Birth date` as `28-Jan`, and `{name}'s classes` with `class_id` captions.
+    /// Identities in the fixture are invented; the markup is not.
+    func testStudentProfileParsesClassesBirthdayAdvisorAndDoesNotLookLikeStaff() throws {
+        let profile = try XCTUnwrap(W4PeopleParser.parseProfile(try fixture("student-profile")))
+
+        XCTAssertEqual(profile.uwcId, "nc00aaa")
+        XCTAssertEqual(profile.person.kind, .student)
+        XCTAssertEqual(profile.person.preferredName, "Al")
+        XCTAssertEqual(profile.person.year, "1")
+        XCTAssertEqual(profile.person.house, "Sweden")
+        XCTAssertEqual(profile.houseId, "sweden")
+        XCTAssertEqual(profile.room, "103")
+        XCTAssertEqual(profile.person.pronouns, "he/him/his")
+        XCTAssertEqual(profile.birthday, "28-Jan")
+        XCTAssertEqual(profile.graduationYear, "2028")
+        XCTAssertEqual(profile.mobile, "+45 12 34 56 78")
+        XCTAssertEqual(profile.advisor?.uwcId, "nc00ccc")
+        XCTAssertEqual(profile.advisor?.name, "Chris Chen")
+        XCTAssertEqual(profile.taughtClasses.count, 5)
+        let econ = try XCTUnwrap(profile.taughtClasses.first { $0.classId == "1EA16CECOX" })
+        XCTAssertEqual(econ.name, "Economics")
+        XCTAssertEqual(econ.year, "1")
+        XCTAssertEqual(econ.levelLabel, "HL/SL")
+        XCTAssertEqual(econ.teacher, "Mona Eide Onstad")
+        XCTAssertEqual(econ.room, "A 1.6")
+        let math = try XCTUnwrap(profile.taughtClasses.first { $0.classId == "1DA13HMTAA" })
+        XCTAssertEqual(math.levelLabel, "HL")
+        let spanish = try XCTUnwrap(profile.taughtClasses.first { $0.classId == "1YK12SSPAB" })
+        XCTAssertEqual(spanish.levelLabel, "SL")
+        let advisorGroup = try XCTUnwrap(profile.taughtClasses.first { $0.classId == "Julius" })
+        XCTAssertEqual(advisorGroup.name, "Advisor group")
+        XCTAssertNil(advisorGroup.levelLabel)
+        XCTAssertEqual(profile.activities.count, 0)
     }
 
     // MARK: - Synthesized markup builders ([I] — invented, never captured)

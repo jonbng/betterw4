@@ -64,6 +64,18 @@ class W4UrlsTest {
     }
 
     @Test
+    fun birthdays_month_query_is_a_sibling_key() {
+        val url = W4Urls.route(
+            W4Urls.Routes.BIRTHDAYS_INDEX,
+            mapOf("month" to "8", "year" to "2026"),
+        )
+        assertEquals("people/birthdays/index", url.queryParameter("r"))
+        assertEquals("8", url.queryParameter("month"))
+        assertEquals("2026", url.queryParameter("year"))
+        assertFalse(url.queryParameter("r")!!.contains("month"))
+    }
+
+    @Test
     fun class_page_query_is_a_sibling_key() {
         val url = W4Urls.route(
             W4Urls.Routes.CLASS,

@@ -349,9 +349,9 @@ final class SettingsStore: ObservableObject {
     /// Clears every cached W4 page and every derived store: portraits, the URL cache, the page
     /// cache, the timetable, assessments, mail, attachments, the directory and the page chrome.
     ///
-    /// Deliberately **not** cleared: Keychain credentials, the session cookie, and preferences
-    /// (theme, calendar style, subject colours, notification toggles). Clearing the cache is not
-    /// signing out — features.md §3 rule 10.
+    /// Deliberately **not** cleared: Keychain credentials, the session cookie, preferences
+    /// (theme, calendar style, subject colours, notification toggles), and custom timetable
+    /// events. Clearing the cache is not signing out — features.md §3 rule 10.
     ///
     /// Posts `.betterW4CachesDidClear` when it finishes so open screens reload.
     func clearAllCaches() {

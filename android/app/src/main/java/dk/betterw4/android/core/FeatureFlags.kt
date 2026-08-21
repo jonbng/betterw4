@@ -9,4 +9,7 @@ object FeatureFlags {
      * Hidden until the mailer is ready to ship.
      */
     val MAIL_ENABLED: Boolean = false
+
+    /** Native POST of `people/students/absences/register`. Form is captured; success HTML is not. */
+    val ABSENCE_WRITES_ENABLED: Boolean = true
 }

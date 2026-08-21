@@ -168,6 +168,43 @@ class W4PeopleParserTest {
     }
 
     @Test
+    fun student_profile_parses_classes_birthday_advisor_and_is_not_staff() {
+        val html = javaClass.classLoader!!
+            .getResourceAsStream("w4/student-profile.html")!!
+            .bufferedReader()
+            .readText()
+        val profile = W4PeopleParser.parseProfile(html)!!
+        assertEquals("nc00aaa", profile.entity.id)
+        assertEquals(DirectoryEntityKind.STUDENT, profile.entity.kind)
+        assertEquals("1", profile.year)
+        assertEquals("Sweden", profile.house)
+        assertEquals("sweden", profile.houseId)
+        assertEquals("103", profile.room)
+        assertEquals("he/him/his", profile.pronouns)
+        assertEquals("28-Jan", profile.birthday)
+        assertEquals("2028", profile.graduationYear)
+        assertEquals("+45 12 34 56 78", profile.mobile)
+        assertEquals("nc00ccc", profile.advisor?.id)
+        assertEquals("Chris Chen", profile.advisor?.name)
+        assertEquals(5, profile.classes.size)
+        val econ = profile.classes.first { it.id == "1EA16CECOX" }
+        assertEquals("Economics", econ.name)
+        assertEquals("1", econ.year)
+        assertEquals("HL/SL", econ.levelLabel)
+        assertEquals("Mona Eide Onstad", econ.teacher)
+        assertEquals("A 1.6", econ.room)
+        val math = profile.classes.first { it.id == "1DA13HMTAA" }
+        assertEquals("HL", math.levelLabel)
+        val spanish = profile.classes.first { it.id == "1YK12SSPAB" }
+        assertEquals("SL", spanish.levelLabel)
+        val advisorGroup = profile.classes.first { it.id == "Julius" }
+        assertEquals("Advisor group", advisorGroup.name)
+        assertNull(advisorGroup.levelLabel)
+        assertTrue(profile.activities.isEmpty())
+        assertTrue(profile.positions.isEmpty())
+    }
+
+    @Test
     fun birthday_photos_from_home() {
         val home = """
             <div id="birthdays">

@@ -146,6 +146,18 @@ final class RememberMeTests: XCTestCase {
         XCTAssertEqual(CookieManager.shared.cookieHeader(from: .empty), "")
     }
 
+    func testFormEncodingPreservesRepeatedCheckboxNames() {
+        let data = W4Form.encode([
+            ("StudentAbsenceForm[absences][]", "CLASS_A_08:15"),
+            ("StudentAbsenceForm[absences][]", "CLASS_B_10:10")
+        ])
+        XCTAssertEqual(
+            String(decoding: data, as: UTF8.self),
+            "StudentAbsenceForm%5Babsences%5D%5B%5D=CLASS_A_08%3A15&" +
+                "StudentAbsenceForm%5Babsences%5D%5B%5D=CLASS_B_10%3A10"
+        )
+    }
+
     // MARK: - Helpers
 
     private static func form(checkbox: String) -> String {

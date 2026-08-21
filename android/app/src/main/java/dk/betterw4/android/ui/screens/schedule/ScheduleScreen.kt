@@ -4,9 +4,11 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -16,13 +18,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -33,10 +41,14 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -48,20 +60,28 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dk.betterw4.android.R
 import dk.betterw4.android.core.FeatureFlags
 import dk.betterw4.android.core.i18n.asString
+import dk.betterw4.android.core.i18n.resolve
 import dk.betterw4.android.feature.live.LiveLessonBoundary
 import dk.betterw4.android.feature.directory.DirectoryEntityKind
 import dk.betterw4.android.feature.schedule.EventStatus
 import dk.betterw4.android.feature.schedule.LessonParticipant
 import dk.betterw4.android.ui.screens.more.StudentProfileScreen
+import dk.betterw4.android.feature.schedule.CustomEvents
 import dk.betterw4.android.feature.schedule.ScheduleEvent
 import dk.betterw4.android.feature.schedule.SchoolCalendar
 import dk.betterw4.android.feature.schedule.statusLabelText
@@ -77,13 +97,17 @@ import dk.betterw4.android.ui.components.DetailSheetHeader
 import dk.betterw4.android.ui.components.DetailSheetPadding
 import dk.betterw4.android.ui.components.ErrorBox
 import dk.betterw4.android.ui.components.LessonContentBlocks
-import dk.betterw4.android.ui.components.LoadingBox
+import dk.betterw4.android.ui.components.ScheduleDaySkeleton
 import dk.betterw4.android.ui.components.PersonAvatar
 import dk.betterw4.android.ui.components.StatusChip
 import dk.betterw4.android.ui.components.W4ChromeActions
 import dk.betterw4.android.ui.theme.BetterW4ThemeExtras
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -107,6 +131,15 @@ fun ScheduleScreen(
 
     val now = rememberW4Now()
     val today = now.toLocalDate()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    var confirmDelete by remember { mutableStateOf<ScheduleEvent?>(null) }
+
+    LaunchedEffect(state.message) {
+        val message = state.message ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message.resolve(context))
+        viewModel.consumeMessage()
+    }
 
     // Opening the tab (and re-tapping it) always shows today, not the last
     // day the student browsed. `today` is also a key so a midnight rollover
@@ -156,6 +189,12 @@ fun ScheduleScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = viewModel::openPrivateEventSheet) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = stringResource(R.string.cd_add_custom_event),
+                        )
+                    }
                     IconButton(
                         onClick = { viewModel.setShowSchoolCalendar(!showSchoolCalendar) },
                     ) {
@@ -209,6 +248,7 @@ fun ScheduleScreen(
                 ),
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         PullToRefreshBox(
             isRefreshing = state.loading && state.week != null,
@@ -218,7 +258,6 @@ fun ScheduleScreen(
                 .padding(padding),
         ) {
             when {
-                state.loading && state.week == null && state.eventsByDate.isEmpty() -> LoadingBox()
                 state.error != null && state.week == null && state.eventsByDate.isEmpty() ->
                     ErrorBox(state.error, onRetry = { viewModel.refresh(true) })
                 else -> {
@@ -280,17 +319,24 @@ fun ScheduleScreen(
                                 .fillMaxWidth()
                                 .weight(1f),
                         ) { date ->
-                            val events = state.eventsByDate[date]
-                                ?: state.week?.days?.find { it.date == date }?.events
-                                ?: emptyList()
-
-                            DayPageContent(
-                                date = date,
-                                events = viewModel.visibleEvents(events),
-                                calendarStyle = calendarStyle,
-                                viewModel = viewModel,
-                                now = now,
-                            )
+                            when {
+                                viewModel.isDayLoaded(date) -> {
+                                    val events = state.eventsByDate[date]
+                                        ?: state.week?.days?.find { it.date == date }?.events
+                                        ?: emptyList()
+                                    DayPageContent(
+                                        date = date,
+                                        events = viewModel.visibleEvents(events),
+                                        calendarStyle = calendarStyle,
+                                        viewModel = viewModel,
+                                        now = now,
+                                    )
+                                }
+                                viewModel.isDayLoading(date) || state.loading -> ScheduleDaySkeleton()
+                                else -> EmptyDayState(
+                                    message = stringResource(R.string.schedule_pull_to_load),
+                                )
+                            }
                         }
                     }
                 }
@@ -300,6 +346,17 @@ fun ScheduleScreen(
 
     // Lesson detail sheet
     state.selectedEvent?.let { event ->
+        if (CustomEvents.isCustomEvent(event) && state.selectedPerson == null) {
+            ModalBottomSheet(onDismissRequest = { viewModel.selectEvent(null) }) {
+                CustomEventDetail(
+                    event = event,
+                    title = viewModel.displayTitle(event),
+                    onEdit = { viewModel.openEditPrivateEvent(event) },
+                    onDelete = { confirmDelete = event },
+                )
+            }
+            return@let
+        }
         val accent = Color(viewModel.accentArgbFor(event))
         val statusColor = when (event.status) {
             EventStatus.CHANGED -> extended.statusChanged
@@ -335,6 +392,7 @@ fun ScheduleScreen(
                         accentFor = { Color(viewModel.accentArgbFor(it)) },
                         onWriteMessage = {},
                         onTogglePin = viewModel::togglePersonPin,
+                        onOpenAdvisor = viewModel::openPerson,
                         onPrevWeek = { viewModel.shiftPersonWeek(-1) },
                         onNextWeek = { viewModel.shiftPersonWeek(1) },
                         onGoToToday = viewModel::goToPersonToday,
@@ -475,7 +533,7 @@ fun ScheduleScreen(
                     if (viewModel.canDeleteEvent(event)) {
                         Spacer(Modifier.height(8.dp))
                         TextButton(
-                            onClick = { viewModel.deletePrivateEvent(event) },
+                            onClick = { confirmDelete = event },
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Text(stringResource(R.string.private_event_delete))
@@ -491,62 +549,267 @@ fun ScheduleScreen(
         }
     }
 
+    confirmDelete?.let { event ->
+        AlertDialog(
+            onDismissRequest = { confirmDelete = null },
+            title = { Text(stringResource(R.string.private_event_delete)) },
+            text = { Text(stringResource(R.string.private_event_delete_confirm)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmDelete = null
+                        viewModel.deletePrivateEvent(event)
+                    },
+                ) {
+                    Text(stringResource(R.string.private_event_delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
     if (state.showPrivateEvent) {
         ModalBottomSheet(onDismissRequest = viewModel::closePrivateEventSheet) {
-            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val titleFocus = remember { FocusRequester() }
+            val keyboard = LocalSoftwareKeyboardController.current
+            LaunchedEffect(Unit) { titleFocus.requestFocus() }
+            Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(onClick = viewModel::closePrivateEventSheet) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        if (state.editingPrivateEventId != null) {
+                            stringResource(R.string.private_event_edit_title)
+                        } else {
+                            stringResource(R.string.private_event_title)
+                        },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    TextButton(
+                        onClick = viewModel::savePrivateEvent,
+                        enabled = state.privateTitle.isNotBlank(),
+                    ) {
+                        Text(stringResource(R.string.private_event_save), fontWeight = FontWeight.SemiBold)
+                    }
+                }
                 Text(
-                    if (state.editingPrivateEventId != null) {
-                        stringResource(R.string.private_event_edit_title)
-                    } else {
-                        stringResource(R.string.private_event_title)
-                    },
-                    style = MaterialTheme.typography.headlineSmall,
+                    stringResource(R.string.private_event_device_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                 )
                 OutlinedTextField(
                     value = state.privateTitle,
                     onValueChange = { viewModel.updatePrivateField(title = it) },
-                    label = { Text(stringResource(R.string.private_event_name)) },
-                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text(stringResource(R.string.private_event_name_hint)) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(titleFocus),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Sentences,
+                        imeAction = ImeAction.Done,
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            keyboard?.hide()
+                            viewModel.savePrivateEvent()
+                        },
+                    ),
                 )
-                OutlinedTextField(
-                    value = state.privateStartDate,
-                    onValueChange = { viewModel.updatePrivateField(startDate = it) },
-                    label = { Text(stringResource(R.string.private_event_start_date)) },
-                    modifier = Modifier.fillMaxWidth(),
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        stringResource(R.string.private_event_all_day),
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(
+                        checked = state.privateAllDay,
+                        onCheckedChange = { viewModel.updatePrivateField(allDay = it) },
+                    )
+                }
+                DateTimeField(
+                    label = stringResource(R.string.private_event_start),
+                    value = state.privateStart,
+                    allDay = state.privateAllDay,
+                    onValueChange = { viewModel.updatePrivateField(start = it) },
                 )
-                OutlinedTextField(
-                    value = state.privateStartTime,
-                    onValueChange = { viewModel.updatePrivateField(startTime = it) },
-                    label = { Text(stringResource(R.string.private_event_start_time)) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = state.privateEndDate,
-                    onValueChange = { viewModel.updatePrivateField(endDate = it) },
-                    label = { Text(stringResource(R.string.private_event_end_date)) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = state.privateEndTime,
-                    onValueChange = { viewModel.updatePrivateField(endTime = it) },
-                    label = { Text(stringResource(R.string.private_event_end_time)) },
-                    modifier = Modifier.fillMaxWidth(),
+                DateTimeField(
+                    label = stringResource(R.string.private_event_end),
+                    value = state.privateEnd,
+                    allDay = state.privateAllDay,
+                    onValueChange = { viewModel.updatePrivateField(end = it) },
                 )
                 OutlinedTextField(
                     value = state.privateNote,
                     onValueChange = { viewModel.updatePrivateField(note = it) },
-                    label = { Text(stringResource(R.string.private_event_note)) },
+                    placeholder = { Text(stringResource(R.string.private_event_note)) },
                     modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
                 )
-                state.message?.let { Text(it.asString(), color = MaterialTheme.colorScheme.primary) }
-                Button(onClick = viewModel::savePrivateEvent, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.private_event_save))
-                }
-                Spacer(Modifier.height(16.dp))
+                state.message?.let { Text(it.asString(), color = MaterialTheme.colorScheme.error) }
+                Spacer(Modifier.height(24.dp))
             }
         }
     }
 }
+
+@Composable
+private fun CustomEventDetail(
+    event: ScheduleEvent,
+    title: String,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp)
+            .padding(bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(
+            event.timeLabelText(),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            stringResource(R.string.private_event_on_device),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        val notes = event.notes?.trim().orEmpty()
+        if (notes.isNotEmpty()) {
+            Text(notes, style = MaterialTheme.typography.bodyMedium)
+        }
+        Spacer(Modifier.height(8.dp))
+        Button(onClick = onEdit, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.private_event_edit))
+        }
+        TextButton(onClick = onDelete, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.private_event_delete))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DateTimeField(
+    label: String,
+    value: LocalDateTime,
+    allDay: Boolean,
+    onValueChange: (LocalDateTime) -> Unit,
+) {
+    var pickingDate by remember { mutableStateOf(false) }
+    var pickingTime by remember { mutableStateOf(false) }
+    val locale = Locale.getDefault()
+    val dateFmt = remember(locale) { DateTimeFormatter.ofPattern("EEE d MMM yyyy", locale) }
+    val timeFmt = remember { DateTimeFormatter.ofPattern("HH:mm") }
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = MaterialTheme.typography.labelLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                value.toLocalDate().format(dateFmt),
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { pickingDate = true }
+                    .padding(vertical = 8.dp),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            if (!allDay) {
+                Text(
+                    value.toLocalTime().format(timeFmt),
+                    modifier = Modifier
+                        .clickable { pickingTime = true }
+                        .padding(vertical = 8.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+        }
+    }
+
+    if (pickingDate) {
+        val dateState = rememberDatePickerState(
+            initialSelectedDateMillis = value.toLocalDate().toUtcMillis(),
+        )
+        DatePickerDialog(
+            onDismissRequest = { pickingDate = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val millis = dateState.selectedDateMillis
+                        if (millis != null) {
+                            onValueChange(
+                                LocalDateTime.of(millis.toUtcLocalDate(), value.toLocalTime()),
+                            )
+                        }
+                        pickingDate = false
+                    },
+                ) { Text(stringResource(R.string.action_ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pickingDate = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        ) {
+            DatePicker(state = dateState)
+        }
+    }
+
+    if (pickingTime) {
+        val timeState = rememberTimePickerState(
+            initialHour = value.hour,
+            initialMinute = value.minute,
+            is24Hour = true,
+        )
+        AlertDialog(
+            onDismissRequest = { pickingTime = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onValueChange(
+                            LocalDateTime.of(
+                                value.toLocalDate(),
+                                LocalTime.of(timeState.hour, timeState.minute),
+                            ),
+                        )
+                        pickingTime = false
+                    },
+                ) { Text(stringResource(R.string.action_ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pickingTime = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+            text = { TimePicker(state = timeState) },
+        )
+    }
+}
+
+private fun LocalDate.toUtcMillis(): Long =
+    atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+
+private fun Long.toUtcLocalDate(): LocalDate =
+    Instant.ofEpochMilli(this).atZone(ZoneOffset.UTC).toLocalDate()
 
 @Composable
 private fun DayPageContent(
@@ -563,6 +826,7 @@ private fun DayPageContent(
             displayTitle = { viewModel.displayTitle(it) },
             accentFor = { Color(viewModel.accentArgbFor(it)) },
             onEventClick = { viewModel.selectEvent(it) },
+            onAddAt = { viewModel.openPrivateEventSheet(at = it) },
             modifier = Modifier.fillMaxSize(),
             now = now,
         )
@@ -572,6 +836,7 @@ private fun DayPageContent(
             displayTitle = { viewModel.displayTitle(it) },
             accentFor = { Color(viewModel.accentArgbFor(it)) },
             onEventClick = { viewModel.selectEvent(it) },
+            onAdd = { viewModel.openPrivateEventSheet() },
             modifier = Modifier.fillMaxSize(),
         )
     }

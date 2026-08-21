@@ -139,17 +139,21 @@ enum W4PeopleParser {
         }
 
         let preferredName = value(fields, "preferred name", "preferred")
-        let year = value(fields, "year", "ib year").flatMap { normalizedYear($0) }
+        let year = exactValue(fields, "study year", "year", "ib year").flatMap { normalizedYear($0) }
         let house = value(fields, "house")
+        let houseId = profileHouseId(in: root)
+        let room = exactValue(fields, "room")
         let country = value(fields, "country", "nationality") ?? sidebarCountry(in: root)
         let pronouns = value(fields, "pronouns", "pronoun")
         let positions = StaffRoles.parse(value(fields, "position", "positions", "role", "roles"))
         let taughtClasses = parseTaughtClasses(in: root)
         let activities = parseStaffActivities(in: root)
+        let advisor = parseAdvisor(in: root)
+        let graduationYear = exactValue(fields, "graduation year")
 
         let resolvedKind = explicitKind
             ?? profileKind(in: document, uwcId: uwcId)
-            ?? ((positions.isEmpty && taughtClasses.isEmpty && activities.isEmpty) ? nil : .staff)
+            ?? inferredKind(positions: positions, activities: activities, fields: fields)
         if resolvedKind == nil {
             log.warning("Profile page states no kind for its own uwc id; assuming student.")
         }
@@ -181,6 +185,10 @@ enum W4PeopleParser {
             scrapedEmail: value(fields, "email", "e-mail", "e mail"),
             officeTel: value(fields, "office tel", "office telephone", "office phone"),
             mobile: value(fields, "mobile", "mobile phone", "cell"),
+            houseId: houseId,
+            room: room,
+            graduationYear: graduationYear,
+            advisor: advisor,
             positions: positions,
             taughtClasses: taughtClasses,
             activities: activities,
@@ -673,7 +681,7 @@ enum W4PeopleParser {
             guard !seen.contains(key) else { continue }
             seen.insert(key)
             let caption = text(of: anchor)
-            let parsed = PersonClasses.parseCaption(caption)
+            let parsed = W4ClassParser.parseCaption(caption)
             let fallbackName: String = {
                 guard let rest = caption.split(separator: ":", maxSplits: 1).dropFirst().first else {
                     return caption
@@ -686,7 +694,8 @@ enum W4PeopleParser {
                     classId: classId,
                     name: parsed?.subject ?? fallbackName,
                     year: parsed?.year,
-                    levelLabel: parsed?.levelLabel,
+                    levelLabel: emptyToNil(parsed?.level.badge),
+                    teacher: parsed?.teacher,
                     room: parsed?.room
                 )
             )
@@ -757,6 +766,48 @@ enum W4PeopleParser {
         return collapse((withoutTags as NSString).replacingOccurrences(of: "&nbsp;", with: " "))
     }
 
+    /// A class list is not evidence of staff — student profiles list classes too.
+    /// Position / EA activities are staff-only; study year / graduation year are
+    /// student-only.
+    private nonisolated static func inferredKind(
+        positions: [String],
+        activities: [StaffActivity],
+        fields: [PersonProfileField]
+    ) -> DirectoryPersonKind? {
+        if !positions.isEmpty || !activities.isEmpty { return .staff }
+        if exactValue(fields, "study year", "graduation year") != nil { return .student }
+        return nil
+    }
+
+    private nonisolated static func parseAdvisor(in root: Element) -> ProfileAdvisor? {
+        for dt in elements(root, "dt") {
+            let label = PersonProfileField.normalizedLabel(text(of: dt))
+            guard label == "advisor" else { continue }
+            guard let dd = try? dt.nextElementSibling(), dd.tagName().lowercased() == "dd" else {
+                continue
+            }
+            guard let anchor = firstElement(dd, "a[href*=uwc_id]") else { continue }
+            guard let id = uwcId(fromHref: attribute(anchor, "href")) else { continue }
+            let name = text(of: anchor)
+            guard !name.isEmpty else { continue }
+            return ProfileAdvisor(uwcId: id, name: name)
+        }
+        return nil
+    }
+
+    private nonisolated static func profileHouseId(in root: Element) -> String? {
+        for dt in elements(root, "dt") {
+            let label = PersonProfileField.normalizedLabel(text(of: dt))
+            guard label == "house" else { continue }
+            guard let dd = try? dt.nextElementSibling(), dd.tagName().lowercased() == "dd" else {
+                continue
+            }
+            guard let anchor = firstElement(dd, "a[href*=house_id]") else { continue }
+            return W4HouseParser.houseId(fromHref: attribute(anchor, "href"))
+        }
+        return nil
+    }
+
     /// Case- and punctuation-insensitive lookup over the verbatim field list:
     /// exact normalized match first, then a contains match, in the order the
     /// candidates are given.
@@ -775,6 +826,20 @@ enum W4PeopleParser {
             let wanted = PersonProfileField.normalizedLabel(label)
             guard !wanted.isEmpty else { continue }
             if let match = fields.first(where: { PersonProfileField.normalizedLabel($0.label).contains(wanted) }) {
+                return emptyToNil(match.value)
+            }
+        }
+        return nil
+    }
+
+    private nonisolated static func exactValue(
+        _ fields: [PersonProfileField],
+        _ labels: String...
+    ) -> String? {
+        for label in labels {
+            let wanted = PersonProfileField.normalizedLabel(label)
+            guard !wanted.isEmpty else { continue }
+            if let match = fields.first(where: { PersonProfileField.normalizedLabel($0.label) == wanted }) {
                 return emptyToNil(match.value)
             }
         }
@@ -895,6 +960,12 @@ enum W4PeopleParser {
         let trimmed = collapse(raw)
         guard !trimmed.isEmpty else { return nil }
         if trimmed == "1" || trimmed == "2" { return trimmed }
+        if trimmed.range(of: #"\bfirst\s+year\b"#, options: [.regularExpression, .caseInsensitive]) != nil {
+            return "1"
+        }
+        if trimmed.range(of: #"\bsecond\s+year\b"#, options: [.regularExpression, .caseInsensitive]) != nil {
+            return "2"
+        }
         if let digit = firstCapture("\\b([12])\\s*(?:st|nd|rd|th)?\\s*year\\b", in: trimmed) { return digit }
         if let digit = firstCapture("\\byears?\\s*([12])\\b", in: trimmed) { return digit }
         if let digit = firstCapture("\\bib\\s*([12])\\b", in: trimmed) { return digit }

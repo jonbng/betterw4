@@ -29,9 +29,23 @@ class ScheduleRepository @Inject constructor(
     private val schoolCalendar: SchoolCalendarRepository,
     private val settings: SettingsStore,
     private val myClasses: MyClassRepository,
+    private val customEvents: CustomEventStore,
 ) {
-    /** Demo/local private events created this session (also used when Lectio POST is unavailable). */
+    /** Device-local custom events, hydrated from [customEvents] per student. */
     internal val localPrivate = LocalPrivateEvents()
+    private var hydratedStudentId: String? = null
+
+    private fun hydrateCustomEvents() {
+        val id = session.currentStudent?.studentId ?: return
+        if (hydratedStudentId == id) return
+        localPrivate.replaceAll(customEvents.load(id))
+        hydratedStudentId = id
+    }
+
+    private fun persistCustomEvents() {
+        val id = session.currentStudent?.studentId ?: return
+        customEvents.save(id, localPrivate.snapshot())
+    }
 
     suspend fun loadWeek(
         year: Int = IsoDateUtils.isoWeekYear(),
@@ -41,17 +55,19 @@ class ScheduleRepository @Inject constructor(
         val student = session.currentStudent
             ?: return AppResult.Failure(AppError.Unauthorized)
 
+        hydrateCustomEvents()
+
         if (student.isDemo) {
             val demo = localPrivate.mergeIntoWeek(DemoData.scheduleWeek(year, week))
             return AppResult.Success(overlaySchoolCalendar(demo, year, week, forceRefresh))
         }
 
-        val cacheKey = "schedule_${student.studentId}_${year}_$week"
-        if (!forceRefresh) {
-            cache.get(cacheKey)?.let { html ->
-                val cached = localPrivate.mergeIntoWeek(W4TimetableParser.parseWeek(html, year, week))
-                return AppResult.Success(overlaySchoolCalendar(cached, year, week, forceRefresh = false))
-            }
+        val acKey = TimetableWeekCache.ownAcKey(student.studentId, year, week)
+        val eaKey = TimetableWeekCache.ownEaKey(student.studentId, year, week)
+        val cached = TimetableWeekCache.read(cache, acKey, eaKey, year, week)
+        if (!forceRefresh && cached != null && cached.isFresh) {
+            val overlaid = overlaySchoolCalendar(cached.week, year, week, forceRefresh = false)
+            return AppResult.Success(localPrivate.mergeIntoWeek(overlaid))
         }
 
         val query = mapOf("year" to year.toString(), "week" to week.toString())
@@ -77,27 +93,47 @@ class ScheduleRepository @Inject constructor(
         val acHtml = when (val ac = fetched.first) {
             is AppResult.Success -> {
                 campusStatus.applyHtml(ac.data.body)
-                cache.put(cacheKey, ac.data.body)
                 ac.data.body
             }
-            is AppResult.Failure -> cache.get(cacheKey)
+            is AppResult.Failure -> cache.get(acKey)
         }
         if (acHtml == null) {
             return fetched.first as AppResult.Failure
         }
-        val acWeek = W4TimetableParser.parseWeek(acHtml, year, week, source = "ac")
         val eaHtml = (fetched.second as? AppResult.Success)?.data?.body
-        val merged = if (eaHtml != null) {
-            W4TimetableParser.mergeWeeks(
-                acWeek,
-                W4TimetableParser.parseWeek(eaHtml, year, week, source = "ea"),
-            )
-        } else {
-            acWeek
+        if (fetched.first is AppResult.Success) {
+            TimetableWeekCache.write(cache, acKey, acHtml, eaKey, eaHtml)
         }
+        val merged = TimetableWeekCache.mergeHtml(acHtml, eaHtml, year, week)
+            ?: return fetched.first as AppResult.Failure
         val withSchool = SchoolCalendar.mergeIntoWeek(merged, fetched.third)
         val weekData = localPrivate.mergeIntoWeek(withSchool)
         return AppResult.Success(weekData)
+    }
+
+    /**
+     * Disk copy of this week, with no network. Null when this student has never
+     * opened that week. Used to paint the grid before [loadWeek] refreshes it.
+     */
+    suspend fun cachedWeek(
+        year: Int = IsoDateUtils.isoWeekYear(),
+        week: Int = IsoDateUtils.isoWeek(),
+    ): ScheduleWeek? {
+        val student = session.currentStudent ?: return null
+        hydrateCustomEvents()
+        if (student.isDemo) {
+            val demo = localPrivate.mergeIntoWeek(DemoData.scheduleWeek(year, week))
+            return overlaySchoolCalendar(demo, year, week, forceRefresh = false)
+        }
+        val cached = TimetableWeekCache.read(
+            cache,
+            TimetableWeekCache.ownAcKey(student.studentId, year, week),
+            TimetableWeekCache.ownEaKey(student.studentId, year, week),
+            year,
+            week,
+        ) ?: return null
+        val overlaid = overlaySchoolCalendar(cached.week, year, week, forceRefresh = false)
+        return localPrivate.mergeIntoWeek(overlaid)
     }
 
     private suspend fun overlaySchoolCalendar(
@@ -123,7 +159,7 @@ class ScheduleRepository @Inject constructor(
         val student = session.currentStudent
             ?: return AppResult.Failure(AppError.Unauthorized)
 
-        if (SchoolCalendar.isSchoolCalendarEvent(event)) {
+        if (SchoolCalendar.isSchoolCalendarEvent(event) || PrivateEventIds.isPrivateEvent(event)) {
             return AppResult.Success(
                 LessonDetail(
                     eventId = event.id,
@@ -137,7 +173,7 @@ class ScheduleRepository @Inject constructor(
             )
         }
 
-        if (student.isDemo || event.id.startsWith("local-private")) {
+        if (student.isDemo) {
             val detail = DemoData.lessonDetail(event)
             val people = peopleFromClass(demoClass(event))
             return AppResult.Success(
@@ -197,43 +233,49 @@ class ScheduleRepository @Inject constructor(
     }
 
     suspend fun createPrivateEvent(draft: PrivateEventDraft): AppResult<ScheduleEvent> {
-        val student = session.currentStudent
-            ?: return AppResult.Failure(AppError.Unauthorized)
+        session.currentStudent ?: return AppResult.Failure(AppError.Unauthorized)
 
         // Update path when draft carries an existing event id
         if (!draft.eventId.isNullOrBlank()) {
             return updatePrivateEvent(draft.eventId, draft)
         }
 
-        if (student.isDemo) {
-            val event = localPrivate.createFromDraft(draft)
-            return AppResult.Success(event)
-        }
-
-        // W4 has no private-appointment form; keep a local overlay for the session.
+        hydrateCustomEvents()
+        // W4 has no private-appointment form; keep events on the device.
         val event = localPrivate.createFromDraft(draft)
+        persistCustomEvents()
         return AppResult.Success(event)
     }
 
     /**
-     * Update an existing private event on Lectio (Flutter PrivateCalendarEventController.update).
+     * Replace an existing device-local custom event.
      */
     suspend fun updatePrivateEvent(eventId: String, draft: PrivateEventDraft): AppResult<ScheduleEvent> {
-        val student = session.currentStudent
-            ?: return AppResult.Failure(AppError.Unauthorized)
+        session.currentStudent ?: return AppResult.Failure(AppError.Unauthorized)
 
+        hydrateCustomEvents()
         val updated = localPrivate.updateFromDraft(eventId, draft)
+        persistCustomEvents()
         return AppResult.Success(updated)
     }
 
     suspend fun deletePrivateEvent(event: ScheduleEvent): AppResult<Unit> {
+        hydrateCustomEvents()
         localPrivate.delete(event.id)
+        persistCustomEvents()
         return AppResult.Success(Unit)
     }
 
     fun localPrivateEventsSnapshot(): List<ScheduleEvent> = localPrivate.snapshot()
 
+    /** Re-lay persisted custom events over a week already in memory. No network. */
+    fun overlayLocal(week: ScheduleWeek): ScheduleWeek {
+        hydrateCustomEvents()
+        return localPrivate.remesh(week)
+    }
+
     fun clearLocalPrivateEventsForTest() {
         localPrivate.clear()
+        hydratedStudentId = null
     }
 }

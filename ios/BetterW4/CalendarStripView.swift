@@ -15,8 +15,8 @@ struct CalendarStripView: View {
     /// True when W4 has proven it ignores `?year=&week=`, in which case paging away from the
     /// current week would only ever show the current week's data (plan D-18).
     var weekNavigationEnabled: Bool = true
-    /// Whether the day has anything to show, for the dot under the number.
-    var hasEvents: ((Date) -> Bool)?
+    /// Oslo start-of-day dates that have something to show, for the dot under the number.
+    var datesWithEvents: Set<Date> = []
     var onDateSelected: ((Date) -> Void)?
     var onWeekChanged: ((Date) -> Void)?
 
@@ -28,17 +28,20 @@ struct CalendarStripView: View {
     /// `scrollPosition` reports the first week during layout. Swallow that so
     /// opening the timetable cannot jump a year away from today.
     @State private var acceptsUserScroll = false
+    @State private var isUserScrolling = false
+    /// Programmatic snaps (today / day pager) must not emit `onWeekChanged`.
+    @State private var ignoreWeekCallback = false
 
     init(
         selectedDate: Date,
         weekNavigationEnabled: Bool = true,
-        hasEvents: ((Date) -> Bool)? = nil,
+        datesWithEvents: Set<Date> = [],
         onDateSelected: ((Date) -> Void)? = nil,
         onWeekChanged: ((Date) -> Void)? = nil
     ) {
         self.selectedDate = selectedDate
         self.weekNavigationEnabled = weekNavigationEnabled
-        self.hasEvents = hasEvents
+        self.datesWithEvents = datesWithEvents
         self.onDateSelected = onDateSelected
         self.onWeekChanged = onWeekChanged
         _anchorWeekStart = State(initialValue: W4Dates.startOfWeek(containing: selectedDate))
@@ -91,23 +94,37 @@ struct CalendarStripView: View {
                         acceptsUserScroll = true
                     }
                 }
-                .onChange(of: scrolledID) { _, newID in
-                    guard acceptsUserScroll, let newID else { return }
-                    let newWeekStart = weekStart(for: newID)
-                    let currentWeekStart = W4Dates.startOfWeek(containing: selectedDate)
-                    guard !W4Dates.isSameDay(newWeekStart, currentWeekStart) else { return }
-
-                    // Keep the weekday the student was looking at when the week flips.
-                    let weekday = W4Dates.calendar.component(.weekday, from: selectedDate)
-                    let dayOffset = (weekday - 2 + 7) % 7
-                    onWeekChanged?(W4Dates.adding(days: dayOffset, to: newWeekStart))
+                .onScrollPhaseChange { _, newPhase in
+                    switch newPhase {
+                    case .interacting, .tracking:
+                        if !ignoreWeekCallback {
+                            isUserScrolling = true
+                        }
+                    case .idle:
+                        let wasUser = isUserScrolling
+                        isUserScrolling = false
+                        ignoreWeekCallback = false
+                        if wasUser {
+                            emitWeekChangeIfNeeded()
+                        }
+                    default:
+                        break
+                    }
                 }
                 .onChange(of: selectedDate) { _, newDate in
                     let selectedWeekStart = W4Dates.startOfWeek(containing: newDate)
                     let dayDiff = W4Dates.calendar
                         .dateComponents([.day], from: anchorWeekStart, to: selectedWeekStart).day ?? 0
                     let targetIndex = centerIndex + Int((Double(dayDiff) / 7).rounded())
-                    if targetIndex >= 0, targetIndex < totalWeeks, targetIndex != scrolledID {
+                    guard targetIndex >= 0, targetIndex < totalWeeks, targetIndex != scrolledID else {
+                        return
+                    }
+                    // User is week-swiping elsewhere — don't fight the gesture.
+                    guard !isUserScrolling else { return }
+                    ignoreWeekCallback = true
+                    var transaction = Transaction()
+                    transaction.animation = nil
+                    withTransaction(transaction) {
                         scrolledID = targetIndex
                     }
                 }
@@ -118,6 +135,18 @@ struct CalendarStripView: View {
         }
         .frame(minHeight: 72, maxHeight: .infinity)
         .sensoryFeedback(.selection, trigger: selectedDate)
+    }
+
+    private func emitWeekChangeIfNeeded() {
+        guard acceptsUserScroll, weekNavigationEnabled, let newID = scrolledID else { return }
+        let newWeekStart = weekStart(for: newID)
+        let currentWeekStart = W4Dates.startOfWeek(containing: selectedDate)
+        guard !W4Dates.isSameDay(newWeekStart, currentWeekStart) else { return }
+
+        // Keep the weekday the student was looking at when the week flips.
+        let weekday = W4Dates.calendar.component(.weekday, from: selectedDate)
+        let dayOffset = (weekday - 2 + 7) % 7
+        onWeekChanged?(W4Dates.adding(days: dayOffset, to: newWeekStart))
     }
 
     @ViewBuilder
@@ -169,7 +198,7 @@ struct CalendarStripView: View {
     }
 
     private func dotColor(for date: Date, isSelected: Bool) -> Color {
-        guard hasEvents?(date) == true else { return .clear }
+        guard datesWithEvents.contains(W4Dates.startOfDay(date)) else { return .clear }
         return isSelected ? .white.opacity(0.9) : .blue.opacity(0.7)
     }
 

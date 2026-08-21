@@ -100,6 +100,7 @@ private object HwRoutes {
 fun HomeworkScreen(
     viewModel: HomeworkViewModel = hiltViewModel(),
     scrollToTopToken: Int = 0,
+    onBackToMore: (() -> Unit)? = null,
 ) {
     val navController = rememberNavController()
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -117,9 +118,13 @@ fun HomeworkScreen(
 
     NavHost(navController = navController, startDestination = HwRoutes.LIST, modifier = Modifier.fillMaxSize()) {
         composable(HwRoutes.LIST) {
+            if (onBackToMore != null) {
+                BackHandler(onBack = onBackToMore)
+            }
             HomeworkListPane(
                 viewModel = viewModel,
                 scrollToTopToken = scrollToTopToken,
+                onBackToMore = onBackToMore,
                 onOpen = { item ->
                     viewModel.select(item)
                     navController.navigate(HwRoutes.detail(item.id))
@@ -161,6 +166,7 @@ fun HomeworkScreen(
 private fun HomeworkListPane(
     viewModel: HomeworkViewModel,
     scrollToTopToken: Int,
+    onBackToMore: (() -> Unit)? = null,
     onOpen: (HomeworkItem) -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -173,6 +179,16 @@ private fun HomeworkListPane(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.tab_homework)) },
+                navigationIcon = {
+                    if (onBackToMore != null) {
+                        IconButton(onClick = onBackToMore) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.cd_back),
+                            )
+                        }
+                    }
+                },
                 actions = {
                     if (!state.isShowingCurrentMonth) {
                         TextButton(onClick = viewModel::showCurrentMonth) {

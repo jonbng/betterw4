@@ -772,6 +772,33 @@ class W4HTTPClient {
         )
     }
 
+    /// Standard form POST retaining duplicate field names and browser order.
+    func postForm(
+        route: String,
+        fields: [(String, String)],
+        query: [String: String] = [:],
+        credentials: W4Credentials,
+        studentId: String?,
+        priority: FetchPriority = .important,
+        allowLoginPage: Bool = false
+    ) async throws -> (data: Data, updatedCredentials: W4Credentials?, finalURL: URL) {
+        let url = W4Routes.url(route, query)
+        return try await performRequest(
+            url: url,
+            method: "POST",
+            body: W4Form.encode(fields),
+            headers: [
+                "Content-Type": W4UserAgent.formURLEncoded,
+                "Referer": url.absoluteString
+            ],
+            credentials: credentials,
+            studentId: studentId,
+            contextForLogging: route,
+            priority: priority,
+            allowLoginPage: allowLoginPage
+        )
+    }
+
     /// jQuery-shaped POST: W4's `$.post` handlers (campus status, notifications) branch on
     /// `X-Requested-With` and answer with an HTML fragment plus the 403/409 codes from §5.3.
     func postAjax(

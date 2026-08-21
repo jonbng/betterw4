@@ -16,9 +16,9 @@
 //  FIXTURE PROVENANCE (unchanged from `W4AbsenceParserTests`):
 //    [V] `Fixtures/W4/home.html` is a real, sanitized capture; both meters read
 //        "You have 0 absences and 0 latenesses so far".
-//    [I] `Fixtures/W4/absences.html` is hand-written — the absence list page has never been
-//        captured. Assertions about its *rows* prove the repository plumbs the parser correctly;
-//        they prove nothing about W4's markup.
+//    [V] The `absences-list-*`, `absences-week-*`, and `absences-register-*` fixtures are
+//        sanitized live W4 captures. The older `absences.html` fixture remains only for legacy
+//        compatibility tests.
 //
 
 import XCTest
@@ -33,6 +33,7 @@ final class AttendanceRepositoryTests: XCTestCase {
 
         struct Request {
             let route: String
+            let query: [String: String]
             let priority: FetchPriority
             let studentId: String?
             let sessionId: String
@@ -40,6 +41,7 @@ final class AttendanceRepositoryTests: XCTestCase {
 
         private var responses: [String: Result<String, Error>] = [:]
         private(set) var requests: [Request] = []
+        private(set) var postedFields: [[(String, String)]] = []
 
         func stub(_ route: String, html: String) {
             responses[route] = .success(html)
@@ -62,6 +64,7 @@ final class AttendanceRepositoryTests: XCTestCase {
             requests.append(
                 Request(
                     route: route,
+                    query: query,
                     priority: priority,
                     studentId: studentId,
                     sessionId: credentials.sessionId
@@ -77,6 +80,24 @@ final class AttendanceRepositoryTests: XCTestCase {
             case .failure(let error):
                 throw error
             }
+        }
+
+        func postPage(
+            route: String,
+            query: [String: String],
+            fields: [(String, String)],
+            credentials: W4Credentials,
+            studentId: String?,
+            priority: FetchPriority
+        ) async throws -> AttendancePageResponse {
+            postedFields.append(fields)
+            return try await fetchPage(
+                route: route,
+                query: query,
+                credentials: credentials,
+                studentId: studentId,
+                priority: priority
+            )
         }
     }
 
@@ -182,8 +203,8 @@ final class AttendanceRepositoryTests: XCTestCase {
         """
     }
 
-    /// A hand-written register-absence form. **[I]** — the real page has never been captured
-    /// (OQ-10); this exercises the scraper, not W4.
+    /// A minimal synthetic form used by cache plumbing tests. Parser coverage uses the captured
+    /// `absences-register-*` fixtures.
     private func registerFormPage() -> String {
         """
         <html><body><div id="content_inner">
@@ -397,7 +418,7 @@ final class AttendanceRepositoryTests: XCTestCase {
     func testAcademicListFetchesParsesAndCaches() async throws {
         let absencesHTML = try fixture("absences")
         let fetcher = StubFetcher()
-        await fetcher.stub(W4Routes.R.absences, html: absencesHTML)
+        await fetcher.stub(W4Routes.R.absencesList, html: absencesHTML)
         let repository = makeRepository(fetcher: fetcher, context: signedInContext())
 
         let loaded = try await repository.loadList(for: .academics)
@@ -409,7 +430,7 @@ final class AttendanceRepositoryTests: XCTestCase {
         XCTAssertEqual(loaded.value.list.meter, AttendanceMeter(absences: 3, latenesses: 1),
                        "the meter is the page's sentence, not the row count")
         XCTAssertNil(loaded.value.failure)
-        let storedACPage = await cachedPage(surface: .attendanceAcademics, key: W4Routes.R.absences)
+        let storedACPage = await cachedPage(surface: .attendanceAcademics, key: W4Routes.R.absencesList)
         XCTAssertNotNil(storedACPage)
 
         let second = try await repository.loadList(for: .academics)
@@ -423,7 +444,7 @@ final class AttendanceRepositoryTests: XCTestCase {
     /// populate — or read — the AC slot.
     func testExtraAcademicListIsAnIndependentSurface() async throws {
         let fetcher = StubFetcher()
-        await fetcher.stub(W4Routes.R.eaAbsences, html: emptyListPage("No results found."))
+        await fetcher.stub(W4Routes.R.eaAbsencesList, html: emptyListPage("No results found."))
         let repository = makeRepository(fetcher: fetcher, context: signedInContext())
 
         let loaded = try await repository.loadList(for: .extraAcademics)
@@ -435,11 +456,11 @@ final class AttendanceRepositoryTests: XCTestCase {
         XCTAssertEqual(loaded.value.list.emptyMessage, "No results found.")
         let storedEAPage = await cachedPage(
             surface: .attendanceExtraAcademics,
-            key: W4Routes.R.eaAbsences
+            key: W4Routes.R.eaAbsencesList
         )
         let untouchedACPage = await cachedPage(
             surface: .attendanceAcademics,
-            key: W4Routes.R.absences
+            key: W4Routes.R.absencesList
         )
         XCTAssertNotNil(storedEAPage)
         XCTAssertNil(untouchedACPage, "EA must not write into the AC slot")
@@ -449,9 +470,9 @@ final class AttendanceRepositoryTests: XCTestCase {
     func testForceRefreshBypassesAFreshCachedPage() async throws {
         let absencesHTML = try fixture("absences")
         await seed(absencesHTML, surface: .attendanceAcademics,
-                   key: W4Routes.R.absences, secondsOld: 60)
+                   key: W4Routes.R.absencesList, secondsOld: 60)
         let fetcher = StubFetcher()
-        await fetcher.stub(W4Routes.R.absences, html: absencesHTML)
+        await fetcher.stub(W4Routes.R.absencesList, html: absencesHTML)
         let repository = makeRepository(fetcher: fetcher, context: signedInContext())
 
         let cached = try await repository.loadList(for: .academics)
@@ -472,9 +493,9 @@ final class AttendanceRepositoryTests: XCTestCase {
     func testListFailureFallsBackToTheStaleCachedCopy() async throws {
         let absencesHTML = try fixture("absences")
         await seed(absencesHTML, surface: .attendanceAcademics,
-                   key: W4Routes.R.absences, secondsOld: 7_200)
+                   key: W4Routes.R.absencesList, secondsOld: 7_200)
         let fetcher = StubFetcher()
-        await fetcher.stub(W4Routes.R.absences, error: URLError(.notConnectedToInternet))
+        await fetcher.stub(W4Routes.R.absencesList, error: URLError(.notConnectedToInternet))
         let repository = makeRepository(fetcher: fetcher, context: signedInContext())
 
         let loaded = try await repository.loadList(for: .academics)
@@ -493,7 +514,7 @@ final class AttendanceRepositoryTests: XCTestCase {
     /// empty list plus an error — it does not throw.
     func testListFailureWithNoCacheDegradesToAnEmptyListPlusAnError() async throws {
         let fetcher = StubFetcher()
-        await fetcher.stub(W4Routes.R.absences, error: URLError(.timedOut))
+        await fetcher.stub(W4Routes.R.absencesList, error: URLError(.timedOut))
         let repository = makeRepository(fetcher: fetcher, context: signedInContext())
 
         let loaded = try await repository.loadList(for: .academics)
@@ -524,7 +545,7 @@ final class AttendanceRepositoryTests: XCTestCase {
     /// must degrade like any other failure and must never surface as `sessionExpired`.
     func testForbiddenIsNeverTreatedAsASessionDeath() async throws {
         let fetcher = StubFetcher()
-        await fetcher.stub(W4Routes.R.absences, error: W4Error.forbidden)
+        await fetcher.stub(W4Routes.R.absencesList, error: W4Error.forbidden)
         await fetcher.stub(W4Routes.R.home, error: W4Error.forbidden)
         let repository = makeRepository(fetcher: fetcher, context: signedInContext())
 
@@ -543,10 +564,10 @@ final class AttendanceRepositoryTests: XCTestCase {
         let homeHTML = try fixture("home")
         let absencesHTML = try fixture("absences")
         await seed(absencesHTML, surface: .attendanceAcademics,
-                   key: W4Routes.R.absences, secondsOld: 7_200)
+                   key: W4Routes.R.absencesList, secondsOld: 7_200)
         await seed(homeHTML, surface: .home, key: W4Routes.R.home, secondsOld: 7_200)
         let fetcher = StubFetcher()
-        await fetcher.stub(W4Routes.R.absences, error: W4Error.sessionExpired)
+        await fetcher.stub(W4Routes.R.absencesList, error: W4Error.sessionExpired)
         await fetcher.stub(W4Routes.R.home, error: W4Error.sessionExpired)
         let repository = makeRepository(fetcher: fetcher, context: signedInContext())
 
@@ -573,8 +594,8 @@ final class AttendanceRepositoryTests: XCTestCase {
     /// an empty list and an error banner.
     func testCancellationPropagatesInsteadOfDegrading() async throws {
         let fetcher = StubFetcher()
-        await fetcher.stub(W4Routes.R.absences, error: CancellationError())
-        await fetcher.stub(W4Routes.R.eaAbsences, error: URLError(.cancelled))
+        await fetcher.stub(W4Routes.R.absencesList, error: CancellationError())
+        await fetcher.stub(W4Routes.R.eaAbsencesList, error: URLError(.cancelled))
         let repository = makeRepository(fetcher: fetcher, context: signedInContext())
 
         do {
@@ -601,8 +622,8 @@ final class AttendanceRepositoryTests: XCTestCase {
         let absencesHTML = try fixture("absences")
         await seed(homeHTML, surface: .home, key: W4Routes.R.home, secondsOld: 60)
         let fetcher = StubFetcher()
-        await fetcher.stub(W4Routes.R.absences, html: absencesHTML)
-        await fetcher.stub(W4Routes.R.eaAbsences, html: emptyListPage("No results found."))
+        await fetcher.stub(W4Routes.R.absencesList, html: absencesHTML)
+        await fetcher.stub(W4Routes.R.eaAbsencesList, html: emptyListPage("No results found."))
         let repository = makeRepository(fetcher: fetcher, context: signedInContext())
 
         let loaded = try await repository.loadSnapshot()
@@ -633,8 +654,8 @@ final class AttendanceRepositoryTests: XCTestCase {
         let absencesHTML = try fixture("absences")
         await seed(homeHTML, surface: .home, key: W4Routes.R.home, secondsOld: 60)
         let fetcher = StubFetcher()
-        await fetcher.stub(W4Routes.R.absences, html: absencesHTML)
-        await fetcher.stub(W4Routes.R.eaAbsences, error: W4Error.httpError(status: 500, route: W4Routes.R.eaAbsences))
+        await fetcher.stub(W4Routes.R.absencesList, html: absencesHTML)
+        await fetcher.stub(W4Routes.R.eaAbsencesList, error: W4Error.httpError(status: 500, route: W4Routes.R.eaAbsencesList))
         let repository = makeRepository(fetcher: fetcher, context: signedInContext())
 
         let loaded = try await repository.loadSnapshot()
@@ -674,7 +695,7 @@ final class AttendanceRepositoryTests: XCTestCase {
         )
         let untouchedListPage = await cachedPage(
             surface: .attendanceAcademics,
-            key: W4Routes.R.absences
+            key: W4Routes.R.absencesList
         )
         XCTAssertNotNil(storedFormPage)
         XCTAssertNil(untouchedListPage, "the form must not occupy the AC list slot")
@@ -693,6 +714,42 @@ final class AttendanceRepositoryTests: XCTestCase {
         } catch let error as URLError {
             XCTAssertEqual(error.code, .timedOut)
         }
+    }
+
+    func testRegistrationPostsRepeatedCheckboxNamesAndRequiredFields() async throws {
+        let fetcher = StubFetcher()
+        await fetcher.stub(W4Routes.R.absencesRegister, html: "<p>Registration saved.</p>")
+        let repository = makeRepository(fetcher: fetcher, context: signedInContext())
+        let form = W4AbsenceParser.parseRegistrationForm(
+            try fixture("absences-register-class-day")
+        )
+
+        try await repository.submitRegistration(
+            form: form,
+            selectedValues: form.slots.prefix(2).map(\.value),
+            wholeDay: false,
+            reason: "College appointment"
+        )
+
+        let postedFields = await fetcher.postedFields
+        let fields = try XCTUnwrap(postedFields.first)
+        XCTAssertEqual(fields.filter { $0.0 == "StudentAbsenceForm[absences][]" }.count, 2)
+        XCTAssertTrue(fields.contains { $0 == ("StudentAbsenceForm[absence_date]", "31-Aug-2026") })
+        XCTAssertTrue(fields.contains { $0 == ("StudentAbsenceForm[reason]", "College appointment") })
+        XCTAssertTrue(fields.contains { $0 == ("yt0", "Register absences") })
+    }
+
+    func testWeekRequestUsesIndexRouteAndSiblingWeekQuery() async throws {
+        let fetcher = StubFetcher()
+        await fetcher.stub(W4Routes.R.absencesIndex, html: try fixture("absences-week-classes"))
+        let repository = makeRepository(fetcher: fetcher, context: signedInContext())
+
+        _ = try await repository.loadWeek(for: .academics, year: 2026, week: 36)
+
+        let requests = await fetcher.requests
+        let request = try XCTUnwrap(requests.first)
+        XCTAssertEqual(request.route, W4Routes.R.absencesIndex)
+        XCTAssertEqual(request.query, ["year": "2026", "week": "36", "uwc_id": uwcId])
     }
 
     // MARK: - Signed out
@@ -740,9 +797,9 @@ final class AttendanceRepositoryTests: XCTestCase {
         await seed(homeHTML, surface: .attendanceMeters,
                    key: AttendanceRepository.CacheKey.meters, secondsOld: 60)
         await seed(absencesHTML, surface: .attendanceAcademics,
-                   key: W4Routes.R.absences, secondsOld: 60)
+                   key: W4Routes.R.absencesList, secondsOld: 60)
         await seed(emptyListPage("No results found."), surface: .attendanceExtraAcademics,
-                   key: W4Routes.R.eaAbsences, secondsOld: 60)
+                   key: W4Routes.R.eaAbsencesList, secondsOld: 60)
         await seed(registerFormPage(), surface: .attendanceAcademics,
                    key: AttendanceRepository.CacheKey.registrationForm, secondsOld: 60)
 
@@ -753,10 +810,10 @@ final class AttendanceRepositoryTests: XCTestCase {
             surface: .attendanceMeters,
             key: AttendanceRepository.CacheKey.meters
         )
-        let academicPage = await cachedPage(surface: .attendanceAcademics, key: W4Routes.R.absences)
+        let academicPage = await cachedPage(surface: .attendanceAcademics, key: W4Routes.R.absencesList)
         let extraPage = await cachedPage(
             surface: .attendanceExtraAcademics,
-            key: W4Routes.R.eaAbsences
+            key: W4Routes.R.eaAbsencesList
         )
         let formPage = await cachedPage(
             surface: .attendanceAcademics,
@@ -777,9 +834,9 @@ final class AttendanceRepositoryTests: XCTestCase {
     func testAnotherStudentsCachedPagesAreInvisible() async throws {
         let absencesHTML = try fixture("absences")
         await seed(absencesHTML, surface: .attendanceAcademics,
-                   key: W4Routes.R.absences, secondsOld: 60, uwcId: "nc26zzzz")
+                   key: W4Routes.R.absencesList, secondsOld: 60, uwcId: "nc26zzzz")
         let fetcher = StubFetcher()
-        await fetcher.stub(W4Routes.R.absences, html: emptyListPage("No results found."))
+        await fetcher.stub(W4Routes.R.absencesList, html: emptyListPage("No results found."))
         let repository = makeRepository(fetcher: fetcher, context: signedInContext())
 
         let loaded = try await repository.loadList(for: .academics)
@@ -815,4 +872,3 @@ final class AttendanceRepositoryTests: XCTestCase {
         )
     }
 }
-

@@ -37,6 +37,7 @@ object W4TimetableParser {
     private val CHROME_CLASSES = setOf(
         "datetime", "room", "absence", "present", "normal", "prearranged", "close",
     )
+    private val ATTENDANCE_PHRASE = Regex("""\(([^)]*absence[^)]*)\)""", RegexOption.IGNORE_CASE)
 
     fun parseWeek(
         html: String,
@@ -112,11 +113,15 @@ object W4TimetableParser {
         )
     }
 
+    private val HEADER_DATE = Regex("""\d{1,2}-[A-Za-z]{3}-\d{2,4}""")
+
     private fun parseHeaderCell(cell: Element): ScheduleDay? {
+        if (cell.hasClass("first")) return null
         val dayName = cell.selectFirst(".day-name")?.text()?.trim().orEmpty()
         val date = cell.children()
             .map { it.text().trim() }
             .firstNotNullOfOrNull { W4Dates.parse(it) }
+            ?: HEADER_DATE.find(cell.text())?.value?.let { W4Dates.parse(it) }
             ?: return null
         val rotationEl = cell.selectFirst(".rotation-day")
         val rotationDay = rotationEl?.text()?.trim()?.ifBlank { null }
@@ -297,6 +302,7 @@ object W4TimetableParser {
             ?: stripRoomPrefix(inner.selectFirst(".room")?.text()?.trim())
         val teacherId = href?.let { UWC_ID.find(it)?.groupValues?.get(1)?.lowercase() }
 
+        val attendanceMark = attendanceOf(inner, rawTooltip)
         return ScheduleEvent(
             id = eventId(href, classId, source, day.date, index),
             title = title,
@@ -312,7 +318,34 @@ object W4TimetableParser {
             isAllDay = start == null,
             href = href,
             source = source.idPrefix,
+            attendance = attendanceMark?.first,
+            attendanceLabel = attendanceMark?.second?.first,
+            attendanceTooltip = attendanceMark?.second?.second,
         )
+    }
+
+    /**
+     * Absences week grids stamp `.absence.not-checked` / `.present` / `.prearranged`
+     * on class blocks. Breakfast and break have no marker.
+     */
+    private fun attendanceOf(
+        inner: Element,
+        tooltip: String?,
+    ): Pair<LessonAttendance, Pair<String?, String?>>? {
+        val marker = inner.selectFirst(".absence, .present, .normal, .prearranged, .attendance") ?: return null
+        val classes = marker.classNames().map { it.lowercase() }.toSet()
+        val badge = marker.text().trim().ifBlank { null }
+        val phrase = tooltip
+            ?.let { ATTENDANCE_PHRASE.find(it)?.groupValues?.get(1)?.trim() }
+            ?.ifBlank { null }
+        val kind = when {
+            "not-checked" in classes -> LessonAttendance.UNCHECKED
+            "prearranged" in classes -> LessonAttendance.PREARRANGED
+            "present" in classes -> LessonAttendance.PRESENT
+            "absence" in classes || "normal" in classes -> LessonAttendance.ABSENT
+            else -> LessonAttendance.UNKNOWN
+        }
+        return kind to (badge to phrase)
     }
 
     private fun blockTitle(inner: Element): String {

@@ -18,8 +18,12 @@ object W4Dates {
     val ZONE: ZoneId = ZoneId.of("Europe/Oslo")
 
     private val DATE_FORMATTERS = listOf(
+        DateTimeFormatter.ofPattern("d-MMM-yyyy", Locale.ENGLISH),
+        DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.ENGLISH),
         DateTimeFormatter.ofPattern("d-MMM-yyyy", Locale.UK),
         DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.UK),
+        DateTimeFormatter.ofPattern("d-MMM-yy", Locale.ENGLISH),
+        DateTimeFormatter.ofPattern("dd-MMM-yy", Locale.ENGLISH),
         DateTimeFormatter.ofPattern("d-MMM-yy", Locale.UK),
         DateTimeFormatter.ofPattern("dd-MMM-yy", Locale.UK),
         DateTimeFormatter.ISO_LOCAL_DATE,

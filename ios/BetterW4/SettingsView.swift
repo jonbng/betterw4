@@ -301,8 +301,9 @@ struct SettingsView: View {
         return !credentials.isEmpty
     }
 
-    /// The subjects the Subjects screen offers to rename. Sourced from the cached timetable week
-    /// through the repository — never from a parser, and never from the network.
+    /// The subjects the Subjects screen offers to rename. Sourced from W4 lessons
+    /// in the cached timetable week — never from a parser, the network, or the
+    /// Google Calendar overlay.
     private func loadSubjectTitles() async {
         guard student != nil else {
             subjectTitles = []
@@ -313,7 +314,7 @@ struct SettingsView: View {
             return
         }
         guard !Task.isCancelled else { return }
-        let titles = week.value.days.flatMap { $0.events.map(\.title) }
+        let titles = SchoolCalendar.subjectMappingKeys(from: week.value.days.flatMap(\.events))
         subjectTitles = Array(Set(titles)).sorted()
     }
 
@@ -371,6 +372,11 @@ struct PrivacyDetailView: View {
                     title: "Your settings",
                     detail: "Theme, calendar style, subject names and colours, and notification choices."
                 )
+                privacyRow(
+                    icon: "calendar.badge.plus",
+                    title: "Custom events",
+                    detail: "Events you add to the timetable stay on this device, one list per account. They are never sent to W4. Logging out does not delete them."
+                )
             }
 
             Section("Never") {
@@ -387,7 +393,7 @@ struct PrivacyDetailView: View {
             }
 
             Section {
-                Text("Logging out removes the session and every cached page for that account, so the next person to use this device cannot read them.")
+                Text("Logging out removes the session and every cached page for that account, so the next person to use this device cannot read them. Custom timetable events stay on the device, scoped to each account.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

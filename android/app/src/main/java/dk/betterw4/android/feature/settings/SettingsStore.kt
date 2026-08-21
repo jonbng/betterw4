@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.core.content.edit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dk.betterw4.android.core.i18n.AppLocale
+import dk.betterw4.android.feature.schedule.CustomEvents
 import dk.betterw4.android.feature.schedule.EventStatus
 import dk.betterw4.android.feature.schedule.ScheduleEvent
 import dk.betterw4.android.feature.schedule.SchoolCalendar
@@ -237,9 +238,14 @@ class SettingsStore @Inject constructor(
     /**
      * Name shown on a schedule brick: user alias, then W4's tooltip title, then the
      * catalogue name. Compact class ids (`1EA16CECOX`) are never shown as the title.
+     *
+     * Google Calendar overlay events keep the calendar's own title — they are not
+     * IB subjects and must not go through [SubjectMapper].
      */
     fun displayTitleForEvent(event: ScheduleEvent): String {
-        if (SchoolCalendar.isSchoolCalendarEvent(event)) return event.title
+        if (SchoolCalendar.isSchoolCalendarEvent(event) || CustomEvents.isCustomEvent(event)) {
+            return event.title
+        }
         val key = event.team.ifBlank { event.title }
         customName(key)?.let { return it }
         val title = event.title.trim()
@@ -266,6 +272,9 @@ class SettingsStore @Inject constructor(
     fun accentArgbFor(event: ScheduleEvent): Long {
         if (SchoolCalendar.isSchoolCalendarEvent(event)) {
             return SCHOOL_CALENDAR_ARGB
+        }
+        if (CustomEvents.isCustomEvent(event)) {
+            return CustomEvents.ARGB
         }
         if (!_useSubjectColors.value) {
             return when (event.status) {

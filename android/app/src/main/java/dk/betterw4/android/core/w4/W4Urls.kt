@@ -124,8 +124,12 @@ object W4Urls {
         const val EA_DOCUMENTS = "extraacademics/documents"
 
         const val ABSENCES = "people/students/absences"
+        const val ABSENCES_INDEX = "people/students/absences/index"
+        const val ABSENCES_LIST = "people/students/absences/list"
         const val ABSENCES_REGISTER = "people/students/absences/register"
         const val EA_ABSENCES = "people/students/eaabsences"
+        const val EA_ABSENCES_INDEX = "people/students/eaabsences/index"
+        const val EA_ABSENCES_LIST = "people/students/eaabsences/list"
         const val STUDENT_PROFILE = "people/students/student"
         const val STUDENTS_ALL = "people/students/all"
         const val STUDENTS_FIRSTYEAR = "people/students/firstyear"
@@ -137,6 +141,7 @@ object W4Urls {
         const val STAFF_PROFILE = "people/staff/staff"
         const val LETTER_ATTENDANCE = "people/students/letter/attendance"
         const val BIRTHDAYS = "people/birthdays"
+        const val BIRTHDAYS_INDEX = "people/birthdays/index"
         const val ON_DUTY = "people/onduty"
         const val ON_DUTY_SCHEDULE = "people/onduty/schedule"
 

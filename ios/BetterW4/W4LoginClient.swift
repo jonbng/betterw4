@@ -261,6 +261,11 @@ enum W4Form {
         return Data(body.utf8)
     }
 
+    /// Browser-order form encoding that preserves repeated field names such as Yii's `items[]`.
+    static func encode(_ fields: [(String, String)]) -> Data {
+        Data(fields.map { "\(escape($0.0))=\(escape($0.1))" }.joined(separator: "&").utf8)
+    }
+
     static func parse(_ html: String, onKnownOTPPage: Bool = false) -> Parsed? {
         guard let doc = try? SwiftSoup.parse(html) else { return nil }
         let candidate = (try? doc.select("form:has(input[name^=LoginForm])").first())
@@ -544,7 +549,7 @@ enum W4LoginClient {
         }
 
         var extra: [String: String] = [
-            "LoginForm[username]": username.trimmingCharacters(in: .whitespacesAndNewlines),
+            "LoginForm[username]": W4Username.normalize(username),
             "LoginForm[password]": password,
             "LoginForm[deviceId]": W4DeviceID.current()
         ]

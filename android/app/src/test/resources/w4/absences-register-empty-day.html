@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>Register absences</title>
+</head>
+<body>
+<div id="content_inner">
+<h2>Register absences</h2>
+<p>Use the form below to self-register yourself as absent in selected classes/activities.</p>
+<div class="form" style="width: 800px">
+    <form class="main" id="student-absence-form" action="/index.php?r=people/students/absences/register" method="post">
+    <div class="row">
+        <label for="StudentAbsenceForm_absence_date">Absence date</label>        <input size="10" id="StudentAbsenceForm_absence_date" name="StudentAbsenceForm[absence_date]" type="text" value="21-Aug-2026" />    <div class="errorMessage" id="StudentAbsenceForm_absence_date_em_" style="display:none"></div>    </div>
+        <p>You don't have any class or activity on this date.</p>
+        </form>
+</div><!-- form --> </div>
+</div>
+</body>
+</html>

@@ -23,6 +23,17 @@ object SchoolCalendar {
         return event.team.equals(SCHOOL_CALENDAR_TEAM_TOKEN, ignoreCase = true)
     }
 
+    /**
+     * W4 class codes and lesson titles that may enter the subject-mapping
+     * catalogue. Google Calendar overlay events are college-wide, not IB subjects.
+     */
+    fun subjectMappingKeys(events: Collection<ScheduleEvent>): List<String> =
+        events
+            .filterNot { isSchoolCalendarEvent(it) || CustomEvents.isCustomEvent(it) }
+            .flatMap { listOf(it.team, it.title) }
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+
     /** Drops college-calendar overlay events when the student has hidden them. */
     fun visibleEvents(
         events: List<ScheduleEvent>,

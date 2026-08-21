@@ -26,11 +26,15 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Cake
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MeetingRoom
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -68,6 +72,7 @@ import dk.betterw4.android.R
 import dk.betterw4.android.core.util.IsoDateUtils
 import dk.betterw4.android.feature.directory.DirectoryEntity
 import dk.betterw4.android.feature.directory.DirectoryEntityKind
+import dk.betterw4.android.feature.directory.PersonBirthday
 import dk.betterw4.android.feature.directory.StaffActivity
 import dk.betterw4.android.feature.directory.StudentProfile
 import dk.betterw4.android.feature.schedule.EventStatus
@@ -92,6 +97,7 @@ import dk.betterw4.android.ui.components.DetailSheetPadding
 import dk.betterw4.android.ui.components.InitialsAvatar
 import dk.betterw4.android.ui.components.RemoteImagePreviewDialog
 import dk.betterw4.android.ui.components.LoadingBox
+import dk.betterw4.android.ui.components.ScheduleDaySkeleton
 import dk.betterw4.android.ui.components.StatusChip
 import dk.betterw4.android.ui.screens.schedule.ScheduleDayPager
 import dk.betterw4.android.ui.screens.schedule.StandardDayList
@@ -119,6 +125,7 @@ fun StudentProfileScreen(
     onOpenHouse: () -> Unit = {},
     onOpenRoom: () -> Unit = {},
     onOpenClass: (PersonClass) -> Unit = {},
+    onOpenAdvisor: (DirectoryEntity) -> Unit = {},
     onPrevWeek: () -> Unit,
     onNextWeek: () -> Unit,
     onGoToToday: () -> Unit,
@@ -197,6 +204,7 @@ fun StudentProfileScreen(
                 onOpenHouse = onOpenHouse,
                 onOpenRoom = onOpenRoom,
                 onOpenClass = onOpenClass,
+                onOpenAdvisor = onOpenAdvisor,
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
@@ -213,6 +221,7 @@ private fun StudentAboutPane(
     onOpenHouse: () -> Unit,
     onOpenRoom: () -> Unit,
     onOpenClass: (PersonClass) -> Unit,
+    onOpenAdvisor: (DirectoryEntity) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (kind == DirectoryEntityKind.TEACHER) {
@@ -230,6 +239,13 @@ private fun StudentAboutPane(
     val classes = profile?.classes.orEmpty()
     val year = profile?.year
     val country = profile?.country
+    val pronouns = profile?.pronouns?.takeIf { it.isNotBlank() }
+    val email = profile?.email?.takeIf { it.isNotBlank() }
+    val mobile = profile?.mobile?.takeIf { it.isNotBlank() }
+    val graduation = profile?.graduationYear?.takeIf { it.isNotBlank() }
+    val advisor = profile?.advisor
+    val birthday = profile?.parsedBirthday
+    val birthdayRaw = profile?.birthday?.takeIf { it.isNotBlank() }
 
     LazyColumn(modifier = modifier.fillMaxSize()) {
         item { SectionHeader(stringResource(R.string.student_profile_section_house)) }
@@ -286,6 +302,11 @@ private fun StudentAboutPane(
             }
         }
 
+        if (birthday != null || birthdayRaw != null) {
+            item { SectionHeader(stringResource(R.string.student_profile_section_birthday)) }
+            item { BirthdayRow(birthday = birthday, raw = birthdayRaw) }
+        }
+
         item { SectionHeader(stringResource(R.string.student_profile_section_classes)) }
         if (classes.isEmpty()) {
             item {
@@ -300,23 +321,114 @@ private fun StudentAboutPane(
             }
         }
 
-        if (year != null || country != null) {
-            item { SectionHeader(stringResource(R.string.student_profile_section_more)) }
-            year?.let {
-                item {
-                    AppListRow {
-                        AppListPrimary(stringResource(R.string.student_profile_year, it))
-                    }
-                    AppListDivider()
+        item { SectionHeader(stringResource(R.string.student_profile_section_more)) }
+        year?.let {
+            item {
+                AppListRow {
+                    AppListPrimary(stringResource(R.string.student_profile_year, it))
                 }
+                AppListDivider()
             }
-            country?.let {
-                item {
-                    AppListRow {
-                        AppListPrimary(it)
-                    }
-                    AppListDivider()
+        }
+        graduation?.let {
+            item {
+                AppListRow(
+                    leading = {
+                        Icon(
+                            Icons.Default.CalendarMonth,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    },
+                ) {
+                    AppListPrimary(it, emphasized = true)
+                    AppListSecondary(stringResource(R.string.student_profile_graduation))
                 }
+                AppListDivider()
+            }
+        }
+        country?.let {
+            item {
+                AppListRow { AppListPrimary(it) }
+                AppListDivider()
+            }
+        }
+        pronouns?.let {
+            item {
+                AppListRow {
+                    AppListPrimary(it, emphasized = true)
+                    AppListSecondary(stringResource(R.string.student_profile_pronouns))
+                }
+                AppListDivider()
+            }
+        }
+        advisor?.let { person ->
+            item {
+                AppListRow(
+                    onClick = { onOpenAdvisor(person.entity) },
+                    leading = {
+                        Icon(
+                            Icons.Default.Person,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    },
+                ) {
+                    AppListPrimary(person.name, emphasized = true)
+                    AppListSecondary(stringResource(R.string.student_profile_advisor))
+                }
+                AppListDivider()
+            }
+        }
+        email?.let { address ->
+            item {
+                AppListRow(
+                    leading = {
+                        Icon(
+                            Icons.Default.Email,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    },
+                ) {
+                    AppListPrimary(address, emphasized = true)
+                    AppListSecondary(stringResource(R.string.student_profile_email))
+                }
+                AppListDivider()
+            }
+        }
+        mobile?.let { number ->
+            item {
+                AppListRow(
+                    leading = {
+                        Icon(
+                            Icons.Default.Phone,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    },
+                ) {
+                    AppListPrimary(number, emphasized = true)
+                    AppListSecondary(stringResource(R.string.student_profile_mobile))
+                }
+                AppListDivider()
+            }
+        }
+        profile?.id?.takeIf { it.isNotBlank() }?.let { uwcId ->
+            item {
+                AppListRow(
+                    leading = {
+                        Icon(
+                            Icons.Default.Badge,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    },
+                ) {
+                    AppListPrimary(uwcId, emphasized = true)
+                    AppListSecondary(stringResource(R.string.student_profile_uwc_id))
+                }
+                AppListDivider()
             }
         }
         item { Spacer(Modifier.height(24.dp)) }
@@ -463,23 +575,62 @@ private fun StaffAboutPane(
             }
         }
 
-        if (country != null || birthday != null) {
+        if (birthday != null) {
+            item { SectionHeader(stringResource(R.string.student_profile_section_birthday)) }
+            item { BirthdayRow(birthday = PersonBirthday.parse(birthday), raw = birthday) }
+        }
+        if (country != null) {
             item { SectionHeader(stringResource(R.string.student_profile_section_more)) }
-            country?.let {
-                item {
-                    AppListRow { AppListPrimary(it) }
-                    AppListDivider()
-                }
-            }
-            birthday?.let {
-                item {
-                    AppListRow { AppListPrimary(it) }
-                    AppListDivider()
-                }
+            item {
+                AppListRow { AppListPrimary(country) }
+                AppListDivider()
             }
         }
         item { Spacer(Modifier.height(24.dp)) }
     }
+}
+
+@Composable
+private fun BirthdayRow(
+    birthday: PersonBirthday?,
+    raw: String?,
+) {
+    val today = birthday?.isToday() == true
+    val title = birthday?.display ?: raw.orEmpty()
+    val subtitle = when {
+        today -> stringResource(R.string.student_profile_birthday_today)
+        birthday?.isTomorrow() == true -> stringResource(R.string.student_profile_birthday_tomorrow)
+        birthday != null -> stringResource(
+            R.string.student_profile_birthday_in_days,
+            birthday.daysUntil(),
+        )
+        else -> stringResource(R.string.student_profile_birthday)
+    }
+    val container = if (today) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        Color.Transparent
+    }
+    val iconColor = if (today) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+    Surface(color = container) {
+        AppListRow(
+            leading = {
+                Icon(
+                    Icons.Default.Cake,
+                    contentDescription = stringResource(R.string.student_profile_birthday_cd),
+                    tint = iconColor,
+                )
+            },
+        ) {
+            AppListPrimary(title, emphasized = true)
+            AppListSecondary(subtitle)
+        }
+    }
+    AppListDivider()
 }
 
 @Composable
@@ -649,7 +800,8 @@ fun PersonSchedulePane(
                 .weight(1f),
         ) {
             when {
-                loading && week == null -> LoadingBox()
+                loading && (week == null || weekDays.none { it.date == selectedDate }) ->
+                    ScheduleDaySkeleton()
                 week == null -> {
                     Text(
                         stringResource(R.string.directory_person_schedule_empty),
@@ -664,6 +816,10 @@ fun PersonSchedulePane(
                         modifier = Modifier.fillMaxSize(),
                     ) { date ->
                         val events = weekDays.find { it.date == date }?.events.orEmpty()
+                        if (loading && events.isEmpty() && weekDays.none { it.date == date }) {
+                            ScheduleDaySkeleton()
+                            return@ScheduleDayPager
+                        }
                         when (calendarStyle) {
                             CalendarStyle.PROFESSIONAL -> {
                                 TimelineDayView(

@@ -2,23 +2,25 @@
 //  PersonClasses.swift
 //  BetterW4
 //
-//  Academic classes a student is enrolled in, taken from their timetable.
+//  Academic classes a student is enrolled in.
 //
-//  W4 does not expose another student's `myclasses` page (`mytimetable&uwc_id=`
-//  is ignored and always returns the signed-in student). The public person
-//  week does, and every real class brick links `academics/classes/class`.
+//  Another student's public profile (`people/students/student&uwc_id=`) lists
+//  their classes. `myclasses` / `mytimetable&uwc_id=` always returns the
+//  signed-in student, so the profile page is the source of truth. The week
+//  helper below is kept for callers that only have a timetable.
 //
 
 import Foundation
 
 /// One academic class a student is in. `classId` is W4's `class_id` when the
-/// timetable brick linked `academics/classes/class` — that is what opens
-/// the roster page.
+/// profile (or a timetable brick) linked `academics/classes/class` — that is
+/// what opens the roster page.
 struct PersonClass: Equatable, Hashable, Identifiable, Sendable {
     let classId: String?
     let name: String
     let year: String?
     let levelLabel: String?
+    let teacher: String?
     let room: String?
 
     var id: String { classId?.lowercased() ?? "name:\(name.lowercased())" }
@@ -28,6 +30,7 @@ struct PersonClass: Equatable, Hashable, Identifiable, Sendable {
         let parts = [
             year.map { $0.hasPrefix("Year") ? $0 : "Year \($0)" },
             levelLabel.flatMap { $0.isEmpty ? nil : $0 },
+            teacher.flatMap { $0.isEmpty ? nil : $0 },
             room.flatMap { $0.isEmpty ? nil : $0 }
         ].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
@@ -38,12 +41,14 @@ struct PersonClass: Equatable, Hashable, Identifiable, Sendable {
         name: String,
         year: String? = nil,
         levelLabel: String? = nil,
+        teacher: String? = nil,
         room: String? = nil
     ) {
         self.classId = classId
         self.name = name
         self.year = year
         self.levelLabel = levelLabel
+        self.teacher = teacher
         self.room = room
     }
 }
@@ -100,6 +105,7 @@ enum PersonClasses {
                     name: Self.preferName(previous.name, name),
                     year: previous.year ?? item.year,
                     levelLabel: previous.levelLabel ?? item.levelLabel,
+                    teacher: previous.teacher ?? item.teacher,
                     room: previous.room ?? item.room
                 )
             } else {
@@ -108,6 +114,7 @@ enum PersonClasses {
                     name: name,
                     year: item.year,
                     levelLabel: item.levelLabel,
+                    teacher: item.teacher,
                     room: item.room
                 )
                 order.append(key)

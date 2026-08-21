@@ -3,6 +3,7 @@ import { LoginPage } from '@/components/LoginPage';
 import { getCachedProfile } from '@/lib/profile-cache';
 import { getSettings } from '@/lib/settings-storage';
 import { applyTheme } from '@/lib/theme-storage';
+import { normalizeW4Username } from '@/lib/w4-username';
 import { getRoute, isLoginPage, isOtpRoute } from '@/lib/w4-url';
 import '@/styles/globals.css';
 
@@ -132,6 +133,7 @@ function styleField(input: HTMLInputElement, labelText?: string | null): void {
   } else if (name.includes('username') || name.includes('[user')) {
     input.autocomplete = 'username';
     if (!input.placeholder) input.placeholder = 'Username';
+    bindUsernameEmailStrip(input);
   } else if (name.includes('otp') || name.includes('code') || name.includes('token') || name.includes('verify')) {
     input.autocomplete = 'one-time-code';
     input.inputMode = 'numeric';
@@ -146,6 +148,23 @@ function styleSubmit(input: HTMLInputElement): void {
   input.removeAttribute('style');
 }
 
+const usernameFieldsBound = new WeakSet<HTMLInputElement>();
+
+/** W4 ids are `nc26jban`; strip `@uwcrcn.no` (and any other domain) if pasted or autofilled. */
+function bindUsernameEmailStrip(input: HTMLInputElement): void {
+  if (usernameFieldsBound.has(input)) return;
+  usernameFieldsBound.add(input);
+  input.removeAttribute('maxlength');
+  const apply = () => {
+    const next = normalizeW4Username(input.value);
+    if (next !== input.value) input.value = next;
+  };
+  apply();
+  input.addEventListener('input', apply);
+  input.addEventListener('change', apply);
+  input.form?.addEventListener('submit', apply);
+}
+
 function initLoginPage() {
   const settings = getSettings();
   document.documentElement.classList.toggle('dark', settings.visual.darkMode);
@@ -154,7 +173,12 @@ function initLoginPage() {
 
   const mode = loginMode();
   const nativeForm = findAuthForm();
-  if (nativeForm) normalizeLoginForm(nativeForm);
+  if (nativeForm) {
+    normalizeLoginForm(nativeForm);
+    nativeForm
+      .querySelectorAll<HTMLInputElement>('input[name="LoginForm[username]"], input[name*="username" i]')
+      .forEach(bindUsernameEmailStrip);
+  }
   const extras = nativeForm ? collectAuthExtras(nativeForm) : [];
 
   const originalNodes: Node[] = [];

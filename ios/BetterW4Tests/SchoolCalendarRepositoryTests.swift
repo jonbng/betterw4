@@ -26,6 +26,26 @@ final class SchoolCalendarRepositoryTests: XCTestCase {
         XCTAssertNil(overlay)
     }
 
+    func testICSIsLoadedOnceAcrossWeeksUntilForced() async throws {
+        let ics = try fixture()
+        let counter = ICSLoadCounter()
+        let repository = SchoolCalendarRepository(loadIcs: { _ in
+            await counter.increment()
+            return ics
+        })
+
+        let first = await repository.weekOverlay(year: 2026, week: 33)
+        let second = await repository.weekOverlay(year: 2026, week: 33)
+        XCTAssertEqual(await counter.count, 1, "the same week must reuse the in-memory ICS")
+        XCTAssertEqual(first?.allEvents.map(\.id), second?.allEvents.map(\.id))
+
+        _ = await repository.weekOverlay(year: 2026, week: 34)
+        XCTAssertEqual(await counter.count, 1, "a neighbouring week must reuse the same ICS body")
+
+        _ = await repository.weekOverlay(year: 2026, week: 33, forceRefresh: true)
+        XCTAssertEqual(await counter.count, 2, "forceRefresh must re-read the feed")
+    }
+
     private func fixture() throws -> String {
         let bundle = Bundle(for: type(of: self))
         if let url = bundle.url(forResource: "school-calendar", withExtension: "ics", subdirectory: "Fixtures/W4")
@@ -40,4 +60,9 @@ final class SchoolCalendarRepositoryTests: XCTestCase {
         }
         throw XCTSkip("Fixture school-calendar.ics is not in the test bundle")
     }
+}
+
+private actor ICSLoadCounter {
+    private(set) var count = 0
+    func increment() { count += 1 }
 }

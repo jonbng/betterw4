@@ -1,6 +1,6 @@
 # Privacy Policy for BetterW4
 
-**Last updated:** 18 August 2026
+**Last updated:** 21 August 2026
 
 BetterW4 is an unofficial student app for [W4](https://w4.uwcrcn.no/), the student information system at [UWC Red Cross Nordic](https://uwcrcn.no/). It is not made by, endorsed by, or affiliated with the college.
 
@@ -34,8 +34,9 @@ Everything BetterW4 knows lives on the device you are holding.
 - **Your W4 session.** The session cookie and a random device identifier stay on the device so you do not have to complete 2FA on every launch. Your password is never saved.
 - **Cached W4 pages.** Timetable, mail, assessments, attendance, directory and similar pages are cached so the app works offline. You can clear the cache at any time.
 - **Your settings.** Theme, calendar style, subject names and colours, and notification choices.
+- **Custom timetable events.** Events you add yourself. They never leave the device and are never sent to W4. Each account on the phone has its own list. Logging out does not delete them.
 
-Logging out removes the session and every cached page for that account, so the next person to use the device cannot read them.
+Logging out removes the session and every cached page for that account, so the next person to use the device cannot read them. Custom timetable events stay on the device, scoped to each account.
 
 ## W4 itself
 

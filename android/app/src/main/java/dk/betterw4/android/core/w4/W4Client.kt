@@ -42,6 +42,25 @@ interface W4Client {
         allowLoginPage: Boolean = false,
     ): AppResult<W4Response>
 
+    /** Form POST variant for HTML controls whose names repeat, such as `items[]`. */
+    suspend fun postForm(
+        routeOrUrl: String,
+        fields: List<Pair<String, String>>,
+        query: Map<String, String> = emptyMap(),
+        priority: FetchPriority = FetchPriority.Important,
+        credentials: W4Credentials? = null,
+        studentId: String? = null,
+        allowLoginPage: Boolean = false,
+    ): AppResult<W4Response> = postForm(
+        routeOrUrl,
+        fields.toMap(),
+        query,
+        priority,
+        credentials,
+        studentId,
+        allowLoginPage,
+    )
+
     /**
      * jQuery `$.post` — urlencoded + `X-Requested-With: XMLHttpRequest`.
      * 403 + `Login Required` is session death; other 403 is forbidden; 409 is a server error.
@@ -132,6 +151,27 @@ class DefaultW4Client @Inject constructor(
         query = query,
         method = "POST",
         body = encodeForm(fields),
+        headers = mapOf("Content-Type" to "application/x-www-form-urlencoded; charset=UTF-8"),
+        priority = priority,
+        credentials = credentials,
+        studentId = studentId,
+        allowLoginPage = allowLoginPage,
+        ajax = false,
+    )
+
+    override suspend fun postForm(
+        routeOrUrl: String,
+        fields: List<Pair<String, String>>,
+        query: Map<String, String>,
+        priority: FetchPriority,
+        credentials: W4Credentials?,
+        studentId: String?,
+        allowLoginPage: Boolean,
+    ): AppResult<W4Response> = execute(
+        routeOrUrl = routeOrUrl,
+        query = query,
+        method = "POST",
+        body = W4Form.encode(fields),
         headers = mapOf("Content-Type" to "application/x-www-form-urlencoded; charset=UTF-8"),
         priority = priority,
         credentials = credentials,

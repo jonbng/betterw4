@@ -22,8 +22,23 @@ import androidx.compose.material.icons.filled.TheaterComedy
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Event
 import androidx.compose.ui.graphics.vector.ImageVector
+import dk.betterw4.android.feature.schedule.CustomEvents
+import dk.betterw4.android.feature.schedule.ScheduleEvent
+import dk.betterw4.android.feature.schedule.SchoolCalendar
 import dk.betterw4.android.feature.settings.SubjectIcons
+
+fun subjectIcon(event: ScheduleEvent, title: String = event.title): ImageVector {
+    if (SchoolCalendar.isSchoolCalendarEvent(event)) {
+        return Icons.Outlined.CalendarMonth
+    }
+    if (CustomEvents.isCustomEvent(event)) {
+        return Icons.Outlined.Event
+    }
+    return subjectIcon(title)
+}
 
 fun subjectIcon(title: String): ImageVector {
     return when (SubjectIcons.iconKeyFor(title)) {

@@ -11,6 +11,7 @@ import dk.betterw4.android.feature.classes.ClassLevel
 import dk.betterw4.android.feature.classes.ClassMember
 import dk.betterw4.android.feature.classes.ClassRoom
 import dk.betterw4.android.feature.classes.MyClass
+import dk.betterw4.android.feature.teachers.MyTeacher
 import dk.betterw4.android.feature.directory.DirectoryEntity
 import dk.betterw4.android.feature.directory.DirectoryEntityKind
 import dk.betterw4.android.feature.directory.House
@@ -558,6 +559,22 @@ object DemoData {
             loaded = true,
         ),
     )
+
+    val myTeachers: List<MyTeacher> = demoTeachers.map { spec ->
+        val parsed = when (spec.subject) {
+            "English" -> "English Language & Literature" to ClassLevel.STANDARD
+            "Mathematics" -> "Mathematics Analysis and Approaches" to ClassLevel.HIGHER
+            "Advisor" -> "Advisor group" to ClassLevel.UNKNOWN
+            else -> spec.subject to ClassLevel.UNKNOWN
+        }
+        MyTeacher(
+            id = spec.id,
+            name = spec.name,
+            role = parsed.first,
+            level = parsed.second,
+            photoUrl = identicon(spec.id),
+        )
+    }
 
     fun homePage(): dk.betterw4.android.feature.home.HomePage =
         dk.betterw4.android.feature.home.HomePage(

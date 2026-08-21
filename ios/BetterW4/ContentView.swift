@@ -9,8 +9,8 @@
 //
 //    Timetable — `ScheduleView`      AC + EA lessons, merged
 //    Students  — `StudentSearchView` people directory (the thing people actually open)
-//    Assessments — `AssessmentsView` W4 collapses homework and assignments into one calendar
-//    More      — `MoreView`          everything else, including the unused W4 mailer
+//    Absence   — `AbsenceView`       AC + EA attendance meters and registrations
+//    More      — `MoreView`          everything else, including assessments and the unused W4 mailer
 //
 //  Every tab owns a `NavigationStack`. Students and More bind a `NavigationPath`, because the
 //  directory pushes people onto it from inside.
@@ -55,8 +55,8 @@ struct ContentView: View {
 enum AuthenticatedTabIndex {
     static let timetable = 0
     static let students = 1
-    /// W4 merges homework and assignments into one assessments calendar, so there is no fifth tab.
-    static let assessments = 2
+    /// Attendance is the daily check; assessments live under More.
+    static let absences = 2
     static let more = 3
 }
 
@@ -120,12 +120,12 @@ private struct AuthenticatedTabShell: View {
             }
 
             NavigationStack {
-                AssessmentsView(student: student)
+                AbsenceView(student: student)
             }
             .tabItem {
-                Label("Assessments", systemImage: "checklist")
+                Label("Absence", systemImage: "exclamationmark.circle")
             }
-            .tag(AuthenticatedTabIndex.assessments)
+            .tag(AuthenticatedTabIndex.absences)
 
             NavigationStack(path: $moreNavigationPath) {
                 MoreView(
@@ -145,6 +145,7 @@ private struct AuthenticatedTabShell: View {
         }
         .task(id: student.id) {
             settingsStore.activateScope(studentId: student.studentId)
+            CustomEventsStore.shared.activate(studentId: student.studentId)
         }
         .onChange(of: selectedTab) { _, newValue in
             // Mail now lives under More; warm the inbox when that tab is about to be used.
@@ -230,8 +231,10 @@ struct MoreView: View {
             }
 
             Section {
+                row("Assessments", systemImage: "checklist") { AssessmentsView(student: student) }
                 row("Grades", systemImage: "chart.bar.doc.horizontal") { GradesView(student: student) }
-                row("Absence", systemImage: "exclamationmark.circle") { AbsenceView(student: student) }
+                row("My classes", systemImage: "books.vertical") { MyClassesView() }
+                row("My teachers", systemImage: "person.3") { MyTeachersView() }
                 row("Extra Academics", systemImage: "figure.outdoor.cycle") { ExtraAcademicsView() }
             } header: {
                 Text("Academics")
@@ -240,6 +243,7 @@ struct MoreView: View {
             Section {
                 directoryRow("Teachers", systemImage: "person.text.rectangle.fill", presentation: .teachers)
                 row("On duty", systemImage: "person.badge.shield.checkmark") { OnDutyView() }
+                row("Birthdays", systemImage: "birthday.cake") { BirthdaysView() }
             } header: {
                 Text("People")
             }

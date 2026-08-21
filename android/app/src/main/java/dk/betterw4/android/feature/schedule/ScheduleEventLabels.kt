@@ -62,8 +62,8 @@ fun ScheduleEvent.statusLabelText(): String? {
     return statusLabel(context)
 }
 
-/** Protocol / identity token for local private events (not for display). */
+/** Protocol / identity token for local custom events (not for display). */
 const val PRIVATE_EVENT_TEAM_TOKEN = "Privat"
 
-/** Stored default title when draft title is blank (matched in canDelete checks). */
-const val PRIVATE_EVENT_DEFAULT_TITLE = "Privat aftale"
+/** Stored default title when draft title is blank. */
+const val PRIVATE_EVENT_DEFAULT_TITLE = "Custom event"

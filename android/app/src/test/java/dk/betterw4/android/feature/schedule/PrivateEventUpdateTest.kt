@@ -70,5 +70,25 @@ class PrivateEventUpdateTest {
         assertEquals(overrides["m\$Content\$titelTextBox\$tb"], event.title)
         assertEquals(draft.startDate, "01/04-2026")
         assertEquals(LocalTime.of(8, 15), event.start?.toLocalTime())
+        assertEquals(CustomEvents.SOURCE, event.source)
+    }
+
+    @Test
+    fun draftToEvent_all_day_uses_midnight_bounds() {
+        val event = LocalPrivateEvents().draftToEvent(
+            PrivateEventDraft(
+                title = "Holiday",
+                startDate = "01/04-2026",
+                startTime = "08:00",
+                endDate = "01/04-2026",
+                endTime = "09:00",
+                isAllDay = true,
+            ),
+            id = "local-holiday",
+            nowDate = LocalDate.of(2026, 4, 1),
+        )
+        assertTrue(event.isAllDay)
+        assertEquals(LocalDate.of(2026, 4, 1).atStartOfDay(), event.start)
+        assertEquals(LocalDate.of(2026, 4, 2).atStartOfDay(), event.end)
     }
 }

@@ -28,12 +28,19 @@ enum AttendanceSource: String, Codable, Sendable, Hashable, CaseIterable {
     case academics = "ac"
     case extraAcademics = "ea"
 
-    /// The Yii route of this source's list page. **[V]** — both routes appear in
-    /// the captured side menus and in the captured Home meter links.
+    /// Yii `…/list` page — the real registrations table.
     var listRoute: String {
         switch self {
-        case .academics: return W4Routes.R.absences
-        case .extraAcademics: return W4Routes.R.eaAbsences
+        case .academics: return W4Routes.R.absencesList
+        case .extraAcademics: return W4Routes.R.eaAbsencesList
+        }
+    }
+
+    /// Default week grid (`people/students/absences` / `eaabsences`).
+    var weekRoute: String {
+        switch self {
+        case .academics: return W4Routes.R.absencesIndex
+        case .extraAcademics: return W4Routes.R.eaAbsencesIndex
         }
     }
 
@@ -65,6 +72,10 @@ enum AttendanceSource: String, Codable, Sendable, Hashable, CaseIterable {
         }
         return nil
     }
+}
+
+enum AttendanceFeatureFlags {
+    static let writesEnabled = true
 }
 
 // MARK: - Kind
@@ -216,6 +227,8 @@ struct AttendanceRecord: Identifiable, Codable, Equatable, Hashable, Sendable {
     let status: String
     let teacher: String?
     let note: String?
+    let addedBy: String? = nil
+    let studentWas: String? = nil
 
     /// W4 absence rows are read-only for students; there is no edit affordance.
     var isEditable: Bool { false }
@@ -244,6 +257,20 @@ extension AttendanceRecord {
             subject ?? "",
             kind.rawValue
         ].joined(separator: "|")
+        let suffix = occurrence > 0 ? "-\(occurrence)" : ""
+        return "\(source.rawValue)-\(fnv1aHex(payload))\(suffix)"
+    }
+
+    static func identity(
+        source: AttendanceSource,
+        dateRaw: String,
+        time: String?,
+        subject: String?,
+        type: String?,
+        occurrence: Int = 0
+    ) -> String {
+        let payload = [source.rawValue, dateRaw, time ?? "", subject ?? "", type ?? ""]
+            .joined(separator: "|")
         let suffix = occurrence > 0 ? "-\(occurrence)" : ""
         return "\(source.rawValue)-\(fnv1aHex(payload))\(suffix)"
     }

@@ -70,6 +70,16 @@ enum SchoolCalendar {
         return event.id.lowercased().hasPrefix(idPrefix.lowercased())
     }
 
+    /// W4 lesson titles/subjects that may enter the subject-mapping catalogue.
+    /// Google Calendar overlay events are college-wide, not IB subjects.
+    static func subjectMappingKeys(from events: [TimetableEvent]) -> [String] {
+        events
+            .filter { !isSchoolCalendarEvent($0) && !CustomEvents.isCustomEvent($0) }
+            .flatMap { [$0.subject, $0.title] }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
     /// Drops college-calendar overlay events when the student has hidden them.
     static func visibleEvents(
         _ events: [TimetableEvent],

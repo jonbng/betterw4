@@ -12,7 +12,7 @@ Not made by, endorsed by, or affiliated with the college.
 ## Features
 
 - Native login with 2FA
-- Combined academics + extra-academics timetable
+- Combined academics + extra-academics timetable, plus custom events stored on the device
 - Mail, assessments, grades, absences
 - Student / staff directory, houses, on duty
 - Campus status

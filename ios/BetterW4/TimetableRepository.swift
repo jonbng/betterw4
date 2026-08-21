@@ -207,6 +207,11 @@ actor TimetableRepository {
     /// `SchoolCalendarRepository` and honours the Settings toggle (on by default, same as Android).
     private let schoolCalendarOverlay: (@Sendable (_ year: Int, _ week: Int) async -> ScheduleWeek?)?
 
+    /// Merged AC+EA weeks **without** the school-calendar overlay, keyed `"uwcId|2026-W33"`.
+    /// Overlay is applied on the way out so toggling the calendar does not require a SwiftSoup
+    /// reparse. Dropped on `invalidate` / `clearStoredLessons`.
+    private var parsedWeeks: [String: W4Loaded<ScheduleWeek>] = [:]
+
     /// Whether `?year=&week=` has been proven to work. The UI reads this to decide if the
     /// previous/next-week controls are usable at all (D-18).
     private(set) var weekParamSupport: TimetableWeekParamSupport = .unknown
@@ -268,7 +273,8 @@ actor TimetableRepository {
         let cached = await cachedWeek(iso: iso, uwcId: uwcId)
 
         if policy == .refreshWhenStale, let cached, !Self.isStale(cached) {
-            return await overlaySchoolCalendar(cached)
+            // `cachedWeek` already laid the overlay on. Doing it again would re-expand the ICS.
+            return cached
         }
 
         do {
@@ -303,6 +309,7 @@ actor TimetableRepository {
         guard let context = try? resolveContext() else { return }
         let iso = W4Dates.isoWeek(of: date)
         let weekKey = ScheduleIdentity.weekKey(year: iso.year, week: iso.week)
+        parsedWeeks[Self.parsedWeekCacheKey(uwcId: context.uwcId, weekKey: weekKey)] = nil
         await cache.remove(
             surface: .timetableAcademics,
             key: Self.cacheKey(route: W4Routes.R.myTimetable, weekKey: weekKey),
@@ -318,6 +325,8 @@ actor TimetableRepository {
     /// Sign-out / "Clear cache": forget every stored lesson for the signed-in student.
     func clearStoredLessons() async {
         guard let context = try? resolveContext() else { return }
+        let prefix = "\(context.uwcId)|"
+        parsedWeeks = parsedWeeks.filter { !$0.key.hasPrefix(prefix) }
         await store.clear(context.uwcId)
     }
 
@@ -432,6 +441,10 @@ actor TimetableRepository {
         }
 
         let week = merged.withFetchedAt(fetchedAt)
+        rememberParsed(
+            W4Loaded(week, freshness: servedFrom.map { .cached(fetchedAt: $0, isStale: false) } ?? .fresh),
+            uwcId: uwcId
+        )
 
         // D-22: delete only what this fetch can actually vouch for. An empty set means
         // "upsert, delete nothing". School-calendar events are not stored here — the ICS
@@ -470,26 +483,9 @@ actor TimetableRepository {
         }
 
         let iso = W4Dates.isoWeek(of: date)
-        let weekKey = ScheduleIdentity.weekKey(year: iso.year, week: iso.week)
-        let cacheKey = "person:\(uwcId):\(weekKey)"
-        let cached = await cache.page(
-            surface: .timetableAcademics,
-            key: cacheKey,
-            uwcId: context.uwcId
-        )
-        if !forceRefresh, let cached, !cached.isStale {
-            let parsed = W4TimetableParser.parseWeek(
-                html: cached.html,
-                source: .academics,
-                fallbackYear: iso.year,
-                fallbackWeek: iso.week
-            )
-            if !parsed.days.isEmpty {
-                return W4Loaded(
-                    parsed,
-                    freshness: .cached(fetchedAt: cached.fetchedAt, isStale: false)
-                )
-            }
+        let cached = await cachedPersonWeek(iso: iso, targetUwcId: uwcId, viewerUwcId: context.uwcId)
+        if !forceRefresh, let cached, !Self.isStale(cached) {
+            return cached
         }
 
         let query = [
@@ -516,20 +512,7 @@ actor TimetableRepository {
         let academics = try await academicsTask
         let extra = try await extraTask
         guard let primaryHTML = academics?.html else {
-            if let cached {
-                let parsed = W4TimetableParser.parseWeek(
-                    html: cached.html,
-                    source: .academics,
-                    fallbackYear: iso.year,
-                    fallbackWeek: iso.week
-                )
-                if !parsed.days.isEmpty {
-                    return W4Loaded(
-                        parsed,
-                        freshness: .cached(fetchedAt: cached.fetchedAt, isStale: true)
-                    )
-                }
-            }
+            if let cached { return cached }
             throw W4Error.noResponse
         }
 
@@ -555,6 +538,7 @@ actor TimetableRepository {
         }
 
         let fetchedAt = clock()
+        let cacheKey = Self.personCacheKey(uwcId: uwcId, weekKey: ScheduleIdentity.weekKey(year: iso.year, week: iso.week))
         await cache.store(
             html: primaryHTML,
             surface: .timetableAcademics,
@@ -564,7 +548,34 @@ actor TimetableRepository {
             contentType: Self.htmlContentType,
             fetchedAt: fetchedAt
         )
+        if let extra {
+            await cache.store(
+                html: extra.html,
+                surface: .timetableExtraAcademics,
+                key: cacheKey,
+                uwcId: context.uwcId,
+                finalURL: extra.finalURL,
+                contentType: Self.htmlContentType,
+                fetchedAt: fetchedAt
+            )
+        }
         return W4Loaded(merged.withFetchedAt(fetchedAt), freshness: .fresh)
+    }
+
+    /// Disk copy of another person's week, with no network. Nil when this viewer has
+    /// never opened that week for that person.
+    func cachedPersonWeek(
+        uwcId rawUwcId: String,
+        containing date: Date
+    ) async -> W4Loaded<ScheduleWeek>? {
+        guard let context = try? resolveContext() else { return nil }
+        let uwcId = DirectoryRepository.normalizedUwcId(rawUwcId)
+        guard !uwcId.isEmpty else { return nil }
+        if context.isDemo {
+            return W4Loaded(Self.demoWeek(containing: date), freshness: .demo)
+        }
+        let iso = W4Dates.isoWeek(of: date)
+        return await cachedPersonWeek(iso: iso, targetUwcId: uwcId, viewerUwcId: context.uwcId)
     }
 
     /// One page fetch, with the two behaviours the caller needs to vary: skip it entirely (we
@@ -615,6 +626,10 @@ actor TimetableRepository {
 
     private func cachedWeek(iso: (year: Int, week: Int), uwcId: String) async -> W4Loaded<ScheduleWeek>? {
         let weekKey = ScheduleIdentity.weekKey(year: iso.year, week: iso.week)
+
+        if let remembered = rememberedParsed(iso: iso, uwcId: uwcId) {
+            return await overlaySchoolCalendar(remembered)
+        }
 
         var academicsWeek: ScheduleWeek?
         var fetchedAt = Date.distantPast
@@ -673,6 +688,7 @@ actor TimetableRepository {
             week.withFetchedAt(fetchedAt),
             freshness: W4Freshness.cached(fetchedAt: fetchedAt, isStale: isStale)
         )
+        rememberParsed(loaded, uwcId: uwcId)
         return await overlaySchoolCalendar(loaded)
     }
 
@@ -736,7 +752,35 @@ actor TimetableRepository {
                 isStale: !CachePolicy.isFresh(snapshot.updatedAt, for: .timetableAcademics, now: now)
             )
         )
+        rememberParsed(loaded, uwcId: uwcId)
         return await overlaySchoolCalendar(loaded)
+    }
+
+    private static func parsedWeekCacheKey(uwcId: String, weekKey: String) -> String {
+        "\(uwcId)|\(weekKey)"
+    }
+
+    private func rememberParsed(_ loaded: W4Loaded<ScheduleWeek>, uwcId: String) {
+        let weekKey = ScheduleIdentity.weekKey(year: loaded.value.year, week: loaded.value.week)
+        parsedWeeks[Self.parsedWeekCacheKey(uwcId: uwcId, weekKey: weekKey)] = loaded
+    }
+
+    /// In-memory AC+EA week with staleness recomputed from TTL, or `nil`.
+    private func rememberedParsed(
+        iso: (year: Int, week: Int),
+        uwcId: String
+    ) -> W4Loaded<ScheduleWeek>? {
+        let weekKey = ScheduleIdentity.weekKey(year: iso.year, week: iso.week)
+        guard let stored = parsedWeeks[Self.parsedWeekCacheKey(uwcId: uwcId, weekKey: weekKey)] else {
+            return nil
+        }
+        let fetchedAt = stored.value.fetchedAt ?? stored.freshness.fetchedAt
+        guard let fetchedAt else { return stored }
+        let freshness = W4Freshness.cached(
+            fetchedAt: fetchedAt,
+            isStale: !CachePolicy.isFresh(fetchedAt, for: .timetableAcademics, now: clock())
+        )
+        return W4Loaded(stored.value, freshness: freshness)
     }
 
     // MARK: - Helpers
@@ -769,6 +813,60 @@ actor TimetableRepository {
     /// `"<route>|2026-W33"` — one cache entry per route per ISO week.
     private static func cacheKey(route: String, weekKey: String) -> String {
         "\(route)|\(weekKey)"
+    }
+
+    /// One key for both AC and EA surfaces so a person week is one pair, not two namespaces.
+    private static func personCacheKey(uwcId: String, weekKey: String) -> String {
+        "person:\(uwcId):\(weekKey)"
+    }
+
+    private func cachedPersonWeek(
+        iso: (year: Int, week: Int),
+        targetUwcId: String,
+        viewerUwcId: String
+    ) async -> W4Loaded<ScheduleWeek>? {
+        let weekKey = ScheduleIdentity.weekKey(year: iso.year, week: iso.week)
+        let cacheKey = Self.personCacheKey(uwcId: targetUwcId, weekKey: weekKey)
+
+        guard let acPage = await cache.page(
+            surface: .timetableAcademics,
+            key: cacheKey,
+            uwcId: viewerUwcId
+        ) else { return nil }
+
+        var week = W4TimetableParser.parseWeek(
+            html: acPage.html,
+            source: .academics,
+            fallbackYear: iso.year,
+            fallbackWeek: iso.week
+        )
+        guard !week.days.isEmpty else { return nil }
+
+        var fetchedAt = acPage.fetchedAt
+        var isStale = acPage.isStale
+
+        if let eaPage = await cache.page(
+            surface: .timetableExtraAcademics,
+            key: cacheKey,
+            uwcId: viewerUwcId
+        ) {
+            let extraWeek = W4TimetableParser.parseWeek(
+                html: eaPage.html,
+                source: .extraAcademics,
+                fallbackYear: week.year,
+                fallbackWeek: week.week
+            )
+            if extraWeek.year == week.year, extraWeek.week == week.week {
+                week = W4TimetableParser.merge(week, with: extraWeek)
+                fetchedAt = min(fetchedAt, eaPage.fetchedAt)
+                isStale = isStale || eaPage.isStale
+            }
+        }
+
+        return W4Loaded(
+            week.withFetchedAt(fetchedAt),
+            freshness: .cached(fetchedAt: fetchedAt, isStale: isStale)
+        )
     }
 
     private static func isCurrentWeek(_ iso: (year: Int, week: Int), now: Date) -> Bool {

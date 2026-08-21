@@ -3,11 +3,12 @@ package dk.betterw4.android.feature.schedule
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
- * Session-local private events overlay used by [ScheduleRepository].
- * JVM-testable create/delete/snapshot without Android or Lectio HTTP.
+ * Device-local custom events overlay used by [ScheduleRepository].
+ * JVM-testable create/delete/snapshot without Android or W4 HTTP.
  */
 class LocalPrivateEvents {
     private val events = CopyOnWriteArrayList<ScheduleEvent>()
@@ -15,6 +16,12 @@ class LocalPrivateEvents {
     fun snapshot(): List<ScheduleEvent> = events.toList()
 
     fun clear() = events.clear()
+
+    /** Replace the in-memory list without implying a user edit (hydrate from disk). */
+    fun replaceAll(next: List<ScheduleEvent>) {
+        events.clear()
+        events.addAll(next)
+    }
 
     fun add(event: ScheduleEvent) {
         events.add(event)
@@ -28,11 +35,11 @@ class LocalPrivateEvents {
     fun get(eventId: String): ScheduleEvent? = events.firstOrNull { it.id == eventId }
 
     /**
-     * Build a private event the same way [ScheduleRepository.createPrivateEvent] does for demo.
+     * Build a custom event the same way [ScheduleRepository.createPrivateEvent] does.
      */
     fun createFromDraft(
         draft: PrivateEventDraft,
-        id: String = "local-private-${System.currentTimeMillis()}",
+        id: String = "local-${UUID.randomUUID()}",
         nowDate: LocalDate = LocalDate.now(),
     ): ScheduleEvent {
         val event = draftToEvent(draft, id, nowDate)
@@ -61,20 +68,45 @@ class LocalPrivateEvents {
     ): ScheduleEvent {
         val startDate = parseDraftDate(draft.startDate) ?: nowDate
         val endDate = parseDraftDate(draft.endDate) ?: startDate
-        val startTime = parseDraftTime(draft.startTime) ?: LocalTime.of(8, 0)
-        val endTime = parseDraftTime(draft.endTime) ?: LocalTime.of(9, 0)
+        val start: LocalDateTime
+        val end: LocalDateTime
+        if (draft.isAllDay) {
+            start = startDate.atStartOfDay()
+            val lastDay = if (endDate.isBefore(startDate)) startDate else endDate
+            end = lastDay.plusDays(1).atStartOfDay()
+        } else {
+            val startTime = parseDraftTime(draft.startTime) ?: LocalTime.of(8, 0)
+            val endTime = parseDraftTime(draft.endTime) ?: LocalTime.of(9, 0)
+            start = LocalDateTime.of(startDate, startTime)
+            val rawEnd = LocalDateTime.of(endDate, endTime)
+            end = if (rawEnd.isAfter(start)) rawEnd else start.plusHours(1)
+        }
         return ScheduleEvent(
             id = id,
             // Default title/team are stable tokens; UI localizes display via private_event_* strings.
             title = draft.title.ifBlank { PRIVATE_EVENT_DEFAULT_TITLE },
             team = PRIVATE_EVENT_TEAM_TOKEN,
             notes = draft.note.ifBlank { null },
-            start = LocalDateTime.of(startDate, startTime),
-            end = LocalDateTime.of(endDate, endTime),
+            start = start,
+            end = end,
             date = startDate,
-            isAllDay = false,
+            isAllDay = draft.isAllDay,
             href = null,
+            source = CustomEvents.SOURCE,
         )
+    }
+
+    /**
+     * Strip any previous local overlay and lay the current snapshot over [week].
+     * Identity when there are no custom events left.
+     */
+    fun remesh(week: ScheduleWeek): ScheduleWeek {
+        val stripped = week.copy(
+            days = week.days.map { day ->
+                day.copy(events = day.events.filterNot { CustomEvents.isCustomEvent(it) })
+            },
+        )
+        return mergeIntoWeek(stripped)
     }
 
     fun mergeIntoWeek(week: ScheduleWeek): ScheduleWeek {

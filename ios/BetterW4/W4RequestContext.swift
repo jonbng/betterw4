@@ -19,6 +19,11 @@ struct W4RequestContext: Sendable {
     /// The signed-in student's UWC id (`nc26abcd`). Cache scope key and Keychain account key.
     var uwcId: String { student.studentId }
 
+    /// Roster id for "You" — demo sessions use the invented person on demo class pages.
+    var rosterUwcId: String {
+        student.isDemo ? DemoDataProvider.uwcId : student.studentId
+    }
+
     /// True when the app is in the offline demo session used for App Review.
     var isDemo: Bool { student.isDemo }
 

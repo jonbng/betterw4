@@ -122,6 +122,23 @@ class W4TimetableParserTest {
     }
 
     @Test
+    fun unknown_attendance_marker_is_preserved_as_unknown() {
+        val html = """
+            <div id="timetable-header"><div class="first"></div><div>Monday 24-Aug-2026</div></div>
+            <div id="timetable"><div class="first"></div><div class="column">
+              <div class="period" title="Monday 08:15 - 09:05&lt;br /&gt; Class: &lt;b&gt;Economics&lt;/b&gt;" style="top:0px;height:50px">
+                <div class="inner"><div class="datetime">08:15 - 09:05</div><div class="title">1EA16CECOX</div><div class="attendance mystery">Pending</div></div>
+              </div>
+            </div></div>
+        """.trimIndent()
+
+        val event = W4TimetableParser.parseWeek(html, year = 2026, week = 35)
+            .days.flatMap { it.events }.single()
+        assertEquals(LessonAttendance.UNKNOWN, event.attendance)
+        assertEquals("Pending", event.attendanceLabel)
+    }
+
+    @Test
     fun teacher_uwc_id_is_kept_even_when_class_id_is_present() {
         val html = """
             <div id="timetable">

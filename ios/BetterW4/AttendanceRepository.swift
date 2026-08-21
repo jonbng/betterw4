@@ -17,9 +17,7 @@
 //    2. `people/students/absences`      — the Academics registration list (the detail).
 //    3. `people/students/eaabsences`    — the Extra Academics registration list.
 //
-//  Plus one read-only surface: `people/students/absences/register`, the "register an absence" form.
-//  It is scraped and modelled, never POSTed — OQ-10 (the per-slot checkbox names have never been
-//  captured) means any payload we could construct would be a guess.
+//  Plus `people/students/absences/register`, whose captured native form can be submitted.
 //
 //  Cache scoping (`W4PageCache`, TTLs from `CachePolicy` and nowhere else):
 //
@@ -70,6 +68,28 @@ protocol AttendancePageFetching: Sendable {
         studentId: String?,
         priority: FetchPriority
     ) async throws -> AttendancePageResponse
+
+    func postPage(
+        route: String,
+        query: [String: String],
+        fields: [(String, String)],
+        credentials: W4Credentials,
+        studentId: String?,
+        priority: FetchPriority
+    ) async throws -> AttendancePageResponse
+}
+
+extension AttendancePageFetching {
+    func postPage(
+        route: String,
+        query: [String: String],
+        fields: [(String, String)],
+        credentials: W4Credentials,
+        studentId: String?,
+        priority: FetchPriority
+    ) async throws -> AttendancePageResponse {
+        throw W4Error.parsingError("This transport does not support form submission")
+    }
 }
 
 /// The production adapter over `W4HTTPClient`.
@@ -93,6 +113,28 @@ final class W4AttendancePageFetcher: AttendancePageFetching, @unchecked Sendable
     ) async throws -> AttendancePageResponse {
         let result = try await client.get(
             route: route,
+            query: query,
+            credentials: credentials,
+            studentId: studentId,
+            priority: priority
+        )
+        return AttendancePageResponse(
+            html: client.decodeHTML(from: result.data),
+            finalURL: result.finalURL
+        )
+    }
+
+    func postPage(
+        route: String,
+        query: [String: String],
+        fields: [(String, String)],
+        credentials: W4Credentials,
+        studentId: String?,
+        priority: FetchPriority
+    ) async throws -> AttendancePageResponse {
+        let result = try await client.postForm(
+            route: route,
+            fields: fields,
             query: query,
             credentials: credentials,
             studentId: studentId,
@@ -245,7 +287,7 @@ struct AttendanceSnapshot: Sendable, Equatable {
     }
 }
 
-// MARK: - The register-absence form (read-only)
+// MARK: - The register-absence form
 
 /// One input of the register-absence form, verbatim.
 struct AbsenceRegistrationField: Sendable, Equatable, Identifiable {
@@ -255,15 +297,14 @@ struct AbsenceRegistrationField: Sendable, Equatable, Identifiable {
     var id: String { name }
 }
 
-/// `people/students/absences/register`, modelled but **not** submittable.
-///
-/// OQ-10: W4 injects the per-slot checkboxes with its own JavaScript, so their names have never
-/// been captured and are not in the served HTML. Until a real capture exists the app scrapes the
-/// form's real inputs and shows them read-only; it never constructs a payload.
-///
-/// Note the shape of `fields`: `YiiForm` reports a checkbox only when the served HTML marks it
-/// `checked`, so an unchecked box is simply absent here. That is fine for a read-only model and is
-/// another reason nothing here is submittable.
+struct AbsenceRegistrationSlot: Sendable, Equatable, Identifiable {
+    let id: String
+    let value: String
+    let label: String
+    let disabled: Bool
+    let checked: Bool
+}
+
 struct AbsenceRegistrationForm: Sendable, Equatable {
     /// Always `people/students/absences/register` — carried so a UI can link out to W4.
     let route: String
@@ -271,33 +312,45 @@ struct AbsenceRegistrationForm: Sendable, Equatable {
     let action: String?
     let fields: [AbsenceRegistrationField]
     let submitButtons: [AbsenceRegistrationField]
-    /// Explanatory copy for a form the app cannot submit (demo mode sets it; the live path does not
-    /// invent one).
     let note: String?
+    let date: String
+    let slots: [AbsenceRegistrationSlot]
+    let reason: String
+    let emptyDayMessage: String?
+    let isDemo: Bool
 
     init(
         route: String = W4Routes.R.absencesRegister,
         action: String? = nil,
         fields: [AbsenceRegistrationField] = [],
         submitButtons: [AbsenceRegistrationField] = [],
-        note: String? = nil
+        note: String? = nil,
+        date: String = "",
+        slots: [AbsenceRegistrationSlot] = [],
+        reason: String = "",
+        emptyDayMessage: String? = nil,
+        isDemo: Bool = false
     ) {
         self.route = route
         self.action = action
         self.fields = fields
         self.submitButtons = submitButtons
         self.note = note
+        self.date = date
+        self.slots = slots
+        self.reason = reason
+        self.emptyDayMessage = emptyDayMessage
+        self.isDemo = isDemo
     }
 
-    /// Always false, on purpose (OQ-10). When the capture lands, this becomes a real decision.
-    var canSubmit: Bool { false }
+    var canSubmit: Bool { AttendanceFeatureFlags.writesEnabled && !isDemo && !slots.isEmpty }
 
     /// `StudentAbsenceForm[absence_date]` when the form carries it.
     var dateField: AbsenceRegistrationField? {
         fields.first { $0.name.lowercased().contains("absence_date") }
     }
 
-    var isEmpty: Bool { fields.isEmpty && submitButtons.isEmpty }
+    var isEmpty: Bool { date.isEmpty && fields.isEmpty && submitButtons.isEmpty }
 }
 
 // MARK: - Repository
@@ -336,6 +389,11 @@ actor AttendanceRepository {
         /// Our own copy of the Home page, kept only for the meters.
         static let meters = W4Routes.R.home
         static let registrationForm = W4Routes.R.absencesRegister
+
+        static func registrationForm(date: String?) -> String {
+            guard let date, !date.isEmpty else { return registrationForm }
+            return "\(registrationForm)/\(date)"
+        }
 
         static func list(for source: AttendanceSource) -> String { source.listRoute }
 
@@ -472,7 +530,7 @@ actor AttendanceRepository {
         do {
             let response = try await fetcher.fetchPage(
                 route: source.listRoute,
-                query: [:],
+                query: ["uwc_id": context.uwcId],
                 credentials: context.credentials,
                 studentId: context.uwcId,
                 priority: priority
@@ -530,6 +588,85 @@ actor AttendanceRepository {
             AttendanceListSnapshot(list: W4AbsenceParser.parseList(page.html, source: source)),
             freshness: .cached(fetchedAt: page.fetchedAt, isStale: !isFresh(page, for: surface))
         )
+    }
+
+    /// One ledger's week grid (`…/absences/index&year=&week=&uwc_id=`).
+    func loadWeek(
+        for source: AttendanceSource,
+        year: Int,
+        week: Int,
+        priority: FetchPriority = .important,
+        forceRefresh: Bool = false
+    ) async throws -> W4Loaded<ScheduleWeek> {
+        let context = try resolveContext()
+        let eventSource: EventSource = source == .academics ? .academics : .extraAcademics
+        if context.isDemo {
+            return W4Loaded(ScheduleWeek(year: year, week: week, days: [], source: eventSource), freshness: .demo)
+        }
+        let key = "\(source.weekRoute)/\(year)/\(week)"
+        let surface = Self.surface(for: source)
+        let query = [
+            "year": String(year),
+            "week": String(week),
+            "uwc_id": context.uwcId
+        ]
+        if !forceRefresh,
+           let page = await cache.page(surface: surface, key: key, uwcId: context.uwcId),
+           isFresh(page, for: surface) {
+            return W4Loaded(
+                W4TimetableParser.parseWeek(
+                    html: page.html,
+                    source: eventSource,
+                    fallbackYear: year,
+                    fallbackWeek: week
+                ),
+                freshness: .cached(fetchedAt: page.fetchedAt, isStale: false)
+            )
+        }
+        do {
+            let response = try await fetcher.fetchPage(
+                route: source.weekRoute,
+                query: query,
+                credentials: context.credentials,
+                studentId: context.uwcId,
+                priority: priority
+            )
+            await cache.store(
+                html: response.html,
+                surface: surface,
+                key: key,
+                uwcId: context.uwcId,
+                finalURL: response.finalURL,
+                contentType: nil,
+                fetchedAt: now()
+            )
+            return W4Loaded(
+                W4TimetableParser.parseWeek(
+                    html: response.html,
+                    source: eventSource,
+                    fallbackYear: year,
+                    fallbackWeek: week
+                ),
+                freshness: .fresh
+            )
+        } catch {
+            try rethrowIfFatal(error)
+            if let page = await cache.page(surface: surface, key: key, uwcId: context.uwcId) {
+                return W4Loaded(
+                    W4TimetableParser.parseWeek(
+                        html: page.html,
+                        source: eventSource,
+                        fallbackYear: year,
+                        fallbackWeek: week
+                    ),
+                    freshness: .cached(fetchedAt: page.fetchedAt, isStale: true)
+                )
+            }
+            return W4Loaded(
+                ScheduleWeek(year: year, week: week, days: [], source: eventSource),
+                freshness: Self.nothingCached
+            )
+        }
     }
 
     // MARK: - Everything the attendance screen shows
@@ -598,13 +735,14 @@ actor AttendanceRepository {
         return W4Loaded(snapshot, freshness: freshness)
     }
 
-    // MARK: - Register absence (read-only)
+    // MARK: - Register absence
 
-    /// The register-absence form, scraped and modelled. **Never POSTed** (OQ-10).
+    /// The captured register-absence form, scraped and modelled for native submission.
     ///
     /// Unlike the lists this throws when it has nothing to show: a form with no inputs is not a
     /// degraded screen, it is a broken one.
     func loadRegistrationForm(
+        date: String? = nil,
         priority: FetchPriority = .important,
         forceRefresh: Bool = false
     ) async throws -> W4Loaded<AbsenceRegistrationForm> {
@@ -614,13 +752,14 @@ actor AttendanceRepository {
         }
 
         let surface = W4Surface.attendanceAcademics
-        let key = CacheKey.registrationForm
+        let key = CacheKey.registrationForm(date: date)
+        let query = date.map { ["date": $0] } ?? [:]
 
         if !forceRefresh,
            let page = await cache.page(surface: surface, key: key, uwcId: context.uwcId),
            isFresh(page, for: surface) {
             return W4Loaded(
-                Self.registrationForm(fromHTML: page.html),
+                W4AbsenceParser.parseRegistrationForm(page.html),
                 freshness: .cached(fetchedAt: page.fetchedAt, isStale: false)
             )
         }
@@ -628,7 +767,7 @@ actor AttendanceRepository {
         do {
             let response = try await fetcher.fetchPage(
                 route: W4Routes.R.absencesRegister,
-                query: [:],
+                query: query,
                 credentials: context.credentials,
                 studentId: context.uwcId,
                 priority: priority
@@ -642,17 +781,58 @@ actor AttendanceRepository {
                 contentType: nil,
                 fetchedAt: now()
             )
-            return W4Loaded(Self.registrationForm(fromHTML: response.html), freshness: .fresh)
+            let form = W4AbsenceParser.parseRegistrationForm(response.html)
+            guard !form.isEmpty else { throw W4Error.parsingError("W4 did not return an absence form") }
+            return W4Loaded(form, freshness: .fresh)
         } catch {
             try rethrowIfFatal(error)
             guard let page = await cache.page(surface: surface, key: key, uwcId: context.uwcId) else {
                 throw error
             }
             return W4Loaded(
-                Self.registrationForm(fromHTML: page.html),
+                W4AbsenceParser.parseRegistrationForm(page.html),
                 freshness: .cached(fetchedAt: page.fetchedAt, isStale: !isFresh(page, for: surface))
             )
         }
+    }
+
+    func submitRegistration(
+        form: AbsenceRegistrationForm,
+        selectedValues: [String],
+        wholeDay: Bool,
+        reason: String,
+        priority: FetchPriority = .important
+    ) async throws {
+        let context = try resolveContext()
+        guard !context.isDemo else { throw W4Error.parsingError("Registration is unavailable in demo mode") }
+        guard AttendanceFeatureFlags.writesEnabled else { throw W4Error.parsingError("Absence registration is disabled") }
+        let trimmedReason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedReason.isEmpty else { throw W4Error.parsingError("Absence reason is required") }
+        let enabled = Set(form.slots.filter { !$0.disabled }.map(\.value))
+        let chosen = wholeDay ? Array(enabled) : selectedValues.filter { enabled.contains($0) }
+        guard !chosen.isEmpty else { throw W4Error.parsingError("Select at least one class") }
+
+        var fields: [(String, String)] = [
+            ("StudentAbsenceForm[absence_date]", form.date),
+            ("StudentAbsenceForm[absences]", ""),
+            ("StudentAbsenceForm[reason]", String(trimmedReason.prefix(60)))
+        ]
+        if wholeDay { fields.append(("StudentAbsenceForm_absences_all", "1")) }
+        fields.append(contentsOf: chosen.map { ("StudentAbsenceForm[absences][]", $0) })
+        fields.append(("yt0", "Register absences"))
+
+        let response = try await fetcher.postPage(
+            route: W4Routes.R.absencesRegister,
+            query: ["date": form.date],
+            fields: fields,
+            credentials: context.credentials,
+            studentId: context.uwcId,
+            priority: priority
+        )
+        if let error = W4AbsenceParser.parseSubmissionError(response.html) {
+            throw W4Error.parsingError(error)
+        }
+        await invalidateCaches()
     }
 
     // MARK: - Cache maintenance
@@ -776,24 +956,6 @@ actor AttendanceRepository {
         return .cached(fetchedAt: oldest ?? now, isStale: anyStale)
     }
 
-    /// Scrapes the register form with the shared `YiiForm` helper — no HTML parsing lives in this
-    /// layer, per the layering rule in `features.md` §0.
-    static func registrationForm(fromHTML html: String) -> AbsenceRegistrationForm {
-        // Prefer the form that carries an absence input; fall back to the page's first form.
-        var parsed = YiiForm.parse(html, formSelector: "form:has(input[name*=absence])")
-        if parsed.fields.isEmpty && parsed.submitButtons.isEmpty {
-            parsed = YiiForm.parse(html)
-        }
-        return AbsenceRegistrationForm(
-            route: W4Routes.R.absencesRegister,
-            action: parsed.action,
-            fields: parsed.fields.map { AbsenceRegistrationField(name: $0.name, value: $0.value) },
-            submitButtons: parsed.submitButtons.map {
-                AbsenceRegistrationField(name: $0.name, value: $0.value)
-            },
-            note: nil
-        )
-    }
 }
 
 // MARK: - Demo mode (features.md §4)
@@ -850,7 +1012,9 @@ extension AttendanceRepository {
                 )
             ],
             submitButtons: [],
-            note: "Demo data. Not connected to W4. Registering an absence is not available here."
+            note: "Demo data. Not connected to W4. Registering an absence is not available here.",
+            date: W4Dates.format(now),
+            isDemo: true
         )
     }
 

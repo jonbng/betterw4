@@ -81,6 +81,10 @@ struct LoginView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { consumeClipboardIfNeeded() }
         }
+        .onChange(of: username) { _, value in
+            let cleaned = W4Username.normalize(value)
+            if cleaned != value { username = cleaned }
+        }
         .onChange(of: oneTimeCode) { _, value in
             let cleaned = W4OtpCode.sanitizeInput(value)
             if cleaned != value { oneTimeCode = cleaned }
@@ -343,7 +347,7 @@ struct LoginView: View {
 
     private var canSubmitCredentials: Bool {
         !viewModel.isSubmitting
-            && !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !W4Username.normalize(username).isEmpty
             && !password.isEmpty
     }
 
@@ -353,9 +357,11 @@ struct LoginView: View {
     }
 
     private func submitCredentials() async {
+        let cleaned = W4Username.normalize(username)
+        if cleaned != username { username = cleaned }
         guard canSubmitCredentials else { return }
         focusedField = nil
-        await viewModel.logIn(username: username, password: password)
+        await viewModel.logIn(username: cleaned, password: password)
     }
 
     private func submitOneTimeCode(_ code: String? = nil) async {
