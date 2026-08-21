@@ -1,6 +1,5 @@
 package dk.betterw4.android.ui.auth
 
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -47,11 +46,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -78,7 +75,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dk.betterw4.android.R
 import dk.betterw4.android.core.i18n.asString
 import dk.betterw4.android.core.i18n.toUiText
-import dk.betterw4.android.core.w4.auth.W4OtpCode
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
@@ -511,35 +507,6 @@ private fun OtpForm(
     onSubmit: () -> Unit,
     onOpenGmail: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val latestState = rememberUpdatedState(state)
-    val latestOnOtp = rememberUpdatedState(onOtp)
-    val latestOnSubmit = rememberUpdatedState(onSubmit)
-    var lastClipTimestamp by remember { mutableLongStateOf(clipboardTimestamp(context)) }
-    var lastConsumedCode by remember { mutableStateOf<String?>(null) }
-
-    fun consumeClipboardIfNeeded() {
-        val current = latestState.value
-        if (current.loggingIn) return
-        val timestamp = clipboardTimestamp(context)
-        if (timestamp != 0L && timestamp <= lastClipTimestamp) return
-        val code = W4OtpCode.extract(clipboardText(context))
-        if (timestamp != 0L) lastClipTimestamp = timestamp
-        if (code == null || code == lastConsumedCode) return
-        if (current.otp.isNotEmpty() && current.otp != code) return
-        lastConsumedCode = code
-        latestOnOtp.value(code)
-        latestOnSubmit.value()
-    }
-
-    LifecycleResumeEffect(Unit) {
-        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val listener = ClipboardManager.OnPrimaryClipChangedListener { consumeClipboardIfNeeded() }
-        clipboard.addPrimaryClipChangedListener(listener)
-        consumeClipboardIfNeeded()
-        onPauseOrDispose { clipboard.removePrimaryClipChangedListener(listener) }
-    }
-
     Column(
         modifier
             .verticalScroll(rememberScrollState())
@@ -638,17 +605,3 @@ private fun openGmail(context: Context): Boolean {
     }
     return runCatching { context.startActivity(web) }.isSuccess
 }
-
-private fun clipboardManager(context: Context): ClipboardManager =
-    context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-
-private fun clipboardTimestamp(context: Context): Long =
-    runCatching { clipboardManager(context).primaryClipDescription?.timestamp ?: 0L }
-        .getOrDefault(0L)
-
-private fun clipboardText(context: Context): String? =
-    runCatching {
-        val clip = clipboardManager(context).primaryClip ?: return null
-        if (clip.itemCount < 1) return null
-        clip.getItemAt(0).coerceToText(context)?.toString()
-    }.getOrNull()
