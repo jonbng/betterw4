@@ -1,5 +1,6 @@
 package dk.betterw4.android.feature.absence
 
+import dk.betterw4.android.feature.schedule.ScheduleWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -52,6 +53,10 @@ data class AbsenceRegistration(
     val isApproved: Boolean = false,
     /** Lectio cause-edit. W4 rows are read-only. */
     val editable: Boolean = true,
+    /** List column "Added by". */
+    val addedBy: String = "",
+    /** List column "Student was" (Absent / Late / …). */
+    val studentWas: String = "",
 ) {
     /** Short subject label: "1x MA" → "MA", "Fy B" → "B" (last token). */
     val subjectShort: String
@@ -74,6 +79,8 @@ data class AbsenceOverview(
     val writtenAbsencePercent: Double? = null,
     val academicMeter: W4AbsenceMeter? = null,
     val eaMeter: W4AbsenceMeter? = null,
+    val academicWeek: ScheduleWeek? = null,
+    val eaWeek: ScheduleWeek? = null,
 ) {
     val isW4: Boolean get() = academicMeter != null || eaMeter != null
     val missingReasons: List<AbsenceRegistration>
@@ -97,6 +104,24 @@ data class SubjectAbsence(
 /**
  * Lectio cause dropdown strings — must match Flutter [AbsenceCauses] names.
  */
+data class AbsenceRegisterSlot(
+    val id: String,
+    val value: String,
+    val label: String,
+    val disabled: Boolean = false,
+    val checked: Boolean = false,
+)
+
+data class AbsenceRegisterForm(
+    val dateRaw: String,
+    val emptyDayMessage: String? = null,
+    val slots: List<AbsenceRegisterSlot> = emptyList(),
+    val reason: String = "",
+    val action: String? = null,
+) {
+    val isEmptyDay: Boolean get() = emptyDayMessage != null && slots.isEmpty()
+}
+
 object AbsenceCauses {
     val all = listOf(
         "Sygdom",

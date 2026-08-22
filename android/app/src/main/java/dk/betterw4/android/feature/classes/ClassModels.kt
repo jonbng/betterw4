@@ -1,5 +1,6 @@
 package dk.betterw4.android.feature.classes
 
+import dk.betterw4.android.core.w4.W4Html
 import dk.betterw4.android.feature.directory.DirectoryEntity
 import dk.betterw4.android.feature.directory.DirectoryEntityKind
 
@@ -27,10 +28,14 @@ enum class ClassLevel {
             val compact = text.lowercase().replace(Regex("""[^a-z]"""), "")
             val first = text.first().uppercaseChar()
             return when {
-                compact == "hl" || compact.startsWith("higher") || first == 'H' -> HIGHER
-                compact == "sl" || compact.startsWith("standard") || first == 'S' -> STANDARD
-                compact.startsWith("combined") || compact == "c" || first == 'C' -> COMBINED
-                compact == "none" || compact == "x" || first == 'X' -> NONE
+                compact == "hlsl" || compact.startsWith("combined") -> COMBINED
+                compact == "hl" || compact.startsWith("higher") -> HIGHER
+                compact == "sl" || compact.startsWith("standard") -> STANDARD
+                compact == "none" || compact == "x" -> NONE
+                first == 'C' -> COMBINED
+                first == 'H' -> HIGHER
+                first == 'S' -> STANDARD
+                first == 'X' -> NONE
                 else -> UNKNOWN
             }
         }
@@ -57,6 +62,13 @@ data class ClassMember(
             subtitle = level.badge.takeIf { it.isNotEmpty() },
             avatarUrl = photoUrl,
         )
+
+    /**
+     * True when [id] is a real UWC id, or a demo roster id. Caption-only
+     * teacher slugs (`teacher-jens-jensen`) have no profile page.
+     */
+    val canOpenProfile: Boolean
+        get() = W4Html.UWC_ID.matchEntire(id) != null
 }
 
 data class MyClass(

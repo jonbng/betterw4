@@ -438,7 +438,7 @@ Take them in **light mode**; the app renders in both, but a consistent set looks
 Once §3.1 is confirmed:
 
 1. **Xcode ▸ scheme selector ▸ "Any iOS Device (arm64)"** — you cannot archive to a simulator.
-2. Bump the build number if you have uploaded before. `CURRENT_PROJECT_VERSION` is `1` and
+2. Bump the build number if you have uploaded before. `CURRENT_PROJECT_VERSION` is `3` and
    `MARKETING_VERSION` is `1.0`. Every upload needs a **unique** build number for a given version
    string; the marketing version only changes when you want the public version to change.
 3. **Product ▸ Archive.**

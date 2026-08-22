@@ -20,34 +20,51 @@ struct TimelineListView: View {
     var gridStartHour: Int = W4TimetableGeometry.defaultStartHour
     /// Shared Oslo clock with the header countdown. Must not be `TimelineView`'s
     /// `context.date`, which ignores `SIMULATED_DATE` and can disagree by a minute.
-    var now: Date = TimeProvider.now
+    /// `nil` hides the now-line (off-today pages).
+    var now: Date? = TimeProvider.now
     var onEventTapped: ((TimetableEvent) -> Void)?
+    var onAddAt: ((Date) -> Void)?
 
     @ObservedObject private var settingsStore = SettingsStore.shared
+
+    /// Time-label gutter plus the HStack spacing in `TimelineRow`.
+    private let gutterAndSpacing: CGFloat = 48 + 16
 
     var body: some View {
         let layouts = calculateEventOverlapLayouts(for: events)
         let origin = ScheduleTimelineGeometry.originMinutes(startHour: gridStartHour, layouts: layouts)
+        let contentHeight = ScheduleTimelineGeometry.contentHeight(
+            layouts: layouts,
+            originMinutes: origin
+        )
 
         VStack(spacing: 0) {
             if layouts.isEmpty {
-                ScheduleEmptyDayView()
+                ScheduleEmptyDayView(
+                    onAdd: onAddAt.map { add in { add(CustomEvents.defaultStart(on: displayDate)) } }
+                )
             } else {
-                ZStack(alignment: .top) {
-                    Color.clear
-                        .frame(height: ScheduleTimelineGeometry.contentHeight(
-                            layouts: layouts,
-                            originMinutes: origin
-                        ))
+                GeometryReader { geo in
+                    let laneWidth = max(0, geo.size.width - gutterAndSpacing)
+                    ZStack(alignment: .topLeading) {
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .onTapGesture { (location: CGPoint) in
+                                guard let onAddAt else { return }
+                                let minutes = origin + Int((location.y / ScheduleTimelineGeometry.pointsPerMinute).rounded())
+                                let snapped = ((max(0, minutes) + 7) / 15) * 15
+                                onAddAt(W4Dates.date(onDayOf: displayDate, minutesFromMidnight: snapped))
+                            }
+                        ForEach(layouts) { layout in
+                            row(for: layout, in: layouts, origin: origin, laneWidth: laneWidth)
+                        }
 
-                    ForEach(layouts) { layout in
-                        row(for: layout, in: layouts, origin: origin)
+                        // "Now" line — only on the day it is actually now.
+                        nowLine(at: now, origin: origin)
+                            .allowsHitTesting(false)
                     }
-
-                    // "Now" line — only on the day it is actually now.
-                    nowLine(at: now, origin: origin)
-                        .allowsHitTesting(false)
                 }
+                .frame(height: contentHeight)
 
                 Color.clear.frame(height: 80)
             }
@@ -55,12 +72,15 @@ struct TimelineListView: View {
     }
 
     @ViewBuilder
-    private func row(for layout: EventLayoutInfo, in layouts: [EventLayoutInfo], origin: Int) -> some View {
+    private func row(
+        for layout: EventLayoutInfo,
+        in layouts: [EventLayoutInfo],
+        origin: Int,
+        laneWidth: CGFloat
+    ) -> some View {
         let event = layout.event
         let offsetFromTop = CGFloat(layout.startMinutes - origin) * ScheduleTimelineGeometry.pointsPerMinute
         let height = ScheduleTimelineGeometry.visualHeight(of: layout, among: layouts)
-        let widthFraction = layout.widthFraction
-        let horizontalOffset = layout.xFraction
         let cardStyle: CardLayoutStyle = {
             if height < 22 { return .micro }
             if height < 80 { return .compact }
@@ -71,8 +91,9 @@ struct TimelineListView: View {
             startTime: event.start.map(W4Dates.formatTime) ?? "",
             endTime: event.end.map(W4Dates.formatTime) ?? "",
             height: height,
-            widthFraction: widthFraction,
-            horizontalOffset: horizontalOffset
+            laneWidth: laneWidth,
+            widthFraction: layout.widthFraction,
+            horizontalOffset: layout.xFraction
         ) {
             ScheduleCard(
                 title: event.displayTitle,
@@ -87,11 +108,12 @@ struct TimelineListView: View {
             .onTapGesture { onEventTapped?(event) }
         }
         .offset(y: offsetFromTop)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
-    private func nowLine(at instant: Date, origin: Int) -> some View {
-        if W4Dates.isSameDay(displayDate, instant),
+    private func nowLine(at instant: Date?, origin: Int) -> some View {
+        if let instant, W4Dates.isSameDay(displayDate, instant),
            let offsetY = ScheduleTimelineGeometry.offset(
                forMinutesFromMidnight: W4Dates.minutesFromMidnight(instant),
                originMinutes: origin
@@ -129,15 +151,20 @@ struct TimelineListView: View {
 /// Shown when W4 rendered no blocks for the day at all.
 struct ScheduleEmptyDayView: View {
     var message: String = "No lessons"
+    var onAdd: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 16) {
-            Image(systemName: "calendar.badge.exclamationmark")
+            Image(systemName: "calendar")
                 .font(.system(size: 48, weight: .light))
                 .foregroundColor(.secondary)
             Text(message)
                 .font(.headline)
                 .foregroundColor(.secondary)
+            if let onAdd {
+                Button("Add an event", action: onAdd)
+                    .font(.subheadline.weight(.semibold))
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 60)
@@ -150,6 +177,7 @@ struct TimelineRow<Content: View>: View {
     let startTime: String
     let endTime: String
     let height: CGFloat
+    let laneWidth: CGFloat
     let widthFraction: CGFloat
     let horizontalOffset: CGFloat
     let content: Content
@@ -158,6 +186,7 @@ struct TimelineRow<Content: View>: View {
         startTime: String,
         endTime: String,
         height: CGFloat,
+        laneWidth: CGFloat,
         widthFraction: CGFloat = 1.0,
         horizontalOffset: CGFloat = 0.0,
         @ViewBuilder content: () -> Content
@@ -165,6 +194,7 @@ struct TimelineRow<Content: View>: View {
         self.startTime = startTime
         self.endTime = endTime
         self.height = height
+        self.laneWidth = laneWidth
         self.widthFraction = widthFraction
         self.horizontalOffset = horizontalOffset
         self.content = content()
@@ -193,15 +223,10 @@ struct TimelineRow<Content: View>: View {
             .frame(width: 48)
             .frame(height: height)
 
-            GeometryReader { geometry in
-                let contentWidth = geometry.size.width * widthFraction
-                let offsetX = geometry.size.width * horizontalOffset
-
-                content
-                    .frame(width: contentWidth, height: height, alignment: .top)
-                    .offset(x: offsetX)
-            }
-            .frame(height: height)
+            content
+                .frame(width: max(0, laneWidth * widthFraction), height: height, alignment: .top)
+                .offset(x: laneWidth * horizontalOffset)
+                .frame(width: laneWidth, height: height, alignment: .topLeading)
         }
     }
 }

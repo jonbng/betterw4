@@ -153,9 +153,10 @@ struct PersonProfileField: Codable, Equatable, Hashable, Sendable {
 /// A public profile page (`people/students/student&uwc_id=` / `people/staff/staff&uwc_id=`)
 /// or the signed-in student's own `site/profile`.
 ///
-/// **[I] — no profile page has ever been captured.** `table.detail-view` is the Yii 1
-/// `CDetailView` convention; the field labels come from README section 6. Everything the
-/// parser does not recognise still reaches the UI through `fields`.
+/// Student pages (`people/students/student`) are live `dl/dt/dd` plus `{name}'s classes`.
+/// Staff pages (`people/staff/staff`) use the same definition list plus EA activities.
+/// Older `table.detail-view` markup is still accepted. Everything the parser does not
+/// recognise still reaches the UI through `fields`.
 enum StaffRoles {
     static func parse(_ raw: String?) -> [String] {
         guard let raw, !raw.isEmpty else { return [] }
@@ -195,6 +196,16 @@ struct StaffActivity: Codable, Equatable, Hashable, Identifiable, Sendable {
     }
 }
 
+/// A student's advisor, taken from the public profile `Advisor` row.
+struct ProfileAdvisor: Codable, Equatable, Hashable, Sendable {
+    let uwcId: String
+    let name: String
+
+    var person: DirectoryPerson {
+        DirectoryPerson(uwcId: uwcId, name: name, kind: .staff)
+    }
+}
+
 struct DirectoryPersonProfile: Codable, Equatable, Hashable, Sendable {
     let person: DirectoryPerson
     let birthday: String?
@@ -203,6 +214,12 @@ struct DirectoryPersonProfile: Codable, Equatable, Hashable, Sendable {
     let scrapedEmail: String?
     let officeTel: String?
     let mobile: String?
+    /// W4 `house_id` slug from the House row (`sweden`).
+    let houseId: String?
+    /// Boarding-house room from the profile `Room` row (`103`).
+    let room: String?
+    let graduationYear: String?
+    let advisor: ProfileAdvisor?
     /// Jobs/subjects from the staff Position field, mailing lists already stripped.
     let positions: [String]
     let taughtClasses: [PersonClass]
@@ -219,6 +236,10 @@ struct DirectoryPersonProfile: Codable, Equatable, Hashable, Sendable {
         scrapedEmail: String? = nil,
         officeTel: String? = nil,
         mobile: String? = nil,
+        houseId: String? = nil,
+        room: String? = nil,
+        graduationYear: String? = nil,
+        advisor: ProfileAdvisor? = nil,
         positions: [String] = [],
         taughtClasses: [PersonClass] = [],
         activities: [StaffActivity] = [],
@@ -230,6 +251,10 @@ struct DirectoryPersonProfile: Codable, Equatable, Hashable, Sendable {
         self.scrapedEmail = scrapedEmail
         self.officeTel = officeTel
         self.mobile = mobile
+        self.houseId = houseId
+        self.room = room
+        self.graduationYear = graduationYear
+        self.advisor = advisor
         self.positions = positions
         self.taughtClasses = taughtClasses
         self.activities = activities

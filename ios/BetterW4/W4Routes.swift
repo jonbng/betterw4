@@ -209,8 +209,12 @@ enum W4Routes {
 
         // people
         static let absences = "people/students/absences"
+        static let absencesIndex = "people/students/absences/index"
+        static let absencesList = "people/students/absences/list"
         static let absencesRegister = "people/students/absences/register"
         static let eaAbsences = "people/students/eaabsences"
+        static let eaAbsencesIndex = "people/students/eaabsences/index"
+        static let eaAbsencesList = "people/students/eaabsences/list"
         static let studentProfile = "people/students/student"
         static let studentsAll = "people/students/all"
         static let studentsFirstYear = "people/students/firstyear"
@@ -222,6 +226,7 @@ enum W4Routes {
         static let staffProfile = "people/staff/staff"
         static let letterOfAttendance = "people/students/letter/attendance"
         static let birthdays = "people/birthdays"
+        static let birthdaysIndex = "people/birthdays/index"
         static let onDuty = "people/onduty"
         static let onDutySchedule = "people/onduty/schedule"
 

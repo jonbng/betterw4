@@ -10,6 +10,7 @@ data class PersonClass(
     val name: String,
     val year: String? = null,
     val levelLabel: String? = null,
+    val teacher: String? = null,
     val room: String? = null,
 ) {
     val canOpen: Boolean get() = !id.isNullOrBlank()
@@ -18,16 +19,18 @@ data class PersonClass(
         get() = listOfNotNull(
             year?.let { if (it.startsWith("Year", ignoreCase = true)) it else "Year $it" },
             levelLabel?.takeIf { it.isNotBlank() },
+            teacher?.takeIf { it.isNotBlank() },
             room?.takeIf { it.isNotBlank() },
         ).joinToString(" · ").ifBlank { null }
 }
 
 /**
- * Academic classes a student is enrolled in, taken from their timetable.
+ * Academic classes a student is enrolled in.
  *
- * W4 does not expose another student's `myclasses` page (`mytimetable&uwc_id=`
- * is ignored and always returns the signed-in student). The public person
- * week does, and every real class brick links `academics/classes/class`.
+ * Another student's public profile (`people/students/student&uwc_id=`) lists
+ * their classes. `myclasses` / `mytimetable&uwc_id=` always returns the
+ * signed-in student, so the profile page is the source of truth. The week
+ * helper below is kept for callers that only have a timetable.
  */
 object PersonClasses {
     private val SKIP_TITLES = setOf(
@@ -74,6 +77,7 @@ object PersonClasses {
                     name = preferName(previous.name, name),
                     year = previous.year ?: item.year,
                     levelLabel = previous.levelLabel ?: item.levelLabel,
+                    teacher = previous.teacher ?: item.teacher,
                     room = previous.room ?: item.room,
                 )
             }

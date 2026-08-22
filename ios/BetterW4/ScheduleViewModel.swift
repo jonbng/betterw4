@@ -119,6 +119,12 @@ final class ScheduleViewModel: ObservableObject {
         }
     }
 
+    /// Re-lays device-local custom events over every week already in memory.
+    /// Does not touch the network — the W4 grid stays put.
+    func applyCustomEvents() {
+        weeks = weeks.mapValues { CustomEventsStore.shared.overlay($0) }
+    }
+
     /// Blocks with a real time range, earliest first.
     func timedEvents(on date: Date) -> [TimetableEvent] {
         events(on: date).timed
@@ -210,6 +216,7 @@ final class ScheduleViewModel: ObservableObject {
             syncBusyFlags()
         }
         await load(weekContaining: normalised)
+        prefetchNeighbors(around: normalised)
     }
 
     /// Back to today, reloading its week.
@@ -246,9 +253,19 @@ final class ScheduleViewModel: ObservableObject {
     /// `force` turns the refresh into `.alwaysRefresh`; without it the repository serves a cached
     /// week that is still inside its TTL without touching the network at all, which is what makes
     /// swiping back and forth across a week boundary free.
+    ///
+    /// A week already in `weeks` is a no-op unless it is stale or `force` is set. That is what
+    /// keeps a week-strip swipe off the main-thread parse/publish path.
     func load(weekContaining date: Date, force: Bool = false) async {
         let key = ScheduleIdentity.weekKey(for: date)
         guard force || (loadsInFlight[key] ?? 0) == 0 else { return }
+
+        if !force, weeks[key] != nil {
+            if isMemoryStale(key) {
+                Task { await load(weekContaining: date, force: true) }
+            }
+            return
+        }
 
         let token = (tokens[key] ?? 0) + 1
         tokens[key] = token
@@ -316,12 +333,16 @@ final class ScheduleViewModel: ObservableObject {
     ///     switches week navigation off, because that is exactly what a failed `?year=&week=`
     ///     probe looks like (plan D-18).
     private func apply(_ loaded: W4Loaded<ScheduleWeek>, requestedKey: String) {
-        let value = loaded.value
+        let value = CustomEventsStore.shared.overlay(loaded.value)
         guard !value.days.isEmpty else { return }
 
         let actualKey = ScheduleIdentity.weekKey(year: value.year, week: value.week)
-        weeks[actualKey] = value
-        freshnessByWeek[actualKey] = loaded.freshness
+        if weeks[actualKey] != value {
+            weeks[actualKey] = value
+        }
+        if freshnessByWeek[actualKey] != loaded.freshness {
+            freshnessByWeek[actualKey] = loaded.freshness
+        }
 
         if actualKey != requestedKey {
             weekNavigationAvailable = false
@@ -339,6 +360,24 @@ final class ScheduleViewModel: ObservableObject {
     private func scheduleLessonReminders(isDemo: Bool) {
         let lessons = weeks.values.flatMap { $0.days.flatMap(\.events) }
         Task { await NotificationScheduler.shared.updateLessons(lessons, isDemo: isDemo) }
+    }
+
+    /// Warm ±1 ISO week after the student has left the current week.
+    ///
+    /// Prefetching from today's first paint would be the D-18 probe: a server (or test stub) that
+    /// ignores `?year=&week=` would switch week navigation off as a side effect of opening the
+    /// tab. Neighbours are warmed once a real off-current `select` has succeeded.
+    private func prefetchNeighbors(around date: Date) {
+        guard weekNavigationAvailable else { return }
+        let thisMonday = W4Dates.startOfWeek(containing: date)
+        let todayMonday = W4Dates.startOfWeek(containing: today)
+        guard !W4Dates.isSameDay(thisMonday, todayMonday) else { return }
+        let previous = W4Dates.adding(days: -7, to: date)
+        let next = W4Dates.adding(days: 7, to: date)
+        Task { [weak self] in
+            await self?.load(weekContaining: previous)
+            await self?.load(weekContaining: next)
+        }
     }
 
     // MARK: - Errors
@@ -380,6 +419,20 @@ final class ScheduleViewModel: ObservableObject {
     }
 
     // MARK: - Busy flags
+
+    /// True when the in-memory copy of `key` is older than the timetable TTL, so a swipe can
+    /// still paint instantly while a refresh runs behind it.
+    private func isMemoryStale(_ key: String) -> Bool {
+        switch freshnessByWeek[key] {
+        case .cached(let fetchedAt, let isStale):
+            return isStale || !CachePolicy.isFresh(fetchedAt, for: .timetableAcademics, now: clock())
+        case .fresh:
+            guard let fetchedAt = weeks[key]?.fetchedAt else { return false }
+            return !CachePolicy.isFresh(fetchedAt, for: .timetableAcademics, now: clock())
+        case .demo, nil:
+            return false
+        }
+    }
 
     /// A spinner is only ever shown for a week with nothing behind it; everything else is a quiet
     /// refresh over data the student can already read.

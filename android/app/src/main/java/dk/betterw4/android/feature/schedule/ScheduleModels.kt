@@ -5,6 +5,15 @@ import java.time.LocalDateTime
 
 enum class EventStatus { NORMAL, CHANGED, CANCELLED }
 
+/** Attendance badge inside a W4 `#timetable .period .inner` on the absences week grid. */
+enum class LessonAttendance {
+    UNCHECKED,
+    PRESENT,
+    ABSENT,
+    PREARRANGED,
+    UNKNOWN,
+}
+
 data class ScheduleEvent(
     val id: String,
     val title: String,
@@ -27,6 +36,12 @@ data class ScheduleEvent(
     val hasNoteIcon: Boolean = false,
     /** `ac` / `ea` / `gcal` / `local` — prefixes event ids after an AC+EA merge (B20). */
     val source: String = "ac",
+    /** Set on absences week grids; null on ordinary timetables and on breakfast/break blocks. */
+    val attendance: LessonAttendance? = null,
+    /** Inner badge text (`?`) or tooltip phrase (`no absence`). */
+    val attendanceLabel: String? = null,
+    /** Raw parenthetical attendance phrase from the W4 tooltip. */
+    val attendanceTooltip: String? = null,
 )
 
 data class ScheduleDay(

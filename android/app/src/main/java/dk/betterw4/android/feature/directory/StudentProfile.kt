@@ -15,8 +15,9 @@ data class StaffActivity(
 /**
  * What we know about a person on their profile screen.
  *
- * Students: boarding house + room from `people/students/byhouse`, classes
- * from their public timetable, directory identity as a fallback.
+ * Students: boarding house + room from the public profile page (with
+ * `people/students/byhouse` as a fallback), classes from that same page,
+ * directory identity as a last resort.
  *
  * Staff: roles, real email, office/mobile, taught classes and EA activities
  * from `people/staff/staff&uwc_id=`.
@@ -30,10 +31,13 @@ data class StudentProfile(
     val room: String? = null,
     val year: String? = null,
     val country: String? = null,
+    val pronouns: String? = null,
     val email: String? = null,
     val officeTel: String? = null,
     val mobile: String? = null,
     val birthday: String? = null,
+    val graduationYear: String? = null,
+    val advisor: ProfileAdvisor? = null,
     val positions: List<String> = emptyList(),
     val classes: List<PersonClass> = emptyList(),
     val activities: List<StaffActivity> = emptyList(),
@@ -73,31 +77,31 @@ data class StudentProfile(
             ).joinToString(" · ").ifBlank { null }
         }
 
+    val parsedBirthday: PersonBirthday? get() = PersonBirthday.parse(birthday)
+
     companion object {
         fun from(
             entity: DirectoryEntity,
             placement: HousePlacement?,
-            classes: List<PersonClass> = emptyList(),
             parsed: W4PersonProfile? = null,
         ): StudentProfile {
             val resident = placement?.resident
-            val mergedClasses = dk.betterw4.android.feature.schedule.PersonClasses.merge(
-                parsed?.classes.orEmpty(),
-                classes,
-            )
             return StudentProfile(
                 id = entity.id,
                 name = parsed?.entity?.name?.takeIf { it.isNotBlank() } ?: entity.name,
                 kind = parsed?.entity?.kind ?: entity.kind,
-                houseId = placement?.house?.id,
+                houseId = placement?.house?.id ?: parsed?.houseId,
                 house = placement?.house?.name ?: parsed?.house,
-                room = placement?.room?.name,
-                year = resident?.year ?: parsed?.year,
+                room = placement?.room?.name ?: parsed?.room,
+                year = DirectoryYear.parse(resident?.year ?: parsed?.year) ?: resident?.year ?: parsed?.year,
                 country = parsed?.country ?: resident?.country,
+                pronouns = parsed?.pronouns,
                 email = parsed?.email,
                 officeTel = parsed?.officeTel,
                 mobile = parsed?.mobile,
                 birthday = parsed?.birthday,
+                graduationYear = parsed?.graduationYear,
+                advisor = parsed?.advisor,
                 positions = parsed?.positions.orEmpty().ifEmpty {
                     if (entity.kind == DirectoryEntityKind.TEACHER) {
                         StaffRoles.parse(entity.subtitle)
@@ -105,7 +109,7 @@ data class StudentProfile(
                         emptyList()
                     }
                 },
-                classes = mergedClasses,
+                classes = parsed?.classes.orEmpty(),
                 activities = parsed?.activities.orEmpty(),
                 photoUrl = parsed?.entity?.avatarUrl ?: entity.avatarUrl,
             )

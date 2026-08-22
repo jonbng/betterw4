@@ -25,12 +25,8 @@
 //  `tr.prearranged_2`, `tr.medical_1`, `tr.medical_2` — so the category of a row
 //  is carried by the row class, not only by a "Type" column (bug B14).
 //
-//  UNKNOWN [U]: **the absence list page itself has never been captured.** Not
-//  one row, not one header, not one column label. Everything in `parseList` is
-//  therefore defensive: header-driven column matching, every field optional, no
-//  force-unwrap, no throw, and an empty result plus a logged warning for every
-//  shape we do not recognise. `BetterW4Tests/Fixtures/W4/absences.html` is
-//  hand-written and verifies this parser, not W4.
+//  VERIFIED [V]: live empty list and term-time week/register pages are stored in
+//  BetterW4Tests/Fixtures/W4. Filled rows remain defensive and header-driven.
 //
 //  D-13: meter counts come from the meter prose ONLY. Nothing here ever counts
 //  rows to produce a meter, and the raw `status` string is carried through
@@ -80,7 +76,7 @@ enum W4AbsenceParser {
         return meterProse(in: text(of: contentInner(of: document) ?? document))
     }
 
-    // MARK: - List page [U — never captured]
+    // MARK: - List page
 
     /// One page of `people/students/absences` or `people/students/eaabsences`.
     ///
@@ -105,10 +101,6 @@ enum W4AbsenceParser {
         let header = headerRow(of: table)
         var columns = header.map { columnMap(fromHeader: cellElements(of: $0)) } ?? Columns()
         if columns.isEmpty {
-            // Documented [I] fallback: Date | Period | Class/Activity | Type |
-            // Status | Comment (parsers.md §8). Never silently — the log line is
-            // the signal that the capture we are waiting for has arrived and
-            // does not look like this.
             warn("list (\(source.rawValue)): no usable header row; falling back to the inferred column order")
             columns = .inferred
         }
@@ -146,6 +138,61 @@ enum W4AbsenceParser {
         )
     }
 
+    nonisolated static func parseRegistrationForm(_ html: String) -> AbsenceRegistrationForm {
+        guard let document = try? SwiftSoup.parse(html),
+              let form = try? document.select("form#student-absence-form, form.main").first() else {
+            return AbsenceRegistrationForm()
+        }
+        let parsed = YiiForm.parse(form: form)
+        let inputs = (try? form.select("input"))?.array() ?? []
+        func input(named name: String) -> Element? {
+            inputs.first { ((try? $0.attr("name")) ?? "") == name }
+        }
+        let date = input(named: "StudentAbsenceForm[absence_date]")
+            .flatMap { try? $0.attr("value") } ?? ""
+        let reason = input(named: "StudentAbsenceForm[reason]")
+            .flatMap { try? $0.attr("value") } ?? ""
+        let slots = inputs.compactMap { input -> AbsenceRegistrationSlot? in
+            guard ((try? input.attr("name")) ?? "") == "StudentAbsenceForm[absences][]" else {
+                return nil
+            }
+            let id = (try? input.attr("id")) ?? UUID().uuidString
+            let label = (try? form.select("label[for=\(id)]").first()?.text()) ?? ""
+            return AbsenceRegistrationSlot(
+                id: id,
+                value: (try? input.attr("value")) ?? "",
+                label: label,
+                disabled: input.hasAttr("disabled"),
+                checked: input.hasAttr("checked")
+            )
+        }
+        let emptyDayMessage = (try? form.select("p").array())?
+            .first { ((try? $0.text()) ?? "").localizedCaseInsensitiveContains("don't have any class") }
+            .flatMap { try? $0.text() }
+        return AbsenceRegistrationForm(
+            action: parsed.action,
+            fields: parsed.fields.map { AbsenceRegistrationField(name: $0.name, value: $0.value) },
+            submitButtons: parsed.submitButtons.map { AbsenceRegistrationField(name: $0.name, value: $0.value) },
+            date: date,
+            slots: slots,
+            reason: reason,
+            emptyDayMessage: emptyDayMessage
+        )
+    }
+
+    nonisolated static func parseSubmissionError(_ html: String) -> String? {
+        guard let document = try? SwiftSoup.parse(html) else { return "W4 returned unreadable HTML." }
+        let candidates = (try? document.select(
+            ".errorMessage, div.error, .errorSummary li, .flash-error, .alert-error"
+        ).array()) ?? []
+        for element in candidates {
+            let style = ((try? element.attr("style")) ?? "").lowercased()
+            let message = ((try? element.text()) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if !message.isEmpty, !style.contains("display:none") { return message }
+        }
+        return nil
+    }
+
     // MARK: - Meters
 
     private static func meters(in document: Document) -> AttendanceMeters {
@@ -171,8 +218,8 @@ enum W4AbsenceParser {
         //    route so a staff/advisor meter can never be misread as a student's.
         for link in select(document, "a[href]") {
             let href = attribute(link, "href")
-            guard let route = W4Routes.route(ofURLString: href)?.lowercased(),
-                  route == source.listRoute.lowercased() else { continue }
+            guard let route = W4Routes.route(ofURLString: href),
+                  source.owns(route: route) else { continue }
             for ancestor in link.parents().array().prefix(4) {
                 if let meter = meterProse(in: text(of: ancestor)) { return meter }
             }
@@ -230,6 +277,8 @@ enum W4AbsenceParser {
         let statusLabel = value(columns.status)
         let teacher = value(columns.teacher)
         let note = value(columns.note)
+        let addedBy = value(columns.addedBy)
+        let studentWas = value(columns.studentWas)
 
         // A row that carries nothing we can show is not a registration.
         if displayDate.isEmpty, period == nil, subject == nil,
@@ -242,6 +291,7 @@ enum W4AbsenceParser {
         // typed "Absence" can still be styled `prearranged_1`.
         var kind = AttendanceKind.kind(forRowClasses: classNames(of: row))
             ?? AttendanceKind.kind(forLabel: typeLabel)
+            ?? AttendanceKind.kind(forLabel: studentWas)
         if kind == nil && columns.type == nil {
             kind = AttendanceKind.kind(forLabel: statusLabel)
         }
@@ -279,8 +329,10 @@ enum W4AbsenceParser {
             subject: subject,
             kind: resolved,
             status: status,
-            teacher: teacher,
-            note: note
+            teacher: teacher ?? addedBy,
+            note: note,
+            addedBy: addedBy,
+            studentWas: studentWas
         )
     }
 
@@ -296,11 +348,14 @@ enum W4AbsenceParser {
         var status: Int?
         var teacher: Int?
         var note: Int?
+        var addedBy: Int?
+        var studentWas: Int?
         var isHeaderDriven: Bool = true
 
         var isEmpty: Bool {
             date == nil && period == nil && subject == nil
                 && type == nil && status == nil && teacher == nil && note == nil
+                && addedBy == nil && studentWas == nil
         }
 
         /// The **[I]** column order parsers.md §8 documents for this page:
@@ -325,13 +380,17 @@ enum W4AbsenceParser {
 
             if columns.date == nil, contains(label, ["date", "when"]) {
                 columns.date = index
+            } else if columns.addedBy == nil, contains(label, ["added"]) {
+                columns.addedBy = index
+            } else if columns.studentWas == nil, label.contains("student was") {
+                columns.studentWas = index
             } else if columns.type == nil, contains(label, ["type", "kind"]) {
                 columns.type = index
             } else if columns.status == nil, contains(label, ["status"]) {
                 columns.status = index
             } else if columns.teacher == nil, contains(label, ["teacher", "staff"]) {
                 columns.teacher = index
-            } else if columns.period == nil, contains(label, ["period", "slot", "lesson", "time"]) {
+            } else if columns.period == nil, contains(label, ["period", "slot", "lesson"]) {
                 columns.period = index
             } else if columns.subject == nil,
                       contains(label, ["class", "subject", "course", "activity", "group"]) {

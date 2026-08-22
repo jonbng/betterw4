@@ -340,24 +340,27 @@ enum EventSource: String, Codable, Equatable, Sendable, CaseIterable {
 
 /// Attendance marker rendered inside a lesson block.
 ///
-/// **[I] — never captured.** `display_full_timetable.css` proves the class
-/// names `.absence`, `.present`, `.normal` and `.prearranged` exist inside
-/// `#timetable .period .inner`, but the captured week is a holiday week with
-/// zero lesson blocks, so no parser has ever seen one. Always optional; `nil`
-/// means "the block carried no attendance marker we recognised".
+/// Live absence-week captures prove `.absence.not-checked` with a `?` badge.
+/// The remaining class names come from W4's own `display_full_timetable.css`.
+/// Always optional; `nil` means the block carried no attendance marker.
 enum LessonAttendance: String, Codable, Equatable, Sendable {
+    /// `.absence.not-checked` with a `?` badge — not yet marked.
+    case unchecked
     /// `.present` — green in W4's own stylesheet.
     case present
     /// `.normal` (unexcused, red) or a bare `.absence` marker.
     case absent
     /// `.prearranged` — blue in W4's own stylesheet.
     case prearranged
+    case unknown
 
     var displayName: String {
         switch self {
+        case .unchecked: return "Not marked"
         case .present: return "Present"
         case .absent: return "Absent"
         case .prearranged: return "Prearranged"
+        case .unknown: return "Unknown"
         }
     }
 }
@@ -390,6 +393,10 @@ struct TimetableEvent: Identifiable, Codable, Equatable, Sendable {
     let teacherUwcId: String?
     let status: EventStatus
     let attendance: LessonAttendance?
+    /// Badge text inside W4's attendance node, retained verbatim (for example `?`).
+    let attendanceLabel: String?
+    /// Final parenthetical attendance phrase in W4's tooltip (for example `no absence`).
+    let attendanceTooltip: String?
     let isAllDay: Bool
     /// `href` of the first anchor inside the block, verbatim.
     let href: String?
@@ -415,6 +422,8 @@ struct TimetableEvent: Identifiable, Codable, Equatable, Sendable {
         teacherUwcId: String? = nil,
         status: EventStatus = .normal,
         attendance: LessonAttendance? = nil,
+        attendanceLabel: String? = nil,
+        attendanceTooltip: String? = nil,
         isAllDay: Bool = false,
         href: String? = nil,
         notes: String? = nil,
@@ -432,6 +441,8 @@ struct TimetableEvent: Identifiable, Codable, Equatable, Sendable {
         self.teacherUwcId = teacherUwcId
         self.status = status
         self.attendance = attendance
+        self.attendanceLabel = attendanceLabel
+        self.attendanceTooltip = attendanceTooltip
         self.isAllDay = isAllDay
         self.href = href
         self.notes = notes

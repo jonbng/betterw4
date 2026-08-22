@@ -5,34 +5,17 @@
 //  Tests for `W4AbsenceParser` (item 4.4): the two Home attendance meters and the AC / EA
 //  registration lists.
 //
-//  FIXTURE PROVENANCE — the two halves of this file rest on very different evidence.
+//  FIXTURE PROVENANCE
 //
 //  [V] `Fixtures/W4/home.html` is a REAL CAPTURE (sanitized: identities replaced). It contains
 //      `<div id="absences">` with `#academic-absences` and `#ea-absences`, and BOTH read
 //      "You have 0 absences and 0 latenesses so far"
 //      (references/pages/UWCRCN W4.html:239-249). Zero is therefore the only meter reading that
-//      has ever been observed, and the tests in the first section assert exactly that. They are
-//      the only assertions in this file backed by W4's own bytes.
+//      has ever been observed, and the tests in the first section assert exactly that.
 //
-//  [I] `Fixtures/W4/absences.html` is HAND-WRITTEN, and so is every inline snippet below. **The
-//      absence list page has never been captured** — not one row, not one header, not one column
-//      label (docs/spec/parsers.md section 8: "List page — [U]. Never captured."). The column
-//      set, the header labels, the summary and the pager markup are all inferred from the Yii 1
-//      CGridView convention. A test that passes against them proves `W4AbsenceParser` behaves as
-//      designed; it proves NOTHING about what W4 serves.
-//
-//      The things about this page that ARE verified, and that the [I] tests exercise:
-//        * the routes `people/students/absences` / `people/students/eaabsences` (captured side
-//          menus and captured Home meter links),
-//        * `tr.prearranged_1` / `tr.prearranged_2` / `tr.medical_1` / `tr.medical_2` are styled by
-//          W4's own `css/tables.css` (bug B14) — so a row's category is carried by its class, not
-//          only by a "Type" column,
-//        * `.grid-view table.items` and `a.sort_asc` / `a.sort_desc` are styled by W4's own CSS
-//          too (parsers.md section 0.4), which is why the grid shape — but NOT its columns — is
-//          taken as given.
-//
-//  Replace `absences.html` the moment a real `GET index.php?r=people/students/absences` is
-//  captured, and expect the [I] assertions to change.
+//  [V] `absences-list-*`, `absences-week-*`, and `absences-register-*` are sanitized live W4
+//      captures. The legacy synthetic fixture and inline snippets remain for defensive parser
+//      cases that cannot be represented by the currently empty live list.
 //
 
 import XCTest
@@ -109,6 +92,76 @@ final class W4AbsenceParserTests: XCTestCase {
     }
 
     // MARK: - [I] The synthesized list fixture
+
+    func testCapturedEmptyListIsEmpty() throws {
+        let list = W4AbsenceParser.parseList(try fixture("absences-list-empty"), source: .academics)
+        XCTAssertTrue(list.records.isEmpty)
+        XCTAssertEqual(list.emptyMessage?.lowercased().contains("no results"), true)
+    }
+
+    func testCapturedListHeadersMapRows() throws {
+        let list = W4AbsenceParser.parseList(try fixture("absences-list-rows"), source: .academics)
+        XCTAssertEqual(list.records.count, 3)
+        XCTAssertEqual(list.records[0].subject, "Mathematics HL")
+        XCTAssertEqual(list.records[0].addedBy, "A. Teacher")
+        XCTAssertEqual(list.records[0].studentWas, "Absent")
+        XCTAssertEqual(list.records[1].note, "Bus delay")
+        XCTAssertEqual(list.records[2].kind, .prearranged)
+    }
+
+    func testWeekGridIsNotParsedAsAList() throws {
+        let list = W4AbsenceParser.parseList(try fixture("absences-week-classes"), source: .academics)
+        XCTAssertTrue(list.records.isEmpty)
+    }
+
+    func testWeekClassesMarkUncheckedLessons() throws {
+        let week = W4TimetableParser.parseWeek(
+            html: try fixture("absences-week-classes"),
+            source: .academics,
+            fallbackYear: 2026,
+            fallbackWeek: 36
+        )
+        let marked = week.days.flatMap(\.events).filter { $0.attendance != nil }
+        XCTAssertGreaterThanOrEqual(marked.count, 10)
+        XCTAssertTrue(marked.allSatisfy { $0.attendance == .unchecked })
+        XCTAssertTrue(marked.allSatisfy { $0.attendanceLabel == "?" })
+        XCTAssertTrue(marked.allSatisfy { $0.attendanceTooltip == "no absence" })
+    }
+
+    func testCapturedRegisterClassDayKeepsEveryCheckbox() throws {
+        let form = W4AbsenceParser.parseRegistrationForm(
+            try fixture("absences-register-class-day")
+        )
+
+        XCTAssertEqual(form.date, "31-Aug-2026")
+        XCTAssertEqual(form.slots.count, 3)
+        XCTAssertEqual(form.slots.first?.value, "1EA16CECOX_08:15")
+        XCTAssertTrue(form.slots.first?.label.contains("Economics") == true)
+        XCTAssertFalse(form.slots.contains(where: \.disabled))
+        XCTAssertNil(form.emptyDayMessage)
+        XCTAssertTrue(form.canSubmit)
+    }
+
+    func testCapturedRegisterEmptyDayKeepsW4Message() throws {
+        let form = W4AbsenceParser.parseRegistrationForm(
+            try fixture("absences-register-empty-day")
+        )
+        XCTAssertEqual(form.date, "21-Aug-2026")
+        XCTAssertTrue(form.slots.isEmpty)
+        XCTAssertEqual(form.emptyDayMessage, "You don't have any class or activity on this date.")
+    }
+
+    func testSubmissionErrorIgnoresHiddenYiiPlaceholders() {
+        let html = """
+        <div class="errorMessage" style="display:none"></div>
+        <div class="errorMessage">Please select at least one class.</div>
+        """
+        XCTAssertEqual(
+            W4AbsenceParser.parseSubmissionError(html),
+            "Please select at least one class."
+        )
+        XCTAssertNil(W4AbsenceParser.parseSubmissionError("<p>Registration saved.</p>"))
+    }
 
     /// **[I]** Four hand-written rows parse into four records. Nothing here is evidence about W4.
     func testSynthesizedListParsesEveryRow() throws {
@@ -480,11 +533,22 @@ final class W4AbsenceParserTests: XCTestCase {
 
     /// **[V]** The routes the fallback keys on, and the one route that must NOT resolve:
     /// `people/students/absences/register` is the "Register absence" form, a different page.
+    ///
+    /// W4 writes all three forms — the bare route on Home, `…/index` for the week
+    /// grid, `…/list` for the registrations table — and each must resolve to its
+    /// ledger, or the Home meter link stops matching its own source.
     func testSourceRoutesAreExactMatches() {
-        XCTAssertEqual(AttendanceSource.academics.listRoute, "people/students/absences")
-        XCTAssertEqual(AttendanceSource.extraAcademics.listRoute, "people/students/eaabsences")
+        XCTAssertEqual(AttendanceSource.academics.listRoute, "people/students/absences/list")
+        XCTAssertEqual(AttendanceSource.extraAcademics.listRoute, "people/students/eaabsences/list")
+        XCTAssertEqual(AttendanceSource.academics.weekRoute, "people/students/absences/index")
+        XCTAssertEqual(AttendanceSource.extraAcademics.weekRoute, "people/students/eaabsences/index")
+
         XCTAssertEqual(AttendanceSource.source(forRoute: "people/students/absences"), .academics)
+        XCTAssertEqual(AttendanceSource.source(forRoute: "people/students/absences/index"), .academics)
+        XCTAssertEqual(AttendanceSource.source(forRoute: "people/students/absences/list"), .academics)
         XCTAssertEqual(AttendanceSource.source(forRoute: "PEOPLE/STUDENTS/EAABSENCES"), .extraAcademics)
+        XCTAssertEqual(AttendanceSource.source(forRoute: "people/students/eaabsences/list"), .extraAcademics)
+
         XCTAssertNil(AttendanceSource.source(forRoute: "people/students/absences/register"))
     }
 

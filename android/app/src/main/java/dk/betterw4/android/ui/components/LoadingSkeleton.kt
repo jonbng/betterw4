@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -27,7 +28,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import dk.betterw4.android.R
 import dk.betterw4.android.ui.theme.Dimens
 
 @Composable
@@ -68,6 +73,50 @@ fun ListSkeleton(rows: Int = 8, modifier: Modifier = Modifier) {
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                 thickness = 0.5.dp,
             )
+        }
+    }
+}
+
+@Composable
+fun ScheduleDaySkeleton(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "schedule-skel")
+    val alpha by transition.animateFloat(
+        initialValue = 0.28f,
+        targetValue = 0.55f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "schedule-alpha",
+    )
+    val color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha)
+    val heights = listOf(52.dp, 88.dp, 40.dp, 72.dp, 56.dp)
+    val loadingLabel = stringResource(R.string.schedule_loading)
+    Column(
+        modifier
+            .fillMaxSize()
+            .padding(start = 8.dp, end = 16.dp, top = 12.dp)
+            .semantics { contentDescription = loadingLabel },
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        heights.forEach { height ->
+            Row(verticalAlignment = Alignment.Top) {
+                Box(
+                    Modifier
+                        .width(44.dp)
+                        .height(12.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(color),
+                )
+                Spacer(Modifier.width(12.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(height)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(color),
+                )
+            }
         }
     }
 }

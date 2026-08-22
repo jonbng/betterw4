@@ -1,9 +1,13 @@
 package dk.betterw4.android.feature.absence
 
 import dk.betterw4.android.core.w4.W4Dates
+import dk.betterw4.android.feature.schedule.EventSource
+import dk.betterw4.android.feature.schedule.ScheduleWeek
+import dk.betterw4.android.feature.schedule.W4TimetableParser
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import java.time.LocalDate
+import java.security.MessageDigest
 
 data class W4AbsencePage(
     val meter: W4AbsenceMeter?,
@@ -26,13 +30,15 @@ object W4AbsenceParser {
         RegexOption.IGNORE_CASE,
     )
 
-    private val DATE_HEADERS = listOf("date", "when", "absence date")
-    private val PERIOD_HEADERS = listOf("period", "slot", "time", "lesson")
+    private val DATE_HEADERS = listOf("date", "when", "absence date", "date/time")
+    private val PERIOD_HEADERS = listOf("period", "slot", "lesson")
     private val CLASS_HEADERS = listOf("class", "subject", "course", "activity", "group")
     private val TYPE_HEADERS = listOf("type", "kind", "absence type")
     private val STATUS_HEADERS = listOf("status")
     private val NOTE_HEADERS = listOf("comment", "note", "remarks", "reason", "explanation")
     private val TEACHER_HEADERS = listOf("teacher", "staff")
+    private val ADDED_BY_HEADERS = listOf("added by", "added")
+    private val STUDENT_WAS_HEADERS = listOf("student was", "was")
 
     fun parseHomeMeters(html: String): W4HomeAbsenceMeters {
         val doc = Jsoup.parse(html)
@@ -54,10 +60,67 @@ object W4AbsenceParser {
         val table = inner.selectFirst("table.items") ?: inner.selectFirst("table")
         val rows = table?.let { parseTable(it, source) }.orEmpty()
         return W4AbsencePage(
-            meter = meter ?: meterFromRows(rows),
+            meter = meter,
             registrations = rows,
         )
     }
+
+    fun parseWeek(
+        html: String,
+        source: AbsenceSource,
+        fallbackYear: Int? = null,
+        fallbackWeek: Int? = null,
+    ): ScheduleWeek {
+        val eventSource = when (source) {
+            AbsenceSource.EA -> EventSource.EXTRA_ACADEMICS
+            AbsenceSource.ACADEMICS -> EventSource.ACADEMICS
+        }
+        return W4TimetableParser.parseWeek(html, eventSource, fallbackYear, fallbackWeek)
+    }
+
+    fun parseRegisterForm(html: String): AbsenceRegisterForm {
+        val doc = Jsoup.parse(html)
+        val form = doc.selectFirst("form#student-absence-form") ?: doc.selectFirst("form.main")
+        val inputs = form?.select("input").orEmpty()
+        fun named(name: String) = inputs.firstOrNull { it.attr("name") == name }
+        val dateRaw = named("StudentAbsenceForm[absence_date]")?.attr("value")?.trim().orEmpty()
+        val emptyDay = form?.select("p")
+            ?.firstOrNull { it.text().contains("don't have any class", ignoreCase = true) }
+            ?.text()
+            ?.trim()
+        val slots = inputs
+            .filter { it.attr("name") == "StudentAbsenceForm[absences][]" }
+            .mapIndexed { index, input ->
+                val id = input.id().ifBlank { "StudentAbsenceForm_absences_$index" }
+                val label = form?.selectFirst("label[for=$id]")?.text()?.trim().orEmpty()
+                AbsenceRegisterSlot(
+                    id = id,
+                    value = input.attr("value"),
+                    label = label,
+                    disabled = input.hasAttr("disabled"),
+                    checked = input.hasAttr("checked"),
+                )
+            }
+        val reason = named("StudentAbsenceForm[reason]")?.attr("value").orEmpty()
+        val action = form?.attr("action")?.ifBlank { null }
+        return AbsenceRegisterForm(
+            dateRaw = dateRaw,
+            emptyDayMessage = emptyDay,
+            slots = slots,
+            reason = reason,
+            action = action,
+        )
+    }
+
+    fun parseSubmissionError(html: String): String? = Jsoup.parse(html)
+        .select(".errorMessage, div.error, .errorSummary li, .flash-error, .alert-error")
+        .firstOrNull {
+            it.text().trim().isNotEmpty() &&
+                (!it.hasAttr("style") || !it.attr("style").contains("display:none", ignoreCase = true))
+        }
+        ?.text()
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
 
     internal fun parseMeterText(text: String): W4AbsenceMeter? {
         val match = METER.find(text) ?: return null
@@ -103,6 +166,7 @@ object W4AbsenceParser {
 
     private fun parseTable(table: Element, source: AbsenceSource): List<AbsenceRegistration> {
         val headers = headerLabels(table).map { it.lowercase() }
+        if (headers.isEmpty()) return emptyList()
         val dateIdx = indexOf(headers, DATE_HEADERS)
         val periodIdx = indexOf(headers, PERIOD_HEADERS)
         val classIdx = indexOf(headers, CLASS_HEADERS)
@@ -110,37 +174,36 @@ object W4AbsenceParser {
         val statusIdx = indexOf(headers, STATUS_HEADERS)
         val noteIdx = indexOf(headers, NOTE_HEADERS)
         val teacherIdx = indexOf(headers, TEACHER_HEADERS)
+        val addedByIdx = indexOf(headers, ADDED_BY_HEADERS)
+        val studentWasIdx = indexOf(headers, STUDENT_WAS_HEADERS)
 
-        return bodyRows(table).mapIndexedNotNull { index, tr ->
-            if (dk.betterw4.android.core.w4.W4Yii.isEmptyRow(tr)) return@mapIndexedNotNull null
+        return bodyRows(table).mapNotNull { tr ->
+            if (dk.betterw4.android.core.w4.W4Yii.isEmptyRow(tr)) return@mapNotNull null
             val cells = tr.select("td").map { it.text().trim() }
-            if (cells.isEmpty() || cells.all { it.isBlank() }) return@mapIndexedNotNull null
+            if (cells.isEmpty() || cells.all { it.isBlank() }) return@mapNotNull null
             val dateRaw = cell(cells, dateIdx, 0)
             val date = parseDateCell(dateRaw)
-            val period = cell(cells, periodIdx, if (dateIdx == null) 1 else null)
-            val klass = cell(cells, classIdx, if (headers.isEmpty()) 2 else null)
-            val type = normalizeType(cell(cells, typeIdx, if (headers.isEmpty()) 3 else null))
-            val status = cell(cells, statusIdx)
+            val period = cell(cells, periodIdx)
+            val klass = cell(cells, classIdx)
+            val type = normalizeType(cell(cells, typeIdx))
+            val studentWas = cell(cells, studentWasIdx)
+            val status = cell(cells, statusIdx).ifBlank { studentWas }
             val note = cell(cells, noteIdx)
-            val teacher = cell(cells, teacherIdx)
+            val addedBy = cell(cells, addedByIdx)
+            val teacher = cell(cells, teacherIdx).ifBlank { addedBy }
             val team = klass.ifBlank { period }
-            if (team.isBlank() && date == null && type == "Absence" && note.isBlank()) {
-                return@mapIndexedNotNull null
+            if (team.isBlank() && date == null && type == "Absence" && note.isBlank() && studentWas.isBlank()) {
+                return@mapNotNull null
             }
-            val dateLabel = buildString {
-                if (date != null) append(W4Dates.format(date))
-                else if (dateRaw.isNotBlank()) append(dateRaw)
-                if (period.isNotBlank()) {
-                    if (isNotEmpty()) append(" · ")
-                    append(period)
-                }
+            val kindLabel = listOf(type, studentWas, status).firstOrNull { it.isNotBlank() }.orEmpty()
+            val dateLabel = dateRaw.ifBlank {
+                date?.let { W4Dates.format(it) }.orEmpty()
             }
             AbsenceRegistration(
-                id = listOf(source.id, dateRaw, period, klass, type, index.toString())
-                    .joinToString("|"),
+                id = stableId(source, dateRaw, period, klass, type),
                 date = date,
                 team = team.ifBlank { type },
-                cause = type,
+                cause = kindLabel.ifBlank { type },
                 status = status,
                 activityTitle = team,
                 percent = null,
@@ -151,8 +214,22 @@ object W4AbsenceParser {
                 lessonTitle = source.label,
                 remark = source.label,
                 editable = false,
+                addedBy = addedBy,
+                studentWas = studentWas,
             )
         }
+    }
+
+    private fun stableId(
+        source: AbsenceSource,
+        date: String,
+        time: String,
+        subject: String,
+        type: String,
+    ): String {
+        val payload = listOf(source.id, date, time, subject, type).joinToString("|")
+        val digest = MessageDigest.getInstance("SHA-256").digest(payload.toByteArray(Charsets.UTF_8))
+        return source.id + "-" + digest.take(8).joinToString("") { "%02x".format(it) }
     }
 
     private fun parseDateCell(raw: String): LocalDate? {

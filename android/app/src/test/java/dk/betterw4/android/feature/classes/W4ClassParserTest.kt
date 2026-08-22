@@ -38,6 +38,18 @@ class W4ClassParserTest {
     }
 
     @Test
+    fun caption_reads_teacher_from_with_clause() {
+        val parsed = W4ClassParser.parseCaption(
+            "1EA16CECOX: Economics 1st Year C level with Mona Eide Onstad in room A 1.6",
+        )!!
+        assertEquals("Economics", parsed.subject)
+        assertEquals("1", parsed.year)
+        assertEquals(ClassLevel.COMBINED, parsed.level)
+        assertEquals("Mona Eide Onstad", parsed.teacher)
+        assertEquals("A 1.6", parsed.room)
+    }
+
+    @Test
     fun index_reads_level_teacher_and_room_from_the_caption() {
         val classes = W4ClassParser.parseIndex(indexHtml)
         val math = classes.first { it.id == "1DA13HMTAA" }
@@ -133,7 +145,19 @@ class W4ClassParserTest {
         assertEquals(ClassLevel.HIGHER, ClassLevel.parse("H Higher"))
         assertEquals(ClassLevel.STANDARD, ClassLevel.parse("SL"))
         assertEquals(ClassLevel.COMBINED, ClassLevel.parse("C Combined"))
+        assertEquals(ClassLevel.COMBINED, ClassLevel.parse("HL/SL"))
         assertEquals(ClassLevel.NONE, ClassLevel.parse("X None"))
         assertEquals(ClassLevel.UNKNOWN, ClassLevel.parse(""))
+    }
+
+    @Test
+    fun only_real_uwc_member_ids_can_open_profiles() {
+        val teacher = ClassMember("teacher-jane-doe", "Jane Doe", DirectoryEntityKind.TEACHER)
+        val malformed = ClassMember("some-caption", "Some Caption", DirectoryEntityKind.STUDENT)
+        val student = ClassMember("nc26abcd", "A Student", DirectoryEntityKind.STUDENT)
+
+        assertFalse(teacher.canOpenProfile)
+        assertFalse(malformed.canOpenProfile)
+        assertTrue(student.canOpenProfile)
     }
 }

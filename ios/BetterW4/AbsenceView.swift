@@ -12,10 +12,8 @@
 //  registrations the list shows.
 //
 //  There is no percentage anywhere on this screen and no cause editor, because W4 has neither.
-//  W4 counts events, and its registration rows are read-only for students. The one write W4 does
-//  offer — `people/students/absences/register` — links out to the browser rather than pretending to
-//  be a form, because its per-slot checkbox names are injected by W4's own JavaScript and have
-//  never been captured.
+//  W4 counts events, and its registration rows are read-only. Self-registration uses W4's
+//  captured Yii form natively, with the authenticated web page retained as a fallback.
 //
 
 import SwiftUI
@@ -24,6 +22,10 @@ struct AbsenceView: View {
     let student: Student
 
     @StateObject private var viewModel = AttendanceViewModel()
+    /// Incremented when the Absence tab is tapped while already selected (scroll to top).
+    @State private var scrollToTopTick = 0
+    @State private var showRegister = false
+    @State private var selectedLesson: TimetableEvent?
 
     private let subjectColors: [Color] = [
         .blue, .purple, .orange, .teal, .pink, .indigo, .mint, .cyan, .brown, .red
@@ -41,6 +43,28 @@ struct AbsenceView: View {
         }
         .navigationTitle("Absence")
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if !student.isDemo {
+                    Button {
+                        showRegister = true
+                    } label: {
+                        Image(systemName: "square.and.pencil")
+                    }
+                    .accessibilityLabel("Register absences")
+                }
+            }
+        }
+        .sheet(isPresented: $showRegister) {
+            NavigationStack {
+                RegisterAbsenceView(student: student) {
+                    await viewModel.refresh(for: student)
+                }
+            }
+        }
+        .sheet(item: $selectedLesson) { lesson in
+            AttendanceLessonDetailView(lesson: lesson)
+        }
         .refreshable {
             await viewModel.refresh(for: student)
         }
@@ -87,43 +111,64 @@ struct AbsenceView: View {
     // MARK: - Content
 
     private var attendanceList: some View {
-        List {
-            metersSection
+        ScrollViewReader { proxy in
+            List {
+                metersSection
+                    .id("absenceTop")
 
-            if let notice = viewModel.noticeMessage {
-                noticeSection(notice)
+                if let notice = viewModel.noticeMessage {
+                    noticeSection(notice)
+                }
+
+                ledgerPickerSection
+
+                viewModePickerSection
+
+                if viewModel.viewMode == .week {
+                    weekSection
+                } else if !viewModel.breakdown.isEmpty {
+                    breakdownSection
+                }
+
+                if viewModel.viewMode == .list {
+                    if viewModel.sections.isEmpty {
+                        emptySection
+                    } else {
+                        daySections
+                    }
+                }
+
+                if viewModel.hasMorePages {
+                    Section {
+                        Label(
+                            "W4 has more registrations than this page shows.",
+                            systemImage: "ellipsis.circle"
+                        )
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    }
+                }
+
+                registerSection
             }
-
-            ledgerPickerSection
-
-            if !viewModel.breakdown.isEmpty {
-                breakdownSection
-            }
-
-            if viewModel.sections.isEmpty {
-                emptySection
-            } else {
-                daySections
-            }
-
-            if viewModel.hasMorePages {
-                Section {
-                    Label(
-                        "W4 has more registrations than this page shows.",
-                        systemImage: "ellipsis.circle"
-                    )
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
+            .listStyle(.insetGrouped)
+            .overlay(alignment: .top) {
+                if viewModel.isRefreshing {
+                    ProgressView()
+                        .padding(.top, 6)
                 }
             }
-
-            registerSection
-        }
-        .listStyle(.insetGrouped)
-        .overlay(alignment: .top) {
-            if viewModel.isRefreshing {
-                ProgressView()
-                    .padding(.top, 6)
+            .onChange(of: scrollToTopTick) { _, _ in
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    proxy.scrollTo("absenceTop", anchor: .top)
+                }
+            }
+            .background {
+                TabBarSameTabReselectDetector(tabIndex: AuthenticatedTabIndex.absences) {
+                    scrollToTopTick += 1
+                }
             }
         }
     }
@@ -178,6 +223,92 @@ struct AbsenceView: View {
             .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
         }
     }
+
+    private var viewModePickerSection: some View {
+        Section {
+            Picker("View", selection: $viewModel.viewMode) {
+                ForEach(AttendanceViewModel.ViewMode.allCases, id: \.self) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+        }
+    }
+
+    private var weekSection: some View {
+        Section {
+            HStack {
+                Button {
+                    viewModel.shiftWeek(-1)
+                } label: {
+                    Image(systemName: "chevron.left")
+                }
+                Spacer()
+                Text("Week \(W4Dates.isoWeek(of: viewModel.selectedDate).week)")
+                    .font(.headline)
+                Spacer()
+                Button {
+                    viewModel.shiftWeek(1)
+                } label: {
+                    Image(systemName: "chevron.right")
+                }
+            }
+            if let days = viewModel.week?.days, !days.isEmpty {
+                HStack {
+                    ForEach(days) { day in
+                        let selected = Calendar.current.isDate(day.date, inSameDayAs: viewModel.selectedDate)
+                        Button {
+                            viewModel.selectDay(day.date)
+                        } label: {
+                            Text(day.date, format: .dateTime.weekday(.narrow))
+                                .fontWeight(selected ? .bold : .regular)
+                                .foregroundStyle(selected ? Color.accentColor : Color.primary)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            let lessons = viewModel.lessonsOnSelectedDay
+            if lessons.isEmpty {
+                Text("No classes with attendance on this day.")
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 8)
+            } else {
+                ForEach(lessons) { event in
+                    Button { selectedLesson = event } label: {
+                        HStack(alignment: .top, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(event.title).font(.headline).foregroundStyle(.primary)
+                                if let start = event.start, let end = event.end {
+                                    Text("\(Self.timeFormatter.string(from: start)) – \(Self.timeFormatter.string(from: end))")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                if let room = event.room, !room.isEmpty {
+                                    Text(room).font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer(minLength: 0)
+                            AttendanceStatusChip(
+                                attendance: event.attendance,
+                                rawLabel: event.attendanceLabel
+                            )
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
 
     // MARK: - Breakdown
 
@@ -287,7 +418,7 @@ struct AbsenceView: View {
                 Image(systemName: "checkmark.circle")
                     .font(.title2)
                     .foregroundColor(.green)
-                Text(viewModel.emptyMessage ?? "No absence records.")
+                Text("No absences recorded.")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -297,7 +428,7 @@ struct AbsenceView: View {
         }
     }
 
-    // MARK: - Register absences (read-only link)
+    // MARK: - Register absences
 
     private var registerSection: some View {
         Section {
@@ -305,7 +436,9 @@ struct AbsenceView: View {
                 Label("Register absences", systemImage: "square.and.pencil")
                     .foregroundColor(.secondary)
             } else {
-                Link(destination: viewModel.registerAbsencesURL) {
+                Button {
+                    showRegister = true
+                } label: {
                     Label("Register absences", systemImage: "square.and.pencil")
                 }
             }
@@ -313,7 +446,7 @@ struct AbsenceView: View {
             Text(
                 student.isDemo
                     ? "Not available in demo mode."
-                    : "Opens W4 in your browser. Registering an absence from the app is not supported yet."
+                    : "Select a date, choose classes, and provide a reason."
             )
         }
     }
@@ -333,6 +466,59 @@ struct AbsenceView: View {
         }
         return .gray
     }
+}
+
+private struct AttendanceStatusChip: View {
+    let attendance: LessonAttendance?
+    var rawLabel: String? = nil
+
+    var body: some View {
+        Text(rawLabel?.isEmpty == false ? rawLabel! : (attendance?.displayName ?? "Unknown"))
+            .font(.caption2.weight(.semibold))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.secondary.opacity(0.14))
+            .clipShape(Capsule())
+    }
+}
+
+private struct AttendanceLessonDetailView: View {
+    let lesson: TimetableEvent
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                LabeledContent(
+                    "Status",
+                    value: lesson.attendanceLabel?.isEmpty == false
+                        ? lesson.attendanceLabel!
+                        : (lesson.attendance?.displayName ?? "Unknown")
+                )
+                if let phrase = lesson.attendanceTooltip {
+                    LabeledContent("W4 status", value: phrase)
+                }
+                if let start = lesson.start, let end = lesson.end {
+                    LabeledContent("Time", value: "\(Self.time.string(from: start)) – \(Self.time.string(from: end))")
+                }
+                if let teacher = lesson.teacher, !teacher.isEmpty {
+                    LabeledContent("Teacher", value: teacher)
+                }
+                if let room = lesson.room, !room.isEmpty {
+                    LabeledContent("Room", value: room)
+                }
+            }
+            .navigationTitle(lesson.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { Button("Done") { dismiss() } }
+        }
+    }
+
+    private static let time: DateFormatter = {
+        let value = DateFormatter()
+        value.dateFormat = "HH:mm"
+        return value
+    }()
 }
 
 // MARK: - Meter card
@@ -446,19 +632,16 @@ private struct AttendanceRecordRow: View {
                     }
                 }
 
-                Text(record.kind.displayName)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-
+                if let studentWas = record.studentWas, !studentWas.isEmpty {
+                    LabeledContent("Student was", value: studentWas).font(.caption)
+                }
                 if !record.status.isEmpty {
-                    Text(record.status)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    LabeledContent("Type", value: record.status).font(.caption)
                 }
 
                 HStack(spacing: 12) {
-                    if let teacher = record.teacher, !teacher.isEmpty {
-                        Label(teacher, systemImage: "person")
+                    if let addedBy = record.addedBy, !addedBy.isEmpty {
+                        Label("Added by \(addedBy)", systemImage: "person")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
@@ -470,7 +653,7 @@ private struct AttendanceRecordRow: View {
                 }
 
                 if let note = record.note, !note.isEmpty {
-                    Text(note)
+                    Text("Reason: \(note)")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .lineLimit(3)

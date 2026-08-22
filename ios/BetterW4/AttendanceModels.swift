@@ -28,12 +28,40 @@ enum AttendanceSource: String, Codable, Sendable, Hashable, CaseIterable {
     case academics = "ac"
     case extraAcademics = "ea"
 
-    /// The Yii route of this source's list page. **[V]** — both routes appear in
-    /// the captured side menus and in the captured Home meter links.
+    /// Yii `…/list` page — the real registrations table.
     var listRoute: String {
         switch self {
-        case .academics: return W4Routes.R.absences
-        case .extraAcademics: return W4Routes.R.eaAbsences
+        case .academics: return W4Routes.R.absencesList
+        case .extraAcademics: return W4Routes.R.eaAbsencesList
+        }
+    }
+
+    /// Every route W4 writes for this source. Home links the bare route, the
+    /// week grid is `…/index` and the registrations table is `…/list`; all
+    /// three are this ledger. `…/absences/register` is the form — a different
+    /// page, and deliberately absent.
+    var routes: [String] {
+        switch self {
+        case .academics:
+            return [W4Routes.R.absences, W4Routes.R.absencesIndex, W4Routes.R.absencesList]
+        case .extraAcademics:
+            return [W4Routes.R.eaAbsences, W4Routes.R.eaAbsencesIndex, W4Routes.R.eaAbsencesList]
+        }
+    }
+
+    /// Exact match against any of `routes`, case-insensitively.
+    func owns(route: String) -> Bool {
+        let normalized = route
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return routes.contains { $0.lowercased() == normalized }
+    }
+
+    /// Default week grid (`people/students/absences` / `eaabsences`).
+    var weekRoute: String {
+        switch self {
+        case .academics: return W4Routes.R.absencesIndex
+        case .extraAcademics: return W4Routes.R.eaAbsencesIndex
         }
     }
 
@@ -57,14 +85,12 @@ enum AttendanceSource: String, Codable, Sendable, Hashable, CaseIterable {
     /// `people/students/absences/register` is a *different* page and must not
     /// resolve to `.academics`.
     static func source(forRoute route: String) -> AttendanceSource? {
-        let normalized = route
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        for source in AttendanceSource.allCases where source.listRoute.lowercased() == normalized {
-            return source
-        }
-        return nil
+        AttendanceSource.allCases.first { $0.owns(route: route) }
     }
+}
+
+enum AttendanceFeatureFlags {
+    static let writesEnabled = true
 }
 
 // MARK: - Kind
@@ -216,6 +242,10 @@ struct AttendanceRecord: Identifiable, Codable, Equatable, Hashable, Sendable {
     let status: String
     let teacher: String?
     let note: String?
+    /// "Added by" / "Student was" only exist on some grids, so both stay
+    /// defaulted in the memberwise init for the rows that lack them.
+    var addedBy: String? = nil
+    var studentWas: String? = nil
 
     /// W4 absence rows are read-only for students; there is no edit affordance.
     var isEditable: Bool { false }

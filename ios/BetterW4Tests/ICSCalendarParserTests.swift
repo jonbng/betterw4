@@ -944,4 +944,52 @@ final class ICSCalendarParserTests: XCTestCase {
         XCTAssertEqual(hidden.map(\.id), [lesson.id])
         XCTAssertFalse(hidden.contains(where: SchoolCalendar.isSchoolCalendarEvent))
     }
+
+    /// Overlay events keep the calendar's own title and stay out of the
+    /// subject-mapping catalogue. A W4 lesson with the same wording still maps.
+    func testSchoolCalendarEventsSkipSubjectMapping() throws {
+        SubjectMapper.mappingProvider = nil
+        SubjectMapper.subjectInfoProvider = nil
+
+        let monday = try oslo(2026, 8, 10)
+        let calendar = TimetableEvent(
+            id: "gcal-tok",
+            title: "TOK",
+            source: .schoolCalendar,
+            date: monday
+        )
+        let lesson = TimetableEvent(
+            id: "ac-tok",
+            title: "TOK",
+            source: .academics,
+            date: monday
+        )
+
+        XCTAssertEqual(lesson.displayTitle, "Theory of Knowledge")
+        XCTAssertEqual(calendar.displayTitle, "TOK")
+        XCTAssertEqual(calendar.iconName, "calendar")
+        XCTAssertNotEqual(lesson.iconName, "calendar")
+
+        let keys = SchoolCalendar.subjectMappingKeys(from: [lesson, calendar])
+        XCTAssertEqual(Set(keys), ["TOK"])
+    }
+
+    func testSubjectMappingKeysIgnoreOverlayTitles() throws {
+        let range = week(from: try oslo(2026, 8, 10))
+        let overlay = schoolCalendarEvents(
+            try fixture("school-calendar"),
+            from: range.from,
+            toExclusive: range.toExclusive
+        )
+        let lesson = TimetableEvent(
+            id: "ac-1",
+            title: "Biology HL",
+            source: .academics,
+            date: try oslo(2026, 8, 10)
+        )
+        let keys = Set(SchoolCalendar.subjectMappingKeys(from: overlay + [lesson]))
+        XCTAssertEqual(keys, ["Biology HL"])
+        XCTAssertFalse(keys.contains("Year 1 arrival in Bergen"))
+        XCTAssertFalse(keys.contains("Advisor check in"))
+    }
 }

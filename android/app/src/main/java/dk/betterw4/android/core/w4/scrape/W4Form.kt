@@ -19,6 +19,11 @@ object W4Form {
     )
 
     fun encode(fields: Map<String, String>): ByteArray {
+        return encode(fields.toList())
+    }
+
+    /** Encodes successful controls without collapsing repeated Yii checkbox names. */
+    fun encode(fields: List<Pair<String, String>>): ByteArray {
         val builder = FormBody.Builder()
         for ((name, value) in fields) {
             builder.add(name, value)

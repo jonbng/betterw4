@@ -3,11 +3,11 @@ package dk.betterw4.android.ui.navigation
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.EventBusy
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.EventBusy
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -34,11 +34,11 @@ enum class AppDestination(
         selectedIcon = Icons.Filled.People,
         unselectedIcon = Icons.Outlined.People,
     ),
-    Homework(
-        route = "homework",
-        labelRes = R.string.tab_homework,
-        selectedIcon = Icons.Filled.Description,
-        unselectedIcon = Icons.Outlined.Description,
+    Absence(
+        route = "absence",
+        labelRes = R.string.tab_absence,
+        selectedIcon = Icons.Filled.EventBusy,
+        unselectedIcon = Icons.Outlined.EventBusy,
     ),
     More(
         route = "more",

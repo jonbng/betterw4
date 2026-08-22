@@ -12,7 +12,7 @@ so rather than being aspirational.
 |---|---|
 | Bundle id | `dk.jonathanb.w4` |
 | Display name | BetterW4 |
-| Version / build | `MARKETING_VERSION = 1.0` · `CURRENT_PROJECT_VERSION = 1` |
+| Version / build | `MARKETING_VERSION = 1.0` · `CURRENT_PROJECT_VERSION = 3` |
 | Category | Education (`public.app-category.education`) |
 | Deployment target | iOS 18.5 |
 | Devices | iPhone and iPad, all orientations on iPad, portrait + landscape on iPhone |

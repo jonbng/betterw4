@@ -283,8 +283,8 @@ final class AttendanceViewModelTests: XCTestCase {
     }
 
     private func stubEmptyLedgers(_ stub: AttendanceStub) async {
-        await stub.stub(W4Routes.R.absences, html: emptyListPage("No results found."))
-        await stub.stub(W4Routes.R.eaAbsences, html: emptyListPage("No results found."))
+        await stub.stub(W4Routes.R.absencesList, html: emptyListPage("No results found."))
+        await stub.stub(W4Routes.R.eaAbsencesList, html: emptyListPage("No results found."))
     }
 
     // MARK: - Demo mode (every screen must render demo data, never an error)
@@ -329,14 +329,14 @@ final class AttendanceViewModelTests: XCTestCase {
         let stub = AttendanceStub()
         await stub.stub(W4Routes.R.home, html: meterPage(absences: 3, latenesses: 2))
         await stub.stub(
-            W4Routes.R.absences,
+            W4Routes.R.absencesList,
             html: listPage(rows: [
                 (date: "12-May-2026", period: "P2", subject: "English A HL", type: "Absence", status: "Unexcused"),
                 (date: "12-May-2026", period: "P3", subject: "Biology SL", type: "Lateness", status: "Excused"),
                 (date: "10-May-2026", period: "P1", subject: "English A HL", type: "Absence", status: "Unexcused")
             ])
         )
-        await stub.stub(W4Routes.R.eaAbsences, html: emptyListPage("No results found."))
+        await stub.stub(W4Routes.R.eaAbsencesList, html: emptyListPage("No results found."))
 
         let viewModel = makeAttendanceViewModel(attendanceRepository(fetcher: stub, context: signedInContext()))
         await viewModel.load(for: signedInStudent)
@@ -398,14 +398,14 @@ final class AttendanceViewModelTests: XCTestCase {
                 (date: "01-May-2026", period: "P1", subject: "Cached Class", type: "Absence", status: "Cached")
             ]),
             surface: .attendanceAcademics,
-            key: W4Routes.R.absences,
+            key: W4Routes.R.absencesList,
             secondsOld: 60
         )
 
         let stub = AttendanceStub()
         await stub.stub(W4Routes.R.home, error: URLError(.notConnectedToInternet))
-        await stub.stub(W4Routes.R.absences, error: URLError(.notConnectedToInternet))
-        await stub.stub(W4Routes.R.eaAbsences, error: URLError(.notConnectedToInternet))
+        await stub.stub(W4Routes.R.absencesList, error: URLError(.notConnectedToInternet))
+        await stub.stub(W4Routes.R.eaAbsencesList, error: URLError(.notConnectedToInternet))
 
         let viewModel = makeAttendanceViewModel(attendanceRepository(fetcher: stub, context: signedInContext()))
         // Pull-to-refresh: every TTL bypassed, so every route is actually attempted and fails.
@@ -423,8 +423,8 @@ final class AttendanceViewModelTests: XCTestCase {
     func testErrorSurfacesOnlyWhenThereIsNothingCached() async {
         let stub = AttendanceStub()
         await stub.stub(W4Routes.R.home, error: URLError(.notConnectedToInternet))
-        await stub.stub(W4Routes.R.absences, error: URLError(.notConnectedToInternet))
-        await stub.stub(W4Routes.R.eaAbsences, error: URLError(.notConnectedToInternet))
+        await stub.stub(W4Routes.R.absencesList, error: URLError(.notConnectedToInternet))
+        await stub.stub(W4Routes.R.eaAbsencesList, error: URLError(.notConnectedToInternet))
 
         let viewModel = makeAttendanceViewModel(attendanceRepository(fetcher: stub, context: signedInContext()))
         await viewModel.load(for: signedInStudent)
@@ -449,14 +449,14 @@ final class AttendanceViewModelTests: XCTestCase {
                 (date: "01-May-2026", period: "P1", subject: "Cached Class", type: "Absence", status: "Cached")
             ]),
             surface: .attendanceAcademics,
-            key: W4Routes.R.absences,
+            key: W4Routes.R.absencesList,
             secondsOld: 60
         )
 
         let stub = AttendanceStub()
         await stub.stub(W4Routes.R.home, error: W4Error.forbidden)
-        await stub.stub(W4Routes.R.absences, error: W4Error.forbidden)
-        await stub.stub(W4Routes.R.eaAbsences, error: W4Error.forbidden)
+        await stub.stub(W4Routes.R.absencesList, error: W4Error.forbidden)
+        await stub.stub(W4Routes.R.eaAbsencesList, error: W4Error.forbidden)
 
         let counter = SessionExpiryCounter()
         let token = NotificationCenter.default.addObserver(

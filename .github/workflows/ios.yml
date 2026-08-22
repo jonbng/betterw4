@@ -45,13 +45,24 @@ jobs:
 
   test:
     name: Build and test
-    runs-on: macos-15
+    runs-on: macos-26
     needs: gates
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_16.4.app
+      # App Store Connect rejects anything built with an SDK older than iOS 26, so CI has to
+      # compile against the same generation we ship with. Picking the newest Xcode 26 the image
+      # happens to carry, rather than pinning a point release, keeps this from breaking every
+      # time GitHub rotates the runner image.
+      - name: Select Xcode 26
+        run: |
+          app=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$app" ]; then
+            echo "::error::No Xcode 26 on this runner image"
+            ls /Applications | grep -i xcode
+            exit 1
+          fi
+          sudo xcode-select -switch "$app"
 
       - name: Show toolchain
         run: xcodebuild -version && xcodebuild -showsdks | grep -i simulator

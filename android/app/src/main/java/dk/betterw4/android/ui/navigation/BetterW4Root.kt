@@ -48,9 +48,10 @@ import dk.betterw4.android.ui.auth.LoginScreen
 import dk.betterw4.android.ui.components.LoadingBox
 import dk.betterw4.android.ui.onboarding.OnboardingOverlay
 import dk.betterw4.android.ui.review.ReviewPromptSheet
-import dk.betterw4.android.ui.screens.homework.HomeworkScreen
+import dk.betterw4.android.ui.screens.absence.AbsenceScreen
 import dk.betterw4.android.ui.screens.more.MoreScreen
 import dk.betterw4.android.ui.screens.schedule.ScheduleScreen
+
 @Composable
 fun BetterW4Root(
     sessionController: SessionController,
@@ -110,12 +111,24 @@ private fun AuthenticatedShell() {
     val scrollTokens = remember { mutableStateMapOf<String, Int>() }
     var scheduleScroll by remember { mutableIntStateOf(0) }
     var studentsScroll by remember { mutableIntStateOf(0) }
-    var homeworkScroll by remember { mutableIntStateOf(0) }
+    var absenceScroll by remember { mutableIntStateOf(0) }
     var moreScroll by remember { mutableIntStateOf(0) }
     var openMailToken by remember { mutableIntStateOf(0) }
+    var openAssessmentsToken by remember { mutableIntStateOf(0) }
 
     fun openMail() {
         openMailToken++
+        navController.navigate(AppDestination.More.route) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
+    fun openAssessments() {
+        openAssessmentsToken++
         navController.navigate(AppDestination.More.route) {
             popUpTo(navController.graph.findStartDestination().id) {
                 saveState = true
@@ -152,7 +165,7 @@ private fun AuthenticatedShell() {
                                 when (destination) {
                                     AppDestination.Schedule -> scheduleScroll++
                                     AppDestination.Students -> studentsScroll++
-                                    AppDestination.Homework -> homeworkScroll++
+                                    AppDestination.Absence -> absenceScroll++
                                     AppDestination.More -> Unit // already bumped above
                                 }
                                 scrollTokens[destination.route] =
@@ -209,15 +222,7 @@ private fun AuthenticatedShell() {
                 ScheduleScreen(
                     scrollToTopToken = scheduleScroll,
                     onOpenMail = { openMail() },
-                    onOpenAssessments = {
-                        navController.navigate(AppDestination.Homework.route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
+                    onOpenAssessments = { openAssessments() },
                 )
             }
             composable(AppDestination.Students.route) {
@@ -228,13 +233,14 @@ private fun AuthenticatedShell() {
                     onOpenMail = { openMail() },
                 )
             }
-            composable(AppDestination.Homework.route) {
-                HomeworkScreen(scrollToTopToken = homeworkScroll)
+            composable(AppDestination.Absence.route) {
+                AbsenceScreen(scrollToTopToken = absenceScroll)
             }
             composable(AppDestination.More.route) {
                 MoreScreen(
                     scrollToTopToken = moreScroll,
                     openMailToken = openMailToken,
+                    openAssessmentsToken = openAssessmentsToken,
                 )
             }
         }

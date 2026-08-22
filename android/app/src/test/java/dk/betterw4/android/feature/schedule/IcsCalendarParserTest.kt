@@ -127,6 +127,43 @@ class IcsCalendarParserTest {
     }
 
     @Test
+    fun subjectMappingKeys_skipSchoolCalendarEvents() {
+        val monday = LocalDate.of(2026, 8, 10)
+        val lesson = ScheduleEvent(
+            id = "ac-1",
+            title = "TOK",
+            team = "1DA14XTHOK",
+            date = monday,
+        )
+        val calendar = ScheduleEvent(
+            id = "gcal-tok",
+            title = "TOK",
+            team = SCHOOL_CALENDAR_TEAM_TOKEN,
+            date = monday,
+        )
+        val keys = SchoolCalendar.subjectMappingKeys(listOf(lesson, calendar))
+        assertEquals(listOf("1DA14XTHOK", "TOK"), keys)
+        assertFalse(keys.any { it.equals(SCHOOL_CALENDAR_TEAM_TOKEN, ignoreCase = true) })
+    }
+
+    @Test
+    fun subjectMappingKeys_ignoreOverlayTitlesFromTheFeed() {
+        val monday = LocalDate.of(2026, 8, 10)
+        val overlay = IcsCalendarParser.eventsOverlapping(ics, monday, monday.plusDays(7))
+        val lesson = ScheduleEvent(
+            id = "ac-1",
+            title = "Biology HL",
+            team = "1BE12CBIOX",
+            date = monday,
+        )
+        val keys = SchoolCalendar.subjectMappingKeys(overlay + lesson)
+        assertEquals(listOf("1BE12CBIOX", "Biology HL"), keys)
+        assertFalse(keys.contains("Year 1 arrival in Bergen"))
+        assertFalse(keys.contains("Advisor check in"))
+        assertFalse(keys.contains(SCHOOL_CALENDAR_TEAM_TOKEN))
+    }
+
+    @Test
     fun description_html_breaks_become_newlines() {
         val ics = """
             BEGIN:VCALENDAR

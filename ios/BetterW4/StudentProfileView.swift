@@ -22,6 +22,8 @@ final class PersonProfileModel: ObservableObject {
     @Published private(set) var profile: StudentProfile?
     @Published private(set) var freshness: W4Freshness?
     @Published private(set) var week: ScheduleWeek?
+    /// Loaded person weeks keyed by `ScheduleIdentity.weekKey`, so swiping back is free.
+    private var weeks: [String: ScheduleWeek] = [:]
     @Published private(set) var selectedDate: Date = W4Dates.startOfDay(TimeProvider.now)
     /// Only ever set when there is nothing at all to show.
     @Published private(set) var errorMessage: String?
@@ -63,7 +65,6 @@ final class PersonProfileModel: ObservableObject {
         if !forceRefresh, let cached = await repository.cachedProfile(uwcId: uwcId) {
             guard token == generation else { return }
             profile = StudentProfile(profile: cached.value)
-                .applying(placement: nil, classes: fallback?.classes ?? [])
             freshness = cached.freshness
         }
 
@@ -105,12 +106,14 @@ final class PersonProfileModel: ObservableObject {
         let start = W4Dates.startOfWeek(containing: selectedDate)
         let next = W4Dates.adding(days: delta * 7, to: start)
         selectedDate = next
+        week = weeks[ScheduleIdentity.weekKey(for: next)]
         await loadWeek(uwcId: loadedUwcId, containing: next, token: generation)
     }
 
     func goToToday() async {
         let today = W4Dates.startOfDay(TimeProvider.now)
         selectedDate = today
+        week = weeks[ScheduleIdentity.weekKey(for: today)]
         await loadWeek(uwcId: loadedUwcId, containing: today, token: generation)
     }
 
@@ -123,9 +126,8 @@ final class PersonProfileModel: ObservableObject {
         await loadWeek(uwcId: uwcId, containing: selectedDate, token: token, forceRefresh: forceRefresh)
         let placement = await placementTask
         guard token == generation else { return }
-        let classes = week.map(PersonClasses.from(week:)) ?? []
         if let current = profile {
-            profile = current.applying(placement: placement, classes: classes)
+            profile = current.applying(placement: placement)
         }
     }
 
@@ -136,9 +138,22 @@ final class PersonProfileModel: ObservableObject {
         forceRefresh: Bool = false
     ) async {
         guard !uwcId.isEmpty else { return }
+        let key = ScheduleIdentity.weekKey(for: date)
+        if week == nil, let remembered = weeks[key] {
+            week = remembered
+        }
         isLoadingSchedule = week == nil
         defer {
             if token == generation { isLoadingSchedule = false }
+        }
+        if week == nil,
+           let cached = await timetableRepository.cachedPersonWeek(uwcId: uwcId, containing: date) {
+            guard token == generation else { return }
+            weeks[key] = cached.value
+            if ScheduleIdentity.weekKey(for: selectedDate) == key {
+                week = cached.value
+                isLoadingSchedule = false
+            }
         }
         do {
             let loaded = try await timetableRepository.personWeek(
@@ -147,9 +162,9 @@ final class PersonProfileModel: ObservableObject {
                 forceRefresh: forceRefresh
             )
             guard token == generation else { return }
-            week = loaded.value
-            if let current = profile {
-                profile = current.applying(placement: nil, classes: PersonClasses.from(week: loaded.value))
+            weeks[key] = loaded.value
+            if ScheduleIdentity.weekKey(for: selectedDate) == key {
+                week = loaded.value
             }
             let days = loaded.value.days
             if !days.contains(where: { W4Dates.isSameDay($0.date, selectedDate) }) {
@@ -197,7 +212,7 @@ struct StudentProfileView: View {
     init(person: DirectoryPerson, placement: HousePlacement, directory: DirectoryViewModel) {
         self.uwcId = person.uwcId
         self.kind = person.kind
-        self.fallback = StudentProfile(person: person).applying(placement: placement, classes: [])
+        self.fallback = StudentProfile(person: person).applying(placement: placement)
         self._directory = ObservedObject(wrappedValue: directory)
         self._tab = State(initialValue: person.kind == .staff ? .about : .schedule)
     }
@@ -470,12 +485,16 @@ struct StudentProfileView: View {
                 }
             }
 
+            if profile.birthday != nil {
+                birthdayCard(profile)
+            }
+
             aboutCard {
                 Text("Classes")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 if profile.classes.isEmpty {
-                    Text("No classes on this week's timetable")
+                    Text("No classes listed")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 } else {
@@ -490,6 +509,19 @@ struct StudentProfileView: View {
             aboutCard {
                 ForEach(Self.detailRows(for: profile)) { row in
                     detailRow(row.title, value: row.value, systemImage: row.systemImage)
+                }
+                if let advisor = profile.advisor {
+                    NavigationLink {
+                        StudentProfileView(person: advisor.person, directory: directory)
+                    } label: {
+                        aboutLinkRow(
+                            title: "Advisor",
+                            value: advisor.name,
+                            systemImage: "person.crop.circle.badge.checkmark",
+                            hint: "View profile"
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -566,14 +598,12 @@ struct StudentProfileView: View {
 
             extraFields(profile)
 
-            if profile.country != nil || profile.birthday != nil {
+            if profile.birthday != nil {
+                birthdayCard(profile)
+            }
+            if let country = profile.country {
                 aboutCard {
-                    if let country = profile.country {
-                        detailRow("Country", value: country, systemImage: "globe")
-                    }
-                    if let birthday = profile.birthday {
-                        detailRow("Birthday", value: birthday, systemImage: "gift")
-                    }
+                    detailRow("Country", value: country, systemImage: "globe")
                 }
             }
         }
@@ -601,10 +631,18 @@ struct StudentProfileView: View {
     private func classRow(_ item: PersonClass) -> some View {
         if let classId = item.classId, item.canOpen {
             NavigationLink {
-                ClassRosterView(
+                MyClassDetailView(
                     classId: classId,
-                    title: item.name,
-                    directory: directory
+                    seed: MyClass(
+                        id: classId,
+                        subject: item.name,
+                        year: item.year,
+                        level: ClassLevel.parse(item.levelLabel),
+                        levelLabel: item.levelLabel,
+                        room: item.room.map { ClassRoom(name: $0) }
+                    ),
+                    directory: directory,
+                    selfUwcId: W4RequestContext.current()?.rosterUwcId
                 )
             } label: {
                 aboutLinkRow(
@@ -678,14 +716,57 @@ struct StudentProfileView: View {
         .contentShape(Rectangle())
     }
 
-    /// Remaining identity fields — house, room and classes have their own rows.
+    @ViewBuilder
+    private func birthdayCard(_ profile: StudentProfile) -> some View {
+        let parsed = profile.parsedBirthday
+        let today = parsed?.isToday == true
+        HStack(spacing: 12) {
+            Image(systemName: today ? "birthday.cake.fill" : "gift.fill")
+                .foregroundStyle(today ? Color.white : Color.accentColor)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(today ? "Birthday today" : "Birthday")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(today ? Color.white.opacity(0.85) : .secondary)
+                Text(parsed?.display ?? profile.birthday ?? "")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(today ? Color.white : .primary)
+                if !today, let parsed {
+                    Text(parsed.relativeLabel())
+                        .font(.caption)
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            Spacer()
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(today ? Color.accentColor : Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(birthdayAccessibility(profile))
+    }
+
+    private func birthdayAccessibility(_ profile: StudentProfile) -> String {
+        let parsed = profile.parsedBirthday
+        let date = parsed?.display ?? profile.birthday ?? ""
+        if parsed?.isToday == true { return "Birthday today, \(date)" }
+        if let parsed { return "Birthday \(date), \(parsed.relativeLabel())" }
+        return "Birthday \(date)"
+    }
+
+    /// Remaining identity fields — house, room, classes and birthday have their own rows.
     private static func detailRows(for profile: StudentProfile) -> [ProfileDetailRow] {
         var rows: [ProfileDetailRow] = [
             ProfileDetailRow(title: "UWC id", value: profile.uwcId, systemImage: "person.text.rectangle"),
             ProfileDetailRow(title: "Email", value: profile.email, systemImage: "envelope")
         ]
         if let year = profile.year {
-            rows.append(ProfileDetailRow(title: "Year", value: year, systemImage: "graduationcap"))
+            let label = year.hasPrefix("Year") ? year : "Year \(year)"
+            rows.append(ProfileDetailRow(title: "Year", value: label, systemImage: "graduationcap"))
+        }
+        if let graduation = profile.graduationYear {
+            rows.append(ProfileDetailRow(title: "Graduation", value: graduation, systemImage: "calendar"))
         }
         if let country = profile.country {
             rows.append(ProfileDetailRow(title: "Country", value: country, systemImage: "globe"))
@@ -693,8 +774,8 @@ struct StudentProfileView: View {
         if let pronouns = profile.pronouns {
             rows.append(ProfileDetailRow(title: "Pronouns", value: pronouns, systemImage: "text.bubble"))
         }
-        if let birthday = profile.birthday {
-            rows.append(ProfileDetailRow(title: "Birthday", value: birthday, systemImage: "gift"))
+        if let mobile = profile.mobile {
+            rows.append(ProfileDetailRow(title: "Mobile", value: mobile, systemImage: "iphone"))
         }
         if let lastLogin = profile.lastLogin {
             rows.append(ProfileDetailRow(title: "Last login", value: lastLogin, systemImage: "clock"))
@@ -783,7 +864,10 @@ struct StudentProfileView: View {
                         }
                     }
                 }
-            } else if !model.isLoadingSchedule {
+            } else if model.isLoadingSchedule {
+                ScheduleDaySkeleton()
+                    .frame(minHeight: 220)
+            } else {
                 Text("No lessons this week")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)

@@ -286,6 +286,16 @@ enum W4Dates {
         calendar.isDate(lhs, inSameDayAs: rhs)
     }
 
+    /// English month name in Oslo ("August"), locale-independent.
+    static func monthName(of date: Date) -> String {
+        monthNames(full: true)[monthIndex(of: date)]
+    }
+
+    /// Short English month name in Oslo ("Aug"), locale-independent.
+    static func shortMonthName(of date: Date) -> String {
+        monthNames(full: false)[monthIndex(of: date)]
+    }
+
     /// English weekday name in Oslo ("Monday"), locale-independent.
     static func weekdayName(of date: Date) -> String {
         let index = calendar.component(.weekday, from: date) - 1 // 0 == Sunday
@@ -297,6 +307,20 @@ enum W4Dates {
     }
 
     // MARK: - Private helpers
+
+    /// 0-based month index in Oslo, clamped so a nonsense date cannot trap.
+    private static func monthIndex(of date: Date) -> Int {
+        let month = calendar.component(.month, from: date)
+        return min(max(month - 1, 0), 11)
+    }
+
+    private static func monthNames(full: Bool) -> [String] {
+        full
+            ? ["January", "February", "March", "April", "May", "June",
+               "July", "August", "September", "October", "November", "December"]
+            : ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    }
 
     /// Trims, collapses inner whitespace, normalises non-breaking spaces and
     /// the stray `Sept` abbreviation. Returns `nil` for empty input.

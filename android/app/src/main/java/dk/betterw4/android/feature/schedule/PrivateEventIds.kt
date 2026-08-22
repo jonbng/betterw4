@@ -10,22 +10,21 @@ object PrivateEventIds {
     private val plainNumeric = Regex("""^\d+$""")
     private val aftaleInString = Regex("""(?i)aftaleid=(\d+)""")
 
-    /** True for AFT…, PRIV…, or session-local private ids. */
+    /** True for AFT…, PRIV…, or device-local custom ids (`local-…`). */
     fun isPrivateEventId(id: String): Boolean {
         val t = id.trim()
-        if (t.startsWith("local-private", ignoreCase = true)) return true
+        if (t.startsWith(CustomEvents.ID_PREFIX, ignoreCase = true)) return true
         if (prefixedNumeric.matches(t)) return true
         if (plainNumeric.matches(t) && t.length >= 1) return false // bare module ids are not private
         return false
     }
 
     /**
-     * Whether the schedule event is a private aftale (edit/delete UI).
-     * Matches parser AFT ids even when team is empty.
+     * Whether the schedule event is a device-local custom event (edit/delete UI).
      */
     fun isPrivateEvent(event: ScheduleEvent): Boolean {
+        if (CustomEvents.isCustomEvent(event)) return true
         if (isPrivateEventId(event.id)) return true
-        if (event.team.equals(PRIVATE_EVENT_TEAM_TOKEN, ignoreCase = true)) return true
         if (event.href?.let { aftaleInString.containsMatchIn(it) } == true) return true
         return false
     }

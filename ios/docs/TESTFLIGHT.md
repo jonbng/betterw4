@@ -84,8 +84,9 @@ Builds reach internal testers as soon as processing finishes — no review.
    in directly.
 3. Attach a build to the group.
 4. Fill in **Test Information** — this is what Beta App Review reads:
-   - **Beta App Description** — what to try. Point at the timetable and assessments specifically,
-     since those are the surfaces that need real-world exposure.
+   - **Beta App Description** and **What to Test** — copy them from §8 below, which is written
+     to point testers at the timetable and assessments specifically, since those are the surfaces
+     that need real-world exposure.
    - **Feedback email** — where TestFlight feedback lands.
    - **Sign-in required** — leave unchecked, and paste the demo-mode note from
      [`RELEASE.md`](RELEASE.md) §1. Beta App Review needs to get into the app the same way App Review
@@ -125,3 +126,70 @@ ever captured. If a block renders wrongly, that is a fixture the project does no
   timetable, mail list and directory all show real students' names at a 200-person college.
 - **Delete tester data when the beta ends.** The form promises this. Testers in Norway, GDPR applies,
   and the promise is cheap to keep.
+
+---
+
+## 8. The exact Test Information copy
+
+Paste these into **TestFlight ▸ Test Information**. Both fields cap at 4000 characters; these are
+well under. The **Sign-in required** checkbox stays unchecked, with the demo-mode note from
+[`RELEASE.md`](RELEASE.md) §1 in the review notes — Beta App Review gets in the same way App Review
+does.
+
+### Beta App Description
+
+> BetterW4 is an unofficial iPhone and iPad app for W4, the student information system at UWC Red
+> Cross Nordic. It signs in to w4.uwcrcn.no exactly the way a browser does, then shows your
+> timetable, mail, assessments, grades and attendance as a native app instead of a website built in
+> 2016.
+>
+> It is not made by, endorsed by, or affiliated with UWC Red Cross Nordic.
+>
+> What is in it:
+>
+> • Timetable — your Academics and Extra Academics week in one place, with rotation days, subject
+> colours, and a digest of today at the top
+> • Mail — inbox and archive, full message bodies, attachment preview
+> • Assessments — as a calendar, a list, or a month
+> • Grades, including effort and anticipated grades
+> • Absence and lateness, with the attendance meters from Home
+> • Student and staff directory, houses, on duty, trips, documents, your ID card
+> • Campus status and notifications, reachable from every screen
+> • An offline cache — screens you have already opened render with no signal at all
+>
+> No W4 account? Tap **Try demo** on the login screen. It opens a complete offline session with
+> invented data and makes no network requests whatsoever.
+>
+> Privacy: there is no BetterW4 server. No account with us, no analytics, no ads, no tracking, no
+> third-party SDKs. Your session cookie and cached pages stay in the app's sandbox on your phone,
+> and the app talks to w4.uwcrcn.no and nothing else. Crash reports come from TestFlight itself,
+> which is the only crash reporting in the app by design.
+
+### What to Test
+
+> **Please use this during a normal school week.** That is the entire point of the beta.
+>
+> Every lesson block, mail thread and assessment in this app was built against W4 pages captured in
+> a holiday week with zero lessons in them. The parser is tested, but it has never met a real,
+> full timetable. You are the first person to point it at one.
+>
+> **The timetable is the priority.** Open it, page forward and back through several weeks, and check
+> it against W4 in a browser. Does every lesson appear? Right day, right time, right room, right
+> teacher? Do rotation days (Day 1–5, Weekend) line up? Are double lessons and back-to-back blocks
+> drawn correctly?
+>
+> **Then assessments.** Do your upcoming assessments all show up, on the right dates, in all three
+> views?
+>
+> **Then everything else** — mail, grades, absence, directory, trips, documents. Anything that looks
+> emptier, fuller or stranger than W4 itself is worth reporting.
+>
+> **How to report.** Take a screenshot, tap the preview in the corner, then Share ▸ TestFlight. The
+> device and build come attached automatically. A screenshot of a mangled lesson block is worth far
+> more than a description of it — it is a markup shape nobody has captured yet, and it usually turns
+> straight into a fix.
+>
+> Try Airplane Mode too: screens you have already visited should still open.
+>
+> One known non-bug: this build keeps the pre-iOS 26 look for standard controls on purpose, so
+> nothing here is meant to have the new glass appearance yet.

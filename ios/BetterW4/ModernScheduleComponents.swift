@@ -23,9 +23,10 @@ struct ModernTimelineListView: View {
     var gridStartHour: Int = W4TimetableGeometry.defaultStartHour
     /// `tt_end_hour` of the week this day belongs to.
     var gridEndHour: Int = W4TimetableGeometry.defaultEndHour
-    /// Shared Oslo clock with the header countdown.
-    var now: Date = TimeProvider.now
+    /// Shared Oslo clock with the header countdown. `nil` hides the now-line.
+    var now: Date? = TimeProvider.now
     var onEventTapped: ((TimetableEvent) -> Void)?
+    var onAddAt: ((Date) -> Void)?
 
     /// Width of the hour-label gutter plus its spacing.
     private let gutterWidth: CGFloat = 58
@@ -37,23 +38,42 @@ struct ModernTimelineListView: View {
 
         VStack(spacing: 0) {
             if layouts.isEmpty {
-                ScheduleEmptyDayView()
+                ScheduleEmptyDayView(
+                    onAdd: onAddAt.map { add in { add(CustomEvents.defaultStart(on: displayDate)) } }
+                )
             } else {
-                ZStack(alignment: .top) {
-                    gridBackground(origin: origin, contentHeight: contentHeight)
+                GeometryReader { geo in
+                    let laneWidth = max(0, geo.size.width - gutterWidth)
+                    ZStack(alignment: .topLeading) {
+                        gridBackground(origin: origin, contentHeight: contentHeight)
+                            .contentShape(Rectangle())
+                            .onTapGesture { (location: CGPoint) in
+                                add(at: location, origin: origin)
+                            }
 
-                    ForEach(layouts) { layout in
-                        block(for: layout, in: layouts, origin: origin)
+                        ForEach(layouts) { layout in
+                            block(for: layout, in: layouts, origin: origin, laneWidth: laneWidth)
+                        }
+
+                        nowLine(at: now, origin: origin)
+                            .allowsHitTesting(false)
                     }
-
-                    nowLine(at: now, origin: origin)
-                        .allowsHitTesting(false)
                 }
+                .frame(height: contentHeight)
                 .padding(.vertical, 8)
 
                 Color.clear.frame(height: 80)
             }
         }
+    }
+
+    private func add(at location: CGPoint, origin: Int) {
+        guard let onAddAt else { return }
+        let minutes = origin + Int((location.y / ScheduleTimelineGeometry.pointsPerMinute).rounded())
+        let snapped = ((max(0, minutes) + 7) / 15) * 15
+        let upper = max(gridStartHour * 60, (gridEndHour - 1) * 60)
+        let clamped = min(max(snapped, gridStartHour * 60), upper)
+        onAddAt(W4Dates.date(onDayOf: displayDate, minutesFromMidnight: clamped))
     }
 
     // MARK: Grid
@@ -77,35 +97,35 @@ struct ModernTimelineListView: View {
     // MARK: Blocks
 
     @ViewBuilder
-    private func block(for layout: EventLayoutInfo, in layouts: [EventLayoutInfo], origin: Int) -> some View {
+    private func block(
+        for layout: EventLayoutInfo,
+        in layouts: [EventLayoutInfo],
+        origin: Int,
+        laneWidth: CGFloat
+    ) -> some View {
         let offsetFromTop = CGFloat(layout.startMinutes - origin) * ScheduleTimelineGeometry.pointsPerMinute
         let height = ScheduleTimelineGeometry.visualHeight(of: layout, among: layouts)
-        let widthFraction = layout.widthFraction
-        let horizontalOffset = layout.xFraction
 
         HStack(alignment: .top, spacing: 0) {
             Color.clear.frame(width: gutterWidth)
 
-            GeometryReader { geometry in
-                let contentWidth = geometry.size.width * widthFraction
-                let offsetX = geometry.size.width * horizontalOffset
-
-                ModernScheduleCard(event: layout.event, compact: height < 28)
-                    .frame(width: max(0, contentWidth - 4), height: height)
-                    .offset(x: offsetX + 2)
-                    .contentShape(Rectangle())
-                    .onTapGesture { onEventTapped?(layout.event) }
-            }
+            ModernScheduleCard(event: layout.event, compact: height < 28)
+                .frame(width: max(0, laneWidth * layout.widthFraction - 4), height: height)
+                .offset(x: laneWidth * layout.xFraction + 2)
+                .contentShape(Rectangle())
+                .onTapGesture { onEventTapped?(layout.event) }
+                .frame(width: laneWidth, height: height, alignment: .topLeading)
         }
         .frame(height: height)
         .offset(y: offsetFromTop)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: Now line
 
     @ViewBuilder
-    private func nowLine(at instant: Date, origin: Int) -> some View {
-        if W4Dates.isSameDay(displayDate, instant),
+    private func nowLine(at instant: Date?, origin: Int) -> some View {
+        if let instant, W4Dates.isSameDay(displayDate, instant),
            let offsetY = ScheduleTimelineGeometry.offset(
                forMinutesFromMidnight: W4Dates.minutesFromMidnight(instant),
                originMinutes: origin

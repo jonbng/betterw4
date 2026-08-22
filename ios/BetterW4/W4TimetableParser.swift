@@ -311,6 +311,8 @@ enum W4TimetableParser {
             teacherUwcId: first.teacherUwcId ?? second.teacherUwcId,
             status: first.status,
             attendance: first.attendance ?? second.attendance,
+            attendanceLabel: first.attendanceLabel ?? second.attendanceLabel,
+            attendanceTooltip: first.attendanceTooltip ?? second.attendanceTooltip,
             isAllDay: false,
             href: first.href ?? second.href,
             notes: notes,
@@ -346,6 +348,8 @@ enum W4TimetableParser {
                 teacherUwcId: event.teacherUwcId,
                 status: event.status,
                 attendance: event.attendance,
+                attendanceLabel: event.attendanceLabel,
+                attendanceTooltip: event.attendanceTooltip,
                 isAllDay: event.isAllDay,
                 href: event.href,
                 notes: event.notes,
@@ -407,6 +411,7 @@ enum W4TimetableParser {
             )
         } ?? pixelPlacement(of: block, day: day, startHour: startHour)
 
+        let attendanceMark = attendance(of: inner, tooltip: rawTooltip)
         return TimetableEvent(
             id: eventID(href: href, source: source, day: day, index: index),
             title: title,
@@ -418,7 +423,9 @@ enum W4TimetableParser {
             teacher: tooltip?.teacher,
             teacherUwcId: uwcId(in: href),
             status: status(of: block, inner: inner),
-            attendance: attendance(of: inner),
+            attendance: attendanceMark?.kind,
+            attendanceLabel: attendanceMark?.label,
+            attendanceTooltip: attendanceMark?.tooltip,
             isAllDay: placement.start == nil,
             href: href?.isEmpty == false ? href : nil,
             notes: notes,
@@ -496,20 +503,33 @@ enum W4TimetableParser {
         return .normal
     }
 
-    private static func attendance(of inner: Element) -> LessonAttendance? {
-        let classes = classNames(of: inner)
-        // `.normal` inside an attendance marker means an unexcused absence in W4's own stylesheet,
-        // which is why it is not treated as "nothing to report".
-        if classes.contains("prearranged") { return .prearranged }
-        if classes.contains("present") { return .present }
-        if classes.contains("absence") || classes.contains("normal") { return .absent }
-        if let marker = try? inner.select(".absence, .present, .normal, .prearranged").first() {
-            let markerClasses = classNames(of: marker)
-            if markerClasses.contains("prearranged") { return .prearranged }
-            if markerClasses.contains("present") { return .present }
-            if markerClasses.contains("absence") || markerClasses.contains("normal") { return .absent }
+    private static func attendance(
+        of inner: Element,
+        tooltip: String?
+    ) -> (kind: LessonAttendance, label: String?, tooltip: String?)? {
+        guard let marker = try? inner.select(".absence, .present, .normal, .prearranged, .attendance").first() else {
+            return nil
         }
-        return nil
+        let markerClasses = classNames(of: marker)
+        let kind: LessonAttendance
+        if markerClasses.contains("not-checked") { kind = .unchecked }
+        else if markerClasses.contains("prearranged") { kind = .prearranged }
+        else if markerClasses.contains("present") { kind = .present }
+        else if markerClasses.contains("absence") || markerClasses.contains("normal") { kind = .absent }
+        else { kind = .unknown }
+        let label = ((try? marker.text()) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
+        let phrase = tooltip.flatMap { raw -> String? in
+            guard let captured = firstGroup(
+                in: raw,
+                pattern: #"\(([^()]*(?:absence|present|late)[^()]*)\)"#
+            ) else {
+                return nil
+            }
+            return captured.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        }
+        return (kind, label, phrase)
     }
 
     /// Source-prefixed so an Academics class and an EA group with the same numeric id do not

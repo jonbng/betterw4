@@ -105,7 +105,7 @@ final class AuthenticationViewModel: ObservableObject {
     func logIn(username: String, password: String) async {
         guard !isSubmitting else { return }
 
-        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedUsername = W4Username.normalize(username)
         guard !trimmedUsername.isEmpty, !password.isEmpty else {
             errorMessage = "Enter your username and password."
             return

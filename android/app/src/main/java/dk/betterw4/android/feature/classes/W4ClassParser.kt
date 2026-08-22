@@ -31,7 +31,8 @@ object W4ClassParser {
         val subject: String,
         val year: String?,
         val level: ClassLevel,
-        val room: String?,
+        val teacher: String? = null,
+        val room: String? = null,
     )
 
     fun parseCaption(caption: String): ClassCaption? {
@@ -41,6 +42,7 @@ object W4ClassParser {
         val subject = match.groupValues[2].trim()
         val year = match.groupValues[3].trim().ifBlank { null }
         val level = ClassLevel.parse(match.groupValues[4])
+        val teacher = match.groupValues.getOrNull(5)?.trim()?.ifBlank { null }
         val room = match.groupValues.getOrNull(6)?.trim()?.ifBlank { null }
         if (code.isEmpty() || subject.isEmpty()) return null
         return ClassCaption(
@@ -48,6 +50,7 @@ object W4ClassParser {
             subject = subject,
             year = year,
             level = level,
+            teacher = teacher,
             room = room,
         )
     }

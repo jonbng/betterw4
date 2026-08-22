@@ -71,4 +71,5 @@ data class PrivateEventDraft(
     val note: String = "",
     /** When set, repository performs update instead of create. */
     val eventId: String? = null,
+    val isAllDay: Boolean = false,
 )

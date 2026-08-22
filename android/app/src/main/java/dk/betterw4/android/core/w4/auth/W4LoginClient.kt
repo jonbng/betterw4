@@ -63,7 +63,7 @@ class W4LoginClient @Inject constructor(
         val fields = YiiForm.fieldsForSubmit(
             html = opened.response.body,
             extra = mapOf(
-                "LoginForm[username]" to username.trim(),
+                "LoginForm[username]" to W4Username.normalize(username),
                 "LoginForm[password]" to password,
                 "LoginForm[deviceId]" to deviceIdStore.getOrCreate(),
             ),

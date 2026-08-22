@@ -74,15 +74,16 @@ class AuthSessionInstaller @Inject constructor(
         password: String,
         wipeSavedOnInvalid: Boolean,
     ): AppResult<W4AuthResult> {
+        val w4Username = W4Username.normalize(username)
         return try {
-            when (val step = w4LoginClient.submitPassword(username, password)) {
+            when (val step = w4LoginClient.submitPassword(w4Username, password)) {
                 is W4LoginStep.Authenticated -> {
-                    persistSavedLogin(username, password)
-                    finishNativeLogin(step.credentials, step.html, username)
+                    persistSavedLogin(w4Username, password)
+                    finishNativeLogin(step.credentials, step.html, w4Username)
                         .map { W4AuthResult.LoggedIn(it) }
                 }
                 is W4LoginStep.NeedsOtp -> {
-                    persistSavedLogin(username, password)
+                    persistSavedLogin(w4Username, password)
                     AppResult.Success(W4AuthResult.OtpRequired(step.challenge))
                 }
                 is W4LoginStep.Failed -> {
@@ -100,10 +101,11 @@ class AuthSessionInstaller @Inject constructor(
     }
 
     suspend fun loginWithOtp(challenge: W4OtpChallenge, code: String, username: String): AppResult<W4AuthResult> {
+        val w4Username = W4Username.normalize(username)
         return try {
             when (val step = w4LoginClient.submitOtp(challenge, code)) {
                 is W4LoginStep.Authenticated ->
-                    finishNativeLogin(step.credentials, step.html, username)
+                    finishNativeLogin(step.credentials, step.html, w4Username)
                         .map { W4AuthResult.LoggedIn(it) }
                 is W4LoginStep.NeedsOtp ->
                     AppResult.Failure(AppError.InvalidLogin)

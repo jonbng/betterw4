@@ -423,12 +423,10 @@ struct HomeView: View {
                     birthdayRow(title: "Tomorrow", birthdays: viewModel.birthdaysTomorrow)
                 }
             }
-            if let calendar = viewModel.birthdaysCalendarURL {
-                Button {
-                    sheetTarget = W4SurfaceSheetTarget(title: "Birthdays", url: calendar)
-                } label: {
-                    Label("Birthday calendar", systemImage: "calendar")
-                }
+            NavigationLink {
+                BirthdaysView()
+            } label: {
+                Label("See all birthdays", systemImage: "calendar")
             }
         } header: {
             Text("Birthdays")

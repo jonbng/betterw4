@@ -39,8 +39,20 @@ final class AttendanceViewModel: ObservableObject {
     @Published private(set) var freshness: W4Freshness?
     /// Which ledger's registrations the list below the meters is showing.
     @Published var selectedSource: AttendanceSource = .academics {
-        didSet { rebuildSections() }
+        didSet {
+            rebuildSections()
+            Task { await reloadWeek() }
+        }
     }
+
+    enum ViewMode: String, CaseIterable {
+        case week = "Week"
+        case list = "List"
+    }
+
+    @Published var viewMode: ViewMode = .week
+    @Published var selectedDate: Date = W4Dates.startOfDay(TimeProvider.now)
+    @Published private(set) var week: ScheduleWeek?
 
     /// Blocking spinner. True only while loading with nothing to draw yet (§3.3).
     @Published private(set) var isLoading = false
@@ -127,6 +139,7 @@ final class AttendanceViewModel: ObservableObject {
                 hasContent ? nil : failure.message
             }
             noticeMessage = notice(for: loaded)
+            await reloadWeek(forceRefresh: forceRefresh)
         } catch let error as W4Error {
             // Only `.sessionExpired` posts the logout notification; `.forbidden` never reaches here.
             error.notifyIfSessionExpired()
@@ -165,17 +178,46 @@ final class AttendanceViewModel: ObservableObject {
     /// W4's own empty-state sentence for the selected ledger, when it rendered one.
     var emptyMessage: String? {
         guard let list = selectedList, list.isEmpty else { return nil }
-        return list.list.emptyMessage ?? "No absence records."
+        return list.list.emptyMessage ?? "No absences recorded."
     }
 
     /// True when W4 paged the grid — page one is not the whole story (bug B10).
     var hasMorePages: Bool { selectedList?.list.hasMorePages ?? false }
 
-    /// `people/students/absences/register`, opened in the browser.
-    ///
-    /// Read-only on purpose: the per-slot checkbox names are injected by W4's own JavaScript and
-    /// have never been captured, so any payload this app could build would be a guess (OQ-10).
+    /// `people/students/absences/register`. Native form lives in `RegisterAbsenceView`;
+    /// this URL is the web fallback.
     var registerAbsencesURL: URL { W4Routes.url(W4Routes.R.absencesRegister) }
+
+    var lessonsOnSelectedDay: [TimetableEvent] {
+        let day = W4Dates.startOfDay(selectedDate)
+        return week?.days.first { W4Dates.startOfDay($0.date) == day }?
+            .events.filter { $0.attendance != nil } ?? []
+    }
+
+    func shiftWeek(_ delta: Int) {
+        guard let shifted = Calendar(identifier: .iso8601).date(byAdding: .weekOfYear, value: delta, to: selectedDate) else { return }
+        selectedDate = W4Dates.startOfDay(shifted)
+        Task { await reloadWeek() }
+    }
+
+    func selectDay(_ date: Date) {
+        selectedDate = W4Dates.startOfDay(date)
+    }
+
+    private func reloadWeek(forceRefresh: Bool = false) async {
+        let iso = W4Dates.isoWeek(of: selectedDate)
+        do {
+            let loaded = try await repository.loadWeek(
+                for: selectedSource,
+                year: iso.year,
+                week: iso.week,
+                forceRefresh: forceRefresh
+            )
+            week = loaded.value
+        } catch {
+            // Keep the week we already have; the list/meters still render.
+        }
+    }
 
     /// "Updated 4 h ago" / "Demo data" / `nil` when it came straight off the wire.
     var freshnessLabel: String? {

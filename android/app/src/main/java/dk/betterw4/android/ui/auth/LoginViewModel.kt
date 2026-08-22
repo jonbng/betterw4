@@ -10,6 +10,7 @@ import dk.betterw4.android.core.w4.auth.AuthSessionInstaller
 import dk.betterw4.android.core.w4.auth.DeviceAuthenticator
 import dk.betterw4.android.core.w4.auth.W4OtpChallenge
 import dk.betterw4.android.core.w4.auth.W4OtpCode
+import dk.betterw4.android.core.w4.auth.W4Username
 import dk.betterw4.android.core.w4.session.LastSchoolHint
 import dk.betterw4.android.core.w4.session.LastSchoolReason
 import dk.betterw4.android.core.w4.session.LastSchoolStore
@@ -60,7 +61,7 @@ class LoginViewModel @Inject constructor(
     private val _state = MutableStateFlow(
         LoginUiState(
             lastSchool = lastHint,
-            username = savedLogin?.username ?: lastHint?.username.orEmpty(),
+            username = W4Username.normalize(savedLogin?.username ?: lastHint?.username.orEmpty()),
             hasSavedLogin = savedLogin != null,
             canUnlock = savedLogin != null && deviceAuthenticator.canAuthenticate(),
         ),
@@ -70,7 +71,7 @@ class LoginViewModel @Inject constructor(
     private val loginInFlight = AtomicBoolean(false)
 
     fun onUsername(value: String) {
-        _state.update { it.copy(username = value, error = null) }
+        _state.update { it.copy(username = W4Username.normalize(value), error = null) }
     }
 
     fun onPassword(value: String) {
@@ -110,7 +111,7 @@ class LoginViewModel @Inject constructor(
             it.copy(
                 hasSavedLogin = saved != null,
                 canUnlock = saved != null && deviceAuthenticator.canAuthenticate(),
-                username = it.username.ifBlank { saved?.username.orEmpty() },
+                username = it.username.ifBlank { W4Username.normalize(saved?.username.orEmpty()) },
                 preferPasswordForm = false,
                 loggingIn = false,
                 error = null,
@@ -130,12 +131,16 @@ class LoginViewModel @Inject constructor(
 
     fun submitPassword() {
         val current = _state.value
-        if (!current.canSubmitPassword) return
+        val username = W4Username.normalize(current.username)
+        if (username != current.username) {
+            _state.update { it.copy(username = username) }
+        }
+        if (!current.copy(username = username).canSubmitPassword) return
         if (!loginInFlight.compareAndSet(false, true)) return
         viewModelScope.launch {
             _state.update { it.copy(loggingIn = true, error = null) }
             applyAuthResult(
-                authSessionInstaller.loginWithPassword(current.username, current.password),
+                authSessionInstaller.loginWithPassword(username, current.password),
                 fromSavedLogin = false,
             )
         }
@@ -216,7 +221,7 @@ class LoginViewModel @Inject constructor(
 
     private fun onLoggedIn() {
         loginInFlight.set(false)
-        val username = _state.value.username.trim()
+        val username = W4Username.normalize(_state.value.username)
         LastSchoolHint.fromSchool(W4School.school, username = username)?.let { lastSchoolStore.save(it) }
         _state.update {
             it.copy(

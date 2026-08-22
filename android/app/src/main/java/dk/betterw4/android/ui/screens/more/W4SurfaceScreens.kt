@@ -780,6 +780,12 @@ fun PrivacyStoresSurface(padding: PaddingValues) {
                 detail = stringResource(R.string.settings_privacy_settings_detail),
             )
         }
+        item {
+            PrivacyRow(
+                title = stringResource(R.string.settings_privacy_custom_events_title),
+                detail = stringResource(R.string.settings_privacy_custom_events_detail),
+            )
+        }
         item { SectionHeader(stringResource(R.string.settings_privacy_never)) }
         item {
             PrivacyRow(

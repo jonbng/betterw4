@@ -79,7 +79,7 @@ actor ClassRosterRepository {
         return loaded.map { W4PeopleParser.parsePeople($0) }
     }
 
-    static func cacheKey(_ classId: String) -> String {
+    nonisolated static func cacheKey(_ classId: String) -> String {
         "class-\(classId.lowercased())"
     }
 

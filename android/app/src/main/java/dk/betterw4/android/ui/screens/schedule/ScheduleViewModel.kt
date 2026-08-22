@@ -25,7 +25,7 @@ import dk.betterw4.android.feature.directory.HouseRepository
 import dk.betterw4.android.feature.directory.RoomScheduleRepository
 import dk.betterw4.android.feature.directory.StudentProfile
 import dk.betterw4.android.feature.schedule.LessonDetail
-import dk.betterw4.android.feature.schedule.PersonClasses
+import dk.betterw4.android.feature.schedule.CustomEvents
 import dk.betterw4.android.feature.schedule.PrivateEventDraft
 import dk.betterw4.android.feature.schedule.PrivateEventIds
 import dk.betterw4.android.feature.schedule.ScheduleDay
@@ -51,7 +51,10 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.Duration
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -69,6 +72,8 @@ data class ScheduleUiState(
     val daysByDate: Map<LocalDate, ScheduleDay> = emptyMap(),
     /** Days known to have zero events (vs not loaded). */
     val knownEmptyDays: Set<LocalDate> = emptySet(),
+    /** ISO week keys (`year-week`) currently being fetched from W4. */
+    val loadingWeekKeys: Set<String> = emptySet(),
     val selectedEvent: ScheduleEvent? = null,
     val lessonDetail: LessonDetail? = null,
     val detailLoading: Boolean = false,
@@ -85,10 +90,9 @@ data class ScheduleUiState(
     val editingPrivateEventId: String? = null,
     val privateTitle: String = "",
     val privateNote: String = "",
-    val privateStartDate: String = "",
-    val privateStartTime: String = "08:00",
-    val privateEndDate: String = "",
-    val privateEndTime: String = "09:00",
+    val privateStart: LocalDateTime = W4Dates.today().atTime(8, 0),
+    val privateEnd: LocalDateTime = W4Dates.today().atTime(9, 0),
+    val privateAllDay: Boolean = false,
     val message: UiText? = null,
     val error: AppError? = null,
     val campus: dk.betterw4.android.feature.campus.CampusStatus? = null,
@@ -141,6 +145,8 @@ class ScheduleViewModel @Inject constructor(
     /** Weeks currently in memory: key = "year-week". */
     private val weekCache = ConcurrentHashMap<String, ScheduleWeek>()
     private val loadingWeeks = ConcurrentHashMap.newKeySet<String>()
+    /** Other-person weeks currently in memory: key = "id-year-week". */
+    private val personWeekCache = ConcurrentHashMap<String, ScheduleWeek>()
 
     init {
         val today = W4Dates.today()
@@ -222,6 +228,19 @@ class ScheduleViewModel @Inject constructor(
         settings.setShowSchoolCalendar(enabled)
     }
 
+    /** True once this day's week has been merged into [ScheduleUiState.eventsByDate]. */
+    fun isDayLoaded(date: LocalDate): Boolean {
+        val s = _state.value
+        return date in s.eventsByDate || date in s.knownEmptyDays
+    }
+
+    /** True while W4 is still answering for this day's week and there is nothing to draw. */
+    fun isDayLoading(date: LocalDate): Boolean {
+        if (isDayLoaded(date)) return false
+        return weekKey(IsoDateUtils.isoWeekYear(date), IsoDateUtils.isoWeek(date)) in
+            _state.value.loadingWeekKeys
+    }
+
     /**
      * Whether the day has lessons for the date-strip tint.
      * Unknown/unloaded days return false so weekends/empty days never look busy by default.
@@ -299,10 +318,28 @@ class ScheduleViewModel @Inject constructor(
         }
         if (!force && !loadingWeeks.add(key)) return
         if (force) loadingWeeks.add(key)
+        _state.update { it.copy(loadingWeekKeys = it.loadingWeekKeys + key) }
 
         viewModelScope.launch {
-            if (setAsPrimary) {
-                _state.update { it.copy(loading = true, error = null) }
+            if (!force && !weekCache.containsKey(key)) {
+                repository.cachedWeek(y, w)?.let { cached ->
+                    weekCache[key] = cached
+                    mergeWeekIntoState(cached, setAsPrimary = setAsPrimary)
+                    if (setAsPrimary) publishLiveAndWidget(cached)
+                }
+            }
+            val hasData = weekCache.containsKey(key)
+            _state.update {
+                it.copy(
+                    loading = when {
+                        force && setAsPrimary -> true
+                        setAsPrimary && hasData -> false
+                        setAsPrimary && it.week == null && !hasData -> true
+                        else -> it.loading
+                    },
+                    loadingWeekKeys = it.loadingWeekKeys + key,
+                    error = if (setAsPrimary && hasData) null else it.error,
+                )
             }
             when (val res = repository.loadWeek(y, w, force)) {
                 is AppResult.Success -> {
@@ -329,6 +366,12 @@ class ScheduleViewModel @Inject constructor(
                 }
             }
             loadingWeeks.remove(key)
+            _state.update {
+                it.copy(
+                    loadingWeekKeys = it.loadingWeekKeys - key,
+                    loading = if (setAsPrimary) false else it.loading,
+                )
+            }
         }
     }
 
@@ -354,7 +397,7 @@ class ScheduleViewModel @Inject constructor(
 
             val normalizedWeek = week.copy(days = fullDays)
             settings.noteObservedHolds(
-                week.days.flatMap { day -> day.events.flatMap { listOf(it.team, it.title) } },
+                SchoolCalendar.subjectMappingKeys(week.days.flatMap { it.events }),
             )
             val selected = s.selectedDate
             val primary = if (setAsPrimary) {
@@ -467,14 +510,19 @@ class ScheduleViewModel @Inject constructor(
     fun openPerson(entity: DirectoryEntity) = viewModelScope.launch {
         val year = IsoDateUtils.isoWeekYear()
         val week = IsoDateUtils.isoWeek()
+        val cached = personWeekCache[personWeekKey(entity.id, year, week)]
+            ?: roomScheduleRepo.cachedPersonWeek(entity, year, week)
+        if (cached != null) {
+            personWeekCache[personWeekKey(entity.id, year, week)] = cached
+        }
         _state.update {
             it.copy(
                 selectedPerson = entity,
                 studentProfile = StudentProfile.from(entity, null),
-                personSchedule = null,
+                personSchedule = cached,
                 personWeekYear = year,
                 personWeek = week,
-                personLoading = true,
+                personLoading = cached == null,
                 pinnedIds = pinRepo.pinnedIds(),
             )
         }
@@ -491,15 +539,15 @@ class ScheduleViewModel @Inject constructor(
             val weekRes = weekDeferred.await()
             val placement = placementDeferred.await()
             val parsed = (profileDeferred.await() as? AppResult.Success)?.data
-            val classes = when (weekRes) {
-                is AppResult.Success -> PersonClasses.fromWeek(weekRes.data)
-                is AppResult.Failure -> emptyList()
+            val weekData = (weekRes as? AppResult.Success)?.data
+            if (weekData != null) {
+                personWeekCache[personWeekKey(entity.id, year, week)] = weekData
             }
             _state.update {
                 it.copy(
                     personLoading = false,
-                    personSchedule = (weekRes as? AppResult.Success)?.data,
-                    studentProfile = StudentProfile.from(entity, placement, classes, parsed),
+                    personSchedule = weekData ?: it.personSchedule,
+                    studentProfile = StudentProfile.from(entity, placement, parsed),
                 )
             }
         }
@@ -544,58 +592,73 @@ class ScheduleViewModel @Inject constructor(
         ) {
             return@launch
         }
-        _state.update { it.copy(personLoading = true) }
+        val cacheKey = personWeekKey(entity.id, year, week)
+        val memory = personWeekCache[cacheKey]
+        val cached = memory ?: roomScheduleRepo.cachedPersonWeek(entity, year, week)
+        if (cached != null) {
+            personWeekCache[cacheKey] = cached
+        }
+        _state.update {
+            it.copy(
+                personLoading = cached == null,
+                personWeekYear = year,
+                personWeek = week,
+                personSchedule = cached,
+            )
+        }
+        if (memory != null) return@launch
         when (val res = roomScheduleRepo.loadPersonWeek(entity, year, week)) {
-            is AppResult.Success -> _state.update {
-                val merged = PersonClasses.merge(
-                    it.studentProfile?.classes.orEmpty(),
-                    PersonClasses.fromWeek(res.data),
-                )
-                it.copy(
-                    personLoading = false,
-                    personWeekYear = year,
-                    personWeek = week,
-                    personSchedule = res.data,
-                    studentProfile = (it.studentProfile
-                        ?: StudentProfile(id = entity.id, name = entity.name, kind = entity.kind))
-                        .copy(classes = merged),
-                )
+            is AppResult.Success -> {
+                personWeekCache[cacheKey] = res.data
+                _state.update {
+                    it.copy(
+                        personLoading = false,
+                        personWeekYear = year,
+                        personWeek = week,
+                        personSchedule = res.data,
+                    )
+                }
             }
             is AppResult.Failure -> _state.update { it.copy(personLoading = false) }
         }
     }
 
-    fun openPrivateEventSheet() {
-        val d = _state.value.selectedDate
-        val fmt = DateTimeFormatter.ofPattern("dd/MM-yyyy")
+    private fun personWeekKey(id: String, year: Int, week: Int) = "$id-$year-$week"
+
+    fun openPrivateEventSheet(at: LocalDateTime? = null) {
+        val start = at ?: CustomEvents.defaultStart(_state.value.selectedDate, W4Dates.now())
         _state.update {
             it.copy(
                 showPrivateEvent = true,
                 editingPrivateEventId = null,
                 privateTitle = "",
                 privateNote = "",
-                privateStartDate = d.format(fmt),
-                privateEndDate = d.format(fmt),
-                privateStartTime = "08:00",
-                privateEndTime = "09:00",
+                privateStart = start,
+                privateEnd = start.plusHours(1),
+                privateAllDay = false,
                 message = null,
             )
         }
     }
 
     fun openEditPrivateEvent(event: ScheduleEvent) {
-        val dateFmt = DateTimeFormatter.ofPattern("dd/MM-yyyy")
-        val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
+        val start = event.start ?: event.date.atTime(8, 0)
+        val end = event.end ?: start.plusHours(1)
         _state.update {
             it.copy(
                 showPrivateEvent = true,
                 editingPrivateEventId = event.id,
                 privateTitle = event.title,
                 privateNote = event.notes.orEmpty(),
-                privateStartDate = (event.start?.toLocalDate() ?: event.date).format(dateFmt),
-                privateEndDate = (event.end?.toLocalDate() ?: event.date).format(dateFmt),
-                privateStartTime = event.start?.format(timeFmt) ?: "08:00",
-                privateEndTime = event.end?.format(timeFmt) ?: "09:00",
+                privateStart = start,
+                privateEnd = if (event.isAllDay && end.toLocalTime() == LocalTime.MIDNIGHT) {
+                    end.minusSeconds(1)
+                } else {
+                    end
+                },
+                privateAllDay = event.isAllDay,
+                selectedEvent = null,
+                lessonDetail = null,
                 message = null,
             )
         }
@@ -608,21 +671,39 @@ class ScheduleViewModel @Inject constructor(
     fun updatePrivateField(
         title: String? = null,
         note: String? = null,
-        startDate: String? = null,
-        startTime: String? = null,
-        endDate: String? = null,
-        endTime: String? = null,
+        start: LocalDateTime? = null,
+        end: LocalDateTime? = null,
+        allDay: Boolean? = null,
     ) {
         _state.update {
+            val nextStart: LocalDateTime
+            val nextEnd: LocalDateTime
+            if (start != null) {
+                val duration = Duration.between(it.privateStart, it.privateEnd)
+                    .coerceAtLeast(Duration.ofMinutes(15))
+                nextStart = start
+                nextEnd = start.plus(duration)
+            } else {
+                nextStart = it.privateStart
+                val proposedEnd = end ?: it.privateEnd
+                nextEnd = if (proposedEnd.isAfter(nextStart)) {
+                    proposedEnd
+                } else {
+                    nextStart.plusHours(1)
+                }
+            }
             it.copy(
                 privateTitle = title ?: it.privateTitle,
                 privateNote = note ?: it.privateNote,
-                privateStartDate = startDate ?: it.privateStartDate,
-                privateStartTime = startTime ?: it.privateStartTime,
-                privateEndDate = endDate ?: it.privateEndDate,
-                privateEndTime = endTime ?: it.privateEndTime,
+                privateStart = nextStart,
+                privateEnd = nextEnd,
+                privateAllDay = allDay ?: it.privateAllDay,
             )
         }
+    }
+
+    fun consumeMessage() {
+        _state.update { it.copy(message = null) }
     }
 
     fun savePrivateEvent() {
@@ -632,14 +713,17 @@ class ScheduleViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
+            val dateFmt = DateTimeFormatter.ofPattern("dd/MM-yyyy")
+            val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
             val draft = PrivateEventDraft(
                 title = s.privateTitle,
-                startDate = s.privateStartDate,
-                startTime = s.privateStartTime,
-                endDate = s.privateEndDate,
-                endTime = s.privateEndTime,
+                startDate = s.privateStart.toLocalDate().format(dateFmt),
+                startTime = s.privateStart.toLocalTime().format(timeFmt),
+                endDate = s.privateEnd.toLocalDate().format(dateFmt),
+                endTime = s.privateEnd.toLocalTime().format(timeFmt),
                 note = s.privateNote,
                 eventId = s.editingPrivateEventId,
+                isAllDay = s.privateAllDay,
             )
             val isEdit = s.editingPrivateEventId != null
             when (val res = repository.createPrivateEvent(draft)) {
@@ -650,18 +734,13 @@ class ScheduleViewModel @Inject constructor(
                             editingPrivateEventId = null,
                             selectedEvent = null,
                             lessonDetail = null,
-                            message = UiText.Res(
-                                if (isEdit) R.string.private_event_updated
-                                else R.string.private_event_created,
-                            ),
+                            message = null,
                         )
                     }
                     if (!isEdit) {
                         reviewPromptCoordinator.maybePrompt(ReviewTrigger.PrivateEventCreated)
                     }
-                    // Invalidate cache for the week and reload
-                    weekCache.clear()
-                    refresh(force = true)
+                    relayoutLocalEvents(focusDate = res.data.date)
                 }
                 is AppResult.Failure -> _state.update {
                     it.copy(message = UiText.Raw(res.error.toString()))
@@ -673,8 +752,7 @@ class ScheduleViewModel @Inject constructor(
     fun canEditPrivateEvent(event: ScheduleEvent): Boolean = canDeleteEvent(event)
 
     fun canDeleteEvent(event: ScheduleEvent): Boolean =
-        PrivateEventIds.isPrivateEvent(event) ||
-            repository.localPrivate.contains(event.id)
+        PrivateEventIds.isPrivateEvent(event)
 
     fun deletePrivateEvent(event: ScheduleEvent) {
         viewModelScope.launch {
@@ -686,8 +764,32 @@ class ScheduleViewModel @Inject constructor(
                     message = UiText.Res(R.string.private_event_deleted),
                 )
             }
-            weekCache.clear()
-            refresh(force = true)
+            relayoutLocalEvents()
+        }
+    }
+
+    /**
+     * Re-lays device-local custom events over weeks already in memory.
+     * Creating an event must not wait on W4.
+     */
+    private fun relayoutLocalEvents(focusDate: LocalDate? = null) {
+        if (weekCache.isEmpty()) {
+            refresh(force = false)
+            focusDate?.let { selectDate(it) }
+            return
+        }
+        val remeshed = weekCache.mapValues { (_, week) -> repository.overlayLocal(week) }
+        weekCache.putAll(remeshed)
+        remeshed.values.forEach { week ->
+            val selected = _state.value.selectedDate
+            val isPrimary = IsoDateUtils.isoWeekYear(selected) == week.year &&
+                IsoDateUtils.isoWeek(selected) == week.week
+            mergeWeekIntoState(week, setAsPrimary = isPrimary)
+        }
+        wearPublisher.publishWeeks(weekCache.values)
+        weekCache[weekKey(_state.value.year, _state.value.weekNum)]?.let { publishLiveAndWidget(it) }
+        if (focusDate != null && focusDate != _state.value.selectedDate) {
+            selectDate(focusDate)
         }
     }
 

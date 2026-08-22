@@ -2,6 +2,7 @@ package dk.betterw4.android.ui.screens.schedule
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -27,10 +28,13 @@ import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -46,6 +50,7 @@ import androidx.compose.ui.zIndex
 import dk.betterw4.android.R
 import dk.betterw4.android.feature.directory.DirectoryEntityKind
 import dk.betterw4.android.feature.schedule.EventStatus
+import dk.betterw4.android.feature.schedule.CustomEvents
 import dk.betterw4.android.feature.schedule.ScheduleEvent
 import dk.betterw4.android.feature.schedule.ScheduleMultiDay
 import dk.betterw4.android.feature.schedule.SchoolCalendar
@@ -87,6 +92,7 @@ fun TimelineDayView(
     displayTitle: (ScheduleEvent) -> String,
     accentFor: (ScheduleEvent) -> Color,
     onEventClick: (ScheduleEvent) -> Unit,
+    onAddAt: ((LocalDateTime) -> Unit)? = null,
     modifier: Modifier = Modifier,
     dayStartHour: Int = REFERENCE_HOUR,
     dayEndHour: Int = 16,
@@ -123,7 +129,10 @@ fun TimelineDayView(
         }
 
         if (timed.isEmpty() && allDay.isEmpty()) {
-            EmptyDayState(Modifier.fillMaxSize())
+            EmptyDayState(
+                Modifier.fillMaxSize(),
+                onAdd = onAddAt?.let { add -> { add(CustomEvents.defaultStart(date, clock)) } },
+            )
             return@Column
         }
 
@@ -141,6 +150,24 @@ fun TimelineDayView(
                     .height(totalHeight + 80.dp)
                     .padding(top = 8.dp),
             ) {
+                val density = LocalDensity.current
+                val addAt = onAddAt
+                if (addAt != null) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .pointerInput(date, dayStartHour, minuteHeight) {
+                                detectTapGestures { offset ->
+                                    val pxPerMinute = with(density) { minuteHeight.toPx() }
+                                    if (pxPerMinute <= 0f) return@detectTapGestures
+                                    val raw = (offset.y / pxPerMinute).toInt()
+                                    val snapped = ((raw + 7) / 15) * 15
+                                    val minutes = snapped.coerceIn(0, spanMinutes)
+                                    addAt(date.atTime(dayStartHour, 0).plusMinutes(minutes.toLong()))
+                                }
+                            },
+                    )
+                }
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     val laneWidth = maxWidth - TimeGutter
                     val maxHour = dayStartHour + (spanMinutes / 60) + 1
@@ -198,6 +225,7 @@ fun TimelineDayView(
                             accent = accentFor(event),
                             compact = h < 28.dp,
                             showTeacherAvatar = h >= 28.dp,
+                            isSchoolCalendar = SchoolCalendar.isSchoolCalendarEvent(event),
                             onClick = { onEventClick(event) },
                             modifier = Modifier
                                 .zIndex(if (cancelled) 1f else 2f)
@@ -320,6 +348,7 @@ private fun ModernScheduleCard(
     compact: Boolean = false,
     showTeacherAvatar: Boolean = false,
     teacherId: String? = null,
+    isSchoolCalendar: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val cancelled = status == EventStatus.CANCELLED
@@ -393,7 +422,11 @@ private fun ModernScheduleCard(
                     }
                     if (!compact) {
                         Icon(
-                            subjectIcon(title),
+                            if (isSchoolCalendar) {
+                                Icons.Outlined.CalendarMonth
+                            } else {
+                                subjectIcon(title)
+                            },
                             contentDescription = null,
                             modifier = Modifier.size(14.dp),
                             tint = if (cancelled) metaColor else accent.copy(alpha = 0.8f),
@@ -444,7 +477,11 @@ private fun ModernScheduleCard(
 }
 
 @Composable
-fun EmptyDayState(modifier: Modifier = Modifier) {
+fun EmptyDayState(
+    modifier: Modifier = Modifier,
+    message: String? = null,
+    onAdd: (() -> Unit)? = null,
+) {
     Column(
         modifier
             .fillMaxSize()
@@ -460,10 +497,21 @@ fun EmptyDayState(modifier: Modifier = Modifier) {
         )
         Spacer(Modifier.height(16.dp))
         Text(
-            stringResource(R.string.empty_schedule_day),
+            message ?: stringResource(R.string.empty_schedule_day),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (onAdd != null) {
+            Text(
+                stringResource(R.string.private_event_tap_gap),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+            )
+            Spacer(Modifier.height(4.dp))
+            TextButton(onClick = onAdd) {
+                Text(stringResource(R.string.private_event_add_short))
+            }
+        }
     }
 }
 
@@ -606,6 +654,7 @@ fun StandardDayList(
     displayTitle: (ScheduleEvent) -> String,
     accentFor: (ScheduleEvent) -> Color,
     onEventClick: (ScheduleEvent) -> Unit,
+    onAdd: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val allDay = events.filter { it.isAllDay }
@@ -614,7 +663,7 @@ fun StandardDayList(
     val scroll = rememberScrollState()
 
     if (events.isEmpty()) {
-        EmptyDayState(modifier.fillMaxSize())
+        EmptyDayState(modifier.fillMaxSize(), onAdd = onAdd)
         return
     }
 
@@ -654,7 +703,7 @@ fun StandardDayList(
                 LeadingAccentBar(if (cancelled) Color.Transparent else accent)
                 Spacer(Modifier.width(10.dp))
                 Icon(
-                    subjectIcon(displayTitle(event)),
+                    subjectIcon(event, displayTitle(event)),
                     contentDescription = null,
                     modifier = Modifier.size(22.dp),
                     tint = accent.copy(alpha = 0.85f),

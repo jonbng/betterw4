@@ -131,6 +131,7 @@ class DirectoryRepository @Inject constructor(
             entity = entity,
             email = "${entity.id}@uwcrcn.no",
             country = if (entity.kind == DirectoryEntityKind.STUDENT) entity.subtitle else null,
+            birthday = if (entity.kind == DirectoryEntityKind.STUDENT) "1 January" else null,
             positions = positions,
             classes = classes,
         )

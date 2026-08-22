@@ -1,13 +1,11 @@
 import Foundation
 
 /// The happy moments that may lead to a rating prompt.
-///
-/// Lectio's `privateEventCreated` is gone: W4 has no private events — there is no
-/// affordance anywhere in the app that could create one, so the case could never fire.
 enum ReviewTrigger: String, Sendable {
     case homeworkDone = "homework_done"
     case scheduleLoaded = "schedule_loaded"
     case messageSent = "message_sent"
+    case privateEventCreated = "private_event_created"
 
     var analyticsName: String { rawValue }
 }

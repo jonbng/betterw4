@@ -15,10 +15,10 @@ import UIKit
 
 /// Calls `onReselect` when the user taps `tabIndex` while it is already selected.
 ///
-/// The index defaults to the Assessments tab, which is where the app first needed this, but any
+/// The index defaults to the Absence tab, which is where the app first needed this, but any
 /// tab can opt in by passing its own index — the tab order lives in `ContentView`.
 struct TabBarSameTabReselectDetector: UIViewRepresentable {
-    var tabIndex: Int = AuthenticatedTabIndex.assessments
+    var tabIndex: Int = AuthenticatedTabIndex.absences
     var onReselect: () -> Void
 
     func makeCoordinator() -> Coordinator {

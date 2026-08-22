@@ -578,6 +578,58 @@ final class TimetableRepositoryTests: XCTestCase {
         XCTAssertEqual(TimetableGridGuard.columnCount(in: "<html><body>nope</body></html>"), 0)
     }
 
+    // MARK: Person weeks
+
+    func testPersonWeekWarmCacheRendersWithoutFetchingAndMergesExtraAcademics() async throws {
+        let cache = makeCache()
+        let target = "nc25eros"
+        await seedPersonTimetablePages(in: cache, targetUwcId: target, fetchedAt: now)
+        let loader = StubTimetableLoader()
+        let repository = makeRepository(loader: loader, cache: cache)
+
+        let loaded = try await repository.personWeek(uwcId: target, containing: now)
+
+        assertCached(loaded.freshness, at: now, isStale: false)
+        let ids = loaded.value.allEvents.map(\.id)
+        XCTAssertTrue(ids.contains("ac-w4-42"), "Academics lesson missing: \(ids)")
+        XCTAssertTrue(ids.contains("ea-w4-42"), "Extra Academics must come from the person cache: \(ids)")
+        let calls = await loader.calls()
+        XCTAssertTrue(calls.isEmpty, "a fresh cached person week must render with no request at all")
+    }
+
+    func testCachedPersonWeekIsAvailableBeforeAnyRefresh() async throws {
+        let cache = makeCache()
+        let target = "nc25eros"
+        await seedPersonTimetablePages(in: cache, targetUwcId: target, fetchedAt: now)
+        let repository = makeRepository(loader: StubTimetableLoader(), cache: cache)
+
+        let cached = await repository.cachedPersonWeek(uwcId: target, containing: now)
+
+        XCTAssertNotNil(cached, "a profile must be able to paint the timetable before the refresh starts")
+        assertCached(try XCTUnwrap(cached).freshness, at: now, isStale: false)
+    }
+
+    func testPersonWeekFetchStoresAcademicsAndExtraAcademics() async throws {
+        let cache = makeCache()
+        let target = "nc25eros"
+        let loader = StubTimetableLoader(responses: [
+            W4Routes.R.personTimetableIndex: .success(response(academicsWeekHTML())),
+            W4Routes.R.eaPersonTimetableIndex: .success(response(extraAcademicsWeekHTML()))
+        ])
+        let repository = makeRepository(loader: loader, cache: cache)
+
+        let loaded = try await repository.personWeek(uwcId: target, containing: now, forceRefresh: true)
+        XCTAssertEqual(loaded.freshness, .fresh)
+        XCTAssertTrue(loaded.value.allEvents.map(\.id).contains("ea-w4-42"))
+
+        let painted = await repository.cachedPersonWeek(uwcId: target, containing: now)
+        XCTAssertNotNil(painted)
+        XCTAssertTrue(
+            try XCTUnwrap(painted).value.allEvents.map(\.id).contains("ea-w4-42"),
+            "the person cache must keep Extra Academics, not just the AC page"
+        )
+    }
+
     // MARK: Week identity
 
     func testWeekKeyIsTheISOWeekInOslo() throws {
@@ -707,6 +759,30 @@ final class TimetableRepositoryTests: XCTestCase {
             line: line
         )
         XCTAssertEqual(isStale, expectedIsStale, file: file, line: line)
+    }
+
+    /// Writes an Academics + Extra Academics pair into the page cache for the current week.
+    private func seedPersonTimetablePages(
+        in cache: W4PageCache,
+        targetUwcId: String,
+        fetchedAt: Date
+    ) async {
+        let weekKey = ScheduleIdentity.weekKey(for: now)
+        let cacheKey = "person:\(targetUwcId):\(weekKey)"
+        await cache.store(
+            html: academicsWeekHTML(),
+            surface: .timetableAcademics,
+            key: cacheKey,
+            uwcId: uwcId,
+            fetchedAt: fetchedAt
+        )
+        await cache.store(
+            html: extraAcademicsWeekHTML(),
+            surface: .timetableExtraAcademics,
+            key: cacheKey,
+            uwcId: uwcId,
+            fetchedAt: fetchedAt
+        )
     }
 
     /// Writes an Academics + Extra Academics pair into the page cache for the current week.

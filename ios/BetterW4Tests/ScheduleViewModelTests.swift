@@ -42,6 +42,10 @@ private actor StubScheduleLoader: TimetablePageLoading {
 
     func calls() -> Int { callCount }
 
+    /// When set, a request that carries `year`/`week` is answered with this HTML instead of
+    /// the route table — so neighbouring weeks are not the D-18 "ignores parameters" probe.
+    private var htmlForWeek: (@Sendable (Int, Int) -> String)?
+
     func loadPage(
         route: String,
         query: [String: String],
@@ -50,6 +54,14 @@ private actor StubScheduleLoader: TimetablePageLoading {
         priority: FetchPriority
     ) async throws -> TimetablePageResponse {
         callCount += 1
+        if let weekStr = query["week"], let week = Int(weekStr),
+           let yearStr = query["year"], let year = Int(yearStr),
+           let htmlForWeek {
+            return TimetablePageResponse(
+                html: htmlForWeek(year, week),
+                finalURL: W4Routes.url(route)
+            )
+        }
         switch responses[route] {
         case .success(let response):
             return response
@@ -58,6 +70,10 @@ private actor StubScheduleLoader: TimetablePageLoading {
         case nil:
             throw W4Error.httpError(status: 404, route: route)
         }
+    }
+
+    func setHtmlForWeek(_ factory: @escaping @Sendable (Int, Int) -> String) {
+        htmlForWeek = factory
     }
 }
 
@@ -314,6 +330,29 @@ final class ScheduleViewModelTests: XCTestCase {
 
     // MARK: Selection and reset
 
+    func testSelectingADayInTheLoadedWeekDoesNotFetchAgain() async {
+        let loader = StubScheduleLoader(responses: [
+            W4Routes.R.myTimetable: .success(response(academicsHTML())),
+            W4Routes.R.eaTimetable: .success(response(extraAcademicsHTML()))
+        ])
+        let viewModel = makeViewModel(loader: loader)
+        await viewModel.onAppear()
+        let callsAfterAppear = await loader.calls()
+
+        let monday = startOfCurrentWeek()
+        await viewModel.select(date: monday)
+        await viewModel.select(date: W4Dates.adding(days: 1, to: monday))
+
+        let callsAfterSelects = await loader.calls()
+        XCTAssertEqual(
+            callsAfterSelects,
+            callsAfterAppear,
+            "a week already in memory must not hit the repository again"
+        )
+        XCTAssertFalse(viewModel.isRefreshing)
+        XCTAssertFalse(viewModel.isLoading)
+    }
+
     func testSelectingANeighbouringDayKeepsThePreviousWeekLoaded() async {
         let viewModel = await loadedViewModel()
         let currentKey = viewModel.selectedWeekKey
@@ -323,6 +362,49 @@ final class ScheduleViewModelTests: XCTestCase {
         XCTAssertNotNil(
             viewModel.weeks[currentKey],
             "the pager swipes across a week boundary, so the week behind it must stay loaded"
+        )
+    }
+
+    func testSelectingANeighbouringWeekFetchesOnceThenReusesMemory() async throws {
+        let loader = StubScheduleLoader(responses: [
+            W4Routes.R.myTimetable: .success(response(academicsHTML())),
+            W4Routes.R.eaTimetable: .success(response(extraAcademicsHTML()))
+        ])
+        await loader.setHtmlForWeek { year, week in
+            guard let monday = W4Dates.startOfISOWeek(year: year, week: week) else {
+                return ""
+            }
+            return Self.gridHTML(
+                monday: monday,
+                periodsByDay: [0: Self.lessonHTML(
+                    id: "w\(week)",
+                    title: "Biology HL",
+                    from: "8:00",
+                    to: "9:00",
+                    top: 60
+                )]
+            )
+        }
+        let viewModel = makeViewModel(loader: loader)
+        await viewModel.onAppear()
+        let callsAfterAppear = await loader.calls()
+
+        let nextWeek = W4Dates.adding(days: 7, to: now)
+        await viewModel.select(date: nextWeek)
+        let callsAfterNextWeek = await loader.calls()
+        XCTAssertGreaterThan(callsAfterNextWeek, callsAfterAppear, "the first visit to next week must fetch")
+        XCTAssertTrue(viewModel.weekNavigationAvailable)
+
+        // Neighbour prefetch is fire-and-forget; wait for it before asserting reuse.
+        try await Task.sleep(for: .milliseconds(150))
+        let callsAfterWarm = await loader.calls()
+
+        await viewModel.select(date: W4Dates.adding(days: 1, to: nextWeek))
+        let callsAfterSecondDay = await loader.calls()
+        XCTAssertEqual(
+            callsAfterSecondDay,
+            callsAfterWarm,
+            "a second day in the same already-loaded week must not fetch"
         )
     }
 
@@ -404,7 +486,7 @@ final class ScheduleViewModelTests: XCTestCase {
 
     /// Mirrors the captured page: nested `#timetable` elements, a header whose first cell is the
     /// empty gutter, an hour-gutter column, then one column per day.
-    private static func gridHTML(monday: Date, periodsByDay: [Int: String]) -> String {
+    private nonisolated static func gridHTML(monday: Date, periodsByDay: [Int: String]) -> String {
         var header = #"<div class="header-cell first">&nbsp;</div>"#
         for offset in 0..<7 {
             let day = W4Dates.adding(days: offset, to: monday)
@@ -441,7 +523,7 @@ final class ScheduleViewModelTests: XCTestCase {
     }
 
     /// **[I]** Invented from the Android port's selectors — no real `.period` has been captured.
-    private static func lessonHTML(id: String, title: String, from: String, to: String, top: Int) -> String {
+    private nonisolated static func lessonHTML(id: String, title: String, from: String, to: String, top: Int) -> String {
         """
         <div class="period" style="top: \(top)px; height: 60px;" title="\(title)">
           <div class="inner"><a href="index.php?r=academics/classes/class&amp;id=\(id)">\(title)</a>

@@ -14,6 +14,12 @@ actor SchoolCalendarRepository {
 
     private let loadIcs: @Sendable (_ forceRefresh: Bool) async -> String?
 
+    /// Last ICS body we expanded. Different weeks of the same feed share this so a week swipe
+    /// does not re-read or re-parse the feed.
+    private var cachedIcs: String?
+    /// Occurrences already expanded from `cachedIcs`, keyed by `ScheduleIdentity.weekKey`.
+    private var eventsByWeek: [String: [TimetableEvent]] = [:]
+
     init(
         loadIcs: (@Sendable (_ forceRefresh: Bool) async -> String?)? = nil,
         clock: @escaping @Sendable () -> Date = { Date() }
@@ -36,8 +42,33 @@ actor SchoolCalendarRepository {
     }
 
     func events(year: Int, week: Int, forceRefresh: Bool = false) async -> [TimetableEvent] {
-        guard let ics = await loadIcs(forceRefresh) else { return [] }
-        return SchoolCalendar.events(ics: ics, year: year, week: week)
+        if forceRefresh {
+            cachedIcs = nil
+            eventsByWeek.removeAll()
+        }
+
+        let ics: String
+        if let cachedIcs, !forceRefresh {
+            ics = cachedIcs
+        } else if let loaded = await loadIcs(forceRefresh) {
+            if loaded != cachedIcs {
+                cachedIcs = loaded
+                eventsByWeek.removeAll()
+            }
+            ics = loaded
+        } else {
+            cachedIcs = nil
+            eventsByWeek.removeAll()
+            return []
+        }
+
+        let key = ScheduleIdentity.weekKey(year: year, week: week)
+        if let cached = eventsByWeek[key] {
+            return cached
+        }
+        let events = SchoolCalendar.events(ics: ics, year: year, week: week)
+        eventsByWeek[key] = events
+        return events
     }
 
     // MARK: - Production fetch

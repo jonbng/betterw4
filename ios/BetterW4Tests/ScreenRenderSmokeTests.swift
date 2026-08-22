@@ -54,6 +54,10 @@ final class ScreenRenderSmokeTests: XCTestCase {
         assertRenders("ScheduleView", NavigationStack { ScheduleView(student: student) })
     }
 
+    func testScheduleDaySkeletonRenders() {
+        assertRenders("ScheduleDaySkeleton", ScheduleDaySkeleton())
+    }
+
     func testLessonDetailSheetRenders() {
         let event = TimetableEvent(
             id: "ac-demo-0",
@@ -107,6 +111,10 @@ final class ScreenRenderSmokeTests: XCTestCase {
         assertRenders("OnDutyView", NavigationStack { OnDutyView() })
     }
 
+    func testBirthdaysRenders() {
+        assertRenders("BirthdaysView", NavigationStack { BirthdaysView() })
+    }
+
     func testExtraAcademicsRenders() {
         assertRenders("ExtraAcademicsView", NavigationStack { ExtraAcademicsView() })
     }
@@ -127,6 +135,35 @@ final class ScreenRenderSmokeTests: XCTestCase {
 
     func testGradesRenders() {
         assertRenders("GradesView", NavigationStack { GradesView(student: student) })
+    }
+
+    func testMyClassesRenders() {
+        assertRenders("MyClassesView", NavigationStack { MyClassesView() })
+    }
+
+    func testMyTeachersRenders() {
+        assertRenders("MyTeachersView", NavigationStack { MyTeachersView() })
+    }
+
+    func testMyClassDetailRenders() {
+        assertRenders(
+            "MyClassDetailView",
+            NavigationStack {
+                MyClassDetailView(
+                    classId: "1DA13HMTAA",
+                    seed: MyClass(
+                        id: "1DA13HMTAA",
+                        subject: "Mathematics Analysis and Approaches",
+                        year: "1",
+                        block: "D",
+                        level: .higher,
+                        levelLabel: "HL",
+                        loaded: true
+                    ),
+                    directory: DirectoryViewModel()
+                )
+            }
+        )
     }
 
     func testMailRenders() {

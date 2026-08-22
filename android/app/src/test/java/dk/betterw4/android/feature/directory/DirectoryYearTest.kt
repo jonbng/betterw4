@@ -12,6 +12,8 @@ class DirectoryYearTest {
         assertEquals("2", DirectoryYear.parse("2nd year"))
         assertEquals("2", DirectoryYear.parse("Year 2 · Fjaera"))
         assertEquals("1", DirectoryYear.parse("1"))
+        assertEquals("1", DirectoryYear.parse("First year"))
+        assertEquals("2", DirectoryYear.parse("Second year"))
         assertNull(DirectoryYear.parse("Haugland"))
         assertNull(DirectoryYear.parse(null))
     }

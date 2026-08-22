@@ -2,35 +2,36 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>W4_HOST</key>
-	<string>w4.uwcrcn.no</string>
+	<!-- Paired with `UIBackgroundModes = fetch` in the build settings. BGTaskScheduler needs
+	     *both*: this list authorises the identifier, and the background mode authorises the
+	     capability. With only one of them, `BGTaskScheduler.submit` fails at runtime and
+	     `NotificationRefresh` silently never runs — which looks exactly like "notifications are
+	     broken" and nothing like a missing plist key.
+
+	     The identifier keeps the old `dk.jonathanb` prefix on purpose: it must match
+	     `NotificationBackgroundRefresh.identifier` in code, not the bundle ID. -->
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>dk.jonathanb.w4.refresh</string>
+	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>googlegmail</string>
+	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
 		<false/>
 	</dict>
-	<key>LSApplicationQueriesSchemes</key>
-	<array>
-		<string>googlegmail</string>
-	</array>
-	<!-- Paired with `UIBackgroundModes = fetch` in the build settings. BGTaskScheduler needs
-	     *both*: this list authorises the identifier, and the background mode authorises the
-	     capability. With only one of them, `BGTaskScheduler.submit` fails at runtime and
-	     `NotificationRefresh` silently never runs — which looks exactly like "notifications are
-	     broken" and nothing like a missing plist key. -->
-	<key>BGTaskSchedulerPermittedIdentifiers</key>
-	<array>
-		<string>dk.jonathanb.w4.refresh</string>
-	</array>
-	<!-- Answers App Store Connect's export-compliance question once, in the build, instead of
-	     by hand on every single upload. `false` is the correct answer here: the app's only
-	     cryptography is HTTPS to w4.uwcrcn.no via URLSession and the Keychain, both of which are
-	     Apple-provided and exempt. It implements no encryption of its own and ships no crypto
-	     library — SwiftSoup, the one dependency, is a pure HTML parser.
+	<!-- Building against the iOS 26 SDK opts every standard control into the Liquid Glass
+	     redesign. This key keeps the pre-26 appearance so the SDK bump required for App Store
+	     uploads can ship without a full visual re-review of 55 SwiftUI screens.
 
-	     If that ever stops being true (a bundled cipher, a custom key exchange, a VPN), this key
-	     must be removed or set to `true` and a CCATS/self-classification filed. -->
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
+	     It is a deprecated one-release escape hatch, not a setting — Apple removes it in a
+	     future SDK. Delete it once the Liquid Glass pass is done. -->
+	<key>UIDesignRequiresCompatibility</key>
+	<true/>
+	<key>W4_HOST</key>
+	<string>w4.uwcrcn.no</string>
 </dict>
 </plist>

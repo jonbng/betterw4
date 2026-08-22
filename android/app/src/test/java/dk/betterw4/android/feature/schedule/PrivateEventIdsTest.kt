@@ -29,6 +29,8 @@ class PrivateEventIdsTest {
         )
         assertNull(PrivateEventIds.numericAftaleId("local-private-1"))
         assertNull(PrivateEventIds.updatePath("local-private-1"))
+        assertTrue(PrivateEventIds.isPrivateEventId("local-abc"))
+        assertTrue(PrivateEventIds.isPrivateEventId("local-private-1"))
     }
 
     @Test

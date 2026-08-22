@@ -2,9 +2,10 @@
 //  AssessmentsView.swift
 //  BetterW4
 //
-//  The Assessments tab: W4's `index.php?r=academics/deadlines` month calendar
+//  The Assessments screen: W4's `index.php?r=academics/deadlines` month calendar
 //  (`ui.md` §4.5, plan Wave 6/7). W4 models homework and assignments as one list of deadlines, so
-//  this single tab replaces the two separate homework/assignment screens the app used to carry.
+//  this single screen replaces the two separate homework/assignment screens the app used to carry.
+//  It lives under More; Absence took the tab because students open it more often.
 //
 //  Salvaged from the screen it replaces: the day-grouped scroll list, the
 //  circular done affordance with the dim + strikethrough treatment, the subject-tinted icon tile
@@ -29,8 +30,6 @@ struct AssessmentsView: View {
 
     @StateObject private var viewModel = AssessmentsViewModel()
     @State private var detailItem: Assessment?
-    /// Incremented when the Assessments tab is tapped while already selected (scroll to top).
-    @State private var scrollToTopTick = 0
 
     var body: some View {
         ZStack {
@@ -174,11 +173,8 @@ struct AssessmentsView: View {
     }
 
     private var scrollingContent: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
-                    Color.clear.frame(height: 0).id("assessmentsTop")
-
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
                     if viewModel.displayMode == .month {
                         AssessmentsCalendarGrid(
                             days: viewModel.calendarDays,
@@ -232,21 +228,8 @@ struct AssessmentsView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .refreshable { await viewModel.refresh(for: student) }
-            .onChange(of: scrollToTopTick) { _, _ in
-                var transaction = Transaction()
-                transaction.disablesAnimations = true
-                withTransaction(transaction) {
-                    proxy.scrollTo("assessmentsTop", anchor: .top)
-                }
-            }
-            .background {
-                TabBarSameTabReselectDetector {
-                    scrollToTopTick += 1
-                }
-            }
         }
+        .refreshable { await viewModel.refresh(for: student) }
     }
 
     private var dayFilterChip: some View {
