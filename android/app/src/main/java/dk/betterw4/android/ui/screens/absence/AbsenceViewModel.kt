@@ -3,6 +3,7 @@ package dk.betterw4.android.ui.screens.absence
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dk.betterw4.android.core.analytics.AppTelemetry
 import dk.betterw4.android.core.FeatureFlags
 import dk.betterw4.android.core.result.AppError
 import dk.betterw4.android.core.result.AppResult
@@ -238,6 +239,13 @@ class AbsenceViewModel @Inject constructor(
                 )
             ) {
                 is AppResult.Success -> {
+                    capture(
+                        "absence_registered",
+                        mapOf(
+                            "slot_count" to slots.size,
+                            "whole_day" to state.wholeDay,
+                        ),
+                    )
                     closeRegister()
                     refresh(force = true)
                 }
@@ -251,6 +259,10 @@ class AbsenceViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private fun capture(event: String, properties: Map<String, Any>) {
+        AppTelemetry.capture(event, properties)
     }
 
     fun attendanceLabel(kind: LessonAttendance?): String = when (kind) {

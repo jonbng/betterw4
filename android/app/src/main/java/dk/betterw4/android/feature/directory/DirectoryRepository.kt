@@ -1,5 +1,6 @@
 package dk.betterw4.android.feature.directory
 
+import dk.betterw4.android.core.analytics.AppTelemetry
 import dk.betterw4.android.core.cache.CachePolicy
 import dk.betterw4.android.core.cache.SimpleCache
 import dk.betterw4.android.core.cache.W4Surface
@@ -90,7 +91,13 @@ class DirectoryRepository @Inject constructor(
                 val parsed = W4PeopleParser.parseProfile(res.data.body, entity.kind)
                     ?: return cache.get(key)?.let { html ->
                         W4PeopleParser.parseProfile(html, entity.kind)?.let { AppResult.Success(it) }
-                    } ?: AppResult.Failure(AppError.Parsing("Profile page carried no uwc id"))
+                    } ?: run {
+                        AppTelemetry.reportParsingFailure(
+                            "directory_profile",
+                            "Profile page carried no uwc id",
+                        )
+                        AppResult.Failure(AppError.Parsing("Profile page carried no uwc id"))
+                    }
                 cache.put(key, res.data.body)
                 AppResult.Success(parsed)
             }

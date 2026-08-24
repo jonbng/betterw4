@@ -1,5 +1,6 @@
 package dk.betterw4.android.core.w4
 
+import dk.betterw4.android.core.analytics.AppTelemetry
 import dk.betterw4.android.core.result.AppResult
 import dk.betterw4.android.core.w4.http.W4HttpEngine
 import dk.betterw4.android.core.w4.http.W4UserAgent
@@ -16,6 +17,7 @@ import okhttp3.HttpUrl
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.time.TimeSource
 
 /**
  * Public façade for W4 HTTP. Feature scrapers should depend on this, not the engine.
@@ -286,11 +288,28 @@ class DefaultW4Client @Inject constructor(
         val url = try {
             W4Urls.resolve(routeOrUrl, query)
         } catch (e: Exception) {
-            return AppResult.Failure(W4Error.Unknown(e.message, e).toAppError())
+            val error = W4Error.Unknown(e.message, e)
+            AppTelemetry.reportW4Failure(
+                error = error,
+                method = method,
+                endpoint = routeOrUrl.telemetryRoute(),
+                priority = priority,
+                durationMs = 0L,
+            )
+            return AppResult.Failure(error.toAppError())
         }
 
         val creds = resolveCredentials(credentials, sid, allowLoginPage)
-            ?: return AppResult.Failure(W4Error.MissingCookies.toAppError())
+            ?: run {
+                AppTelemetry.reportW4Failure(
+                    error = W4Error.MissingCookies,
+                    method = method,
+                    endpoint = url.queryParameter("r")?.takeIf { it.isNotBlank() } ?: url.encodedPath,
+                    priority = priority,
+                    durationMs = 0L,
+                )
+                return AppResult.Failure(W4Error.MissingCookies.toAppError())
+            }
 
         val request = W4Request(
             url = url,
@@ -303,15 +322,40 @@ class DefaultW4Client @Inject constructor(
             ajax = ajax,
         )
 
+        val startedAt = TimeSource.Monotonic.markNow()
         return try {
             val result = engine.execute(request, creds)
+            val durationMs = startedAt.elapsedNow().inWholeMilliseconds
+            if (durationMs >= AppTelemetry.SLOW_REQUEST_THRESHOLD_MS) {
+                AppTelemetry.reportSlowW4Request(
+                    method = method,
+                    endpoint = request.telemetryEndpoint(),
+                    priority = priority,
+                    durationMs = durationMs,
+                )
+            }
             AppResult.Success(result.response)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: W4Error) {
+            AppTelemetry.reportW4Failure(
+                error = e,
+                method = method,
+                endpoint = request.telemetryEndpoint(),
+                priority = priority,
+                durationMs = startedAt.elapsedNow().inWholeMilliseconds,
+            )
             AppResult.Failure(e.toAppError())
         } catch (e: Exception) {
-            AppResult.Failure(W4Error.Unknown(e.message, e).toAppError())
+            val error = W4Error.Unknown(e.message, e)
+            AppTelemetry.reportW4Failure(
+                error = error,
+                method = method,
+                endpoint = request.telemetryEndpoint(),
+                priority = priority,
+                durationMs = startedAt.elapsedNow().inWholeMilliseconds,
+            )
+            AppResult.Failure(error.toAppError())
         }
     }
 
@@ -349,4 +393,13 @@ class DefaultW4Client @Inject constructor(
     }
 
     private fun encodeForm(fields: Map<String, String>): ByteArray = W4Form.encode(fields)
+
+    private fun W4Request.telemetryEndpoint(): String =
+        url.queryParameter("r")?.takeIf { it.isNotBlank() } ?: url.encodedPath
+
+    private fun String.telemetryRoute(): String =
+        substringBefore('?')
+            .substringBefore('#')
+            .takeIf { it.matches(Regex("[a-zA-Z0-9_./-]{1,160}")) }
+            ?: "invalid_route"
 }

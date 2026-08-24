@@ -5,16 +5,17 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dk.betterw4.android.R
+import dk.betterw4.android.core.analytics.AppTelemetry
 import dk.betterw4.android.core.i18n.UiText
 import dk.betterw4.android.core.i18n.toUiText
 import dk.betterw4.android.core.result.AppError
 import dk.betterw4.android.core.result.AppResult
 import dk.betterw4.android.feature.messages.ComposeAttachment
 import dk.betterw4.android.feature.messages.ComposeMessageDraft
-import dk.betterw4.android.feature.messages.MessageFolder
 import dk.betterw4.android.feature.messages.MessageEditDraft
-import dk.betterw4.android.feature.messages.MessageRecipient
+import dk.betterw4.android.feature.messages.MessageFolder
 import dk.betterw4.android.feature.messages.MessageLocator
+import dk.betterw4.android.feature.messages.MessageRecipient
 import dk.betterw4.android.feature.messages.MessageReactionEmoji
 import dk.betterw4.android.feature.messages.MessageReactionGroup
 import dk.betterw4.android.feature.messages.MessageReactionParticipant
@@ -214,6 +215,10 @@ class MessagesViewModel @Inject constructor(
                             replyError = null,
                         )
                     }
+                    capture(
+                        "message_reply_sent",
+                        mapOf("attachment_count" to attachments.size),
+                    )
                     reviewPromptCoordinator.maybePrompt(ReviewTrigger.MessageSent)
                     openThread(detail.thread)
                 }
@@ -256,12 +261,15 @@ class MessagesViewModel @Inject constructor(
                 return@launch
             }
             when (val result = repository.setReaction(detail.thread, locator, nextEmoji)) {
-                is AppResult.Success -> _state.update {
-                    it.copy(
-                        detail = result.data,
-                        reactionPendingTarget = null,
-                        reactionError = null,
-                    )
+                is AppResult.Success -> {
+                    capture("message_reaction_updated", mapOf("action" to if (nextEmoji == null) "removed" else "set"))
+                    _state.update {
+                        it.copy(
+                            detail = result.data,
+                            reactionPendingTarget = null,
+                            reactionError = null,
+                        )
+                    }
                 }
                 is AppResult.Failure -> _state.update {
                     it.copy(
@@ -319,14 +327,17 @@ class MessagesViewModel @Inject constructor(
         _state.update { it.copy(editSaving = true, editError = null) }
         viewModelScope.launch {
             when (val result = repository.saveMessageEdit(draft, state.editTitle, state.editBody)) {
-                is AppResult.Success -> _state.update {
-                    it.copy(
-                        detail = result.data,
-                        editDraft = null,
-                        editTitle = "",
-                        editBody = "",
-                        editSaving = false,
-                    )
+                is AppResult.Success -> {
+                    capture("message_edited")
+                    _state.update {
+                        it.copy(
+                            detail = result.data,
+                            editDraft = null,
+                            editTitle = "",
+                            editBody = "",
+                            editSaving = false,
+                        )
+                    }
                 }
                 is AppResult.Failure -> _state.update {
                     it.copy(editSaving = false, editError = result.error.toUiText())
@@ -474,6 +485,14 @@ class MessagesViewModel @Inject constructor(
                             repliesNotAllowed = false,
                         )
                     }
+                    capture(
+                        "message_composed",
+                        mapOf(
+                            "recipient_count" to s.selectedRecipients.size,
+                            "attachment_count" to s.composeAttachments.size,
+                            "replies_not_allowed" to s.repliesNotAllowed,
+                        ),
+                    )
                     reviewPromptCoordinator.maybePrompt(ReviewTrigger.MessageSent)
                 }
                 is AppResult.Failure -> {
@@ -484,6 +503,10 @@ class MessagesViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private fun capture(event: String, properties: Map<String, Any> = emptyMap()) {
+        AppTelemetry.capture(event, properties)
     }
 
     fun markRead() {

@@ -3,6 +3,7 @@ package dk.betterw4.android.ui.auth
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dk.betterw4.android.core.analytics.AppTelemetry
 import dk.betterw4.android.core.model.W4School
 import dk.betterw4.android.core.result.AppError
 import dk.betterw4.android.core.result.AppResult
@@ -180,6 +181,7 @@ class LoginViewModel @Inject constructor(
     fun enterDemo() {
         loginInFlight.set(false)
         authSessionInstaller.enterDemo()
+        capture("demo_session_started")
     }
 
     private fun applyAuthResult(
@@ -235,5 +237,10 @@ class LoginViewModel @Inject constructor(
                 preferPasswordForm = false,
             )
         }
+        capture("login_completed")
+    }
+
+    private fun capture(event: String) {
+        AppTelemetry.capture(event)
     }
 }

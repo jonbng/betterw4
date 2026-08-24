@@ -1,5 +1,6 @@
 package dk.betterw4.android.feature.schedule
 
+import dk.betterw4.android.core.analytics.AppTelemetry
 import dk.betterw4.android.core.cache.SimpleCache
 import dk.betterw4.android.core.w4.http.W4UserAgent
 import kotlinx.coroutines.Dispatchers
@@ -26,7 +27,10 @@ class SchoolCalendarRepository @Inject constructor(
     ): List<ScheduleEvent> = withContext(Dispatchers.IO) {
         val ics = loadIcs(forceRefresh) ?: return@withContext emptyList()
         runCatching { SchoolCalendar.eventsFromIcs(ics, year, week) }
-            .onFailure { Timber.w(it, "Failed to parse school Google Calendar") }
+            .onFailure {
+                Timber.w(it, "Failed to parse school Google Calendar")
+                AppTelemetry.reportParsingFailure("school_calendar", it.message ?: "ICS parsing failed", it)
+            }
             .getOrDefault(emptyList())
     }
 
@@ -58,17 +62,20 @@ class SchoolCalendarRepository @Inject constructor(
             http.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     Timber.w("School Google Calendar HTTP %s", response.code)
+                    AppTelemetry.reportExternalRequestFailure("school_calendar", response.code)
                     return null
                 }
                 val body = response.body?.string().orEmpty()
                 if (!body.contains("BEGIN:VCALENDAR", ignoreCase = true)) {
                     Timber.w("School Google Calendar body was not iCalendar")
+                    AppTelemetry.reportParsingFailure("school_calendar", "Response was not iCalendar")
                     return null
                 }
                 body
             }
         } catch (e: Exception) {
             Timber.w(e, "School Google Calendar fetch failed")
+            AppTelemetry.reportExternalRequestFailure("school_calendar", cause = e)
             null
         }
     }

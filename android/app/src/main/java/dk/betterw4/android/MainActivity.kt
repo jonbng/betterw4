@@ -21,6 +21,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
+import dk.betterw4.android.core.analytics.UiStallMonitor
 import dk.betterw4.android.core.w4.auth.AuthSessionInstaller
 import dk.betterw4.android.core.w4.session.AuthState
 import dk.betterw4.android.core.w4.session.SessionController
@@ -41,6 +42,8 @@ import javax.inject.Inject
  */
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
+    private val uiStallMonitor = UiStallMonitor()
+
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) {
@@ -138,5 +141,15 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        uiStallMonitor.start()
+    }
+
+    override fun onPause() {
+        uiStallMonitor.stop()
+        super.onPause()
     }
 }

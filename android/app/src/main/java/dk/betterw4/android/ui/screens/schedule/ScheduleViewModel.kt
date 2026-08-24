@@ -6,7 +6,9 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dk.betterw4.android.R
+import dk.betterw4.android.core.analytics.AppTelemetry
 import dk.betterw4.android.core.i18n.UiText
+import dk.betterw4.android.core.i18n.toUiText
 import dk.betterw4.android.core.result.AppError
 import dk.betterw4.android.core.result.AppResult
 import dk.betterw4.android.core.util.IsoDateUtils
@@ -737,6 +739,7 @@ class ScheduleViewModel @Inject constructor(
                             message = null,
                         )
                     }
+                    capture(if (isEdit) "private_event_updated" else "private_event_created")
                     if (!isEdit) {
                         reviewPromptCoordinator.maybePrompt(ReviewTrigger.PrivateEventCreated)
                     }
@@ -756,15 +759,22 @@ class ScheduleViewModel @Inject constructor(
 
     fun deletePrivateEvent(event: ScheduleEvent) {
         viewModelScope.launch {
-            repository.deletePrivateEvent(event)
-            _state.update {
-                it.copy(
-                    selectedEvent = null,
-                    lessonDetail = null,
-                    message = UiText.Res(R.string.private_event_deleted),
-                )
+            when (val result = repository.deletePrivateEvent(event)) {
+                is AppResult.Success -> {
+                    capture("private_event_deleted")
+                    _state.update {
+                        it.copy(
+                            selectedEvent = null,
+                            lessonDetail = null,
+                            message = UiText.Res(R.string.private_event_deleted),
+                        )
+                    }
+                    relayoutLocalEvents()
+                }
+                is AppResult.Failure -> {
+                    _state.update { it.copy(message = result.error.toUiText()) }
+                }
             }
-            relayoutLocalEvents()
         }
     }
 
@@ -791,6 +801,10 @@ class ScheduleViewModel @Inject constructor(
         if (focusDate != null && focusDate != _state.value.selectedDate) {
             selectDate(focusDate)
         }
+    }
+
+    private fun capture(event: String) {
+        AppTelemetry.capture(event)
     }
 
     private fun maybePromptReview() {

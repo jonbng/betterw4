@@ -1,5 +1,6 @@
 package dk.betterw4.android.core.w4.auth
 
+import dk.betterw4.android.core.analytics.AppTelemetry
 import dk.betterw4.android.core.w4.W4Html
 import dk.betterw4.android.core.w4.W4Urls
 import dk.betterw4.android.core.w4.http.W4HttpEngine
@@ -147,6 +148,7 @@ class AuthSessionInstaller @Inject constructor(
         }
         val personId = identity.personId ?: fallbackUsername.trim().takeIf { it.isNotEmpty() }
         if (personId.isNullOrBlank()) {
+            AppTelemetry.reportParsingFailure("login_identity", "Could not parse W4 user id")
             return AppResult.Failure(
                 W4Error.Parse("Could not parse W4 user id").toAppError(),
             )

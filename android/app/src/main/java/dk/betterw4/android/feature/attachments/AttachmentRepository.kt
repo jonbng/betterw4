@@ -1,5 +1,6 @@
 package dk.betterw4.android.feature.attachments
 
+import dk.betterw4.android.core.analytics.AppTelemetry
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ContentValues
@@ -152,6 +153,7 @@ class AttachmentRepository @Inject constructor(
             ) {
                 AppResult.Failure(AppError.SessionExpired)
             } else {
+                AppTelemetry.reportParsingFailure("attachment_download", "HTML instead of file")
                 AppResult.Failure(AppError.Parsing("HTML instead of file"))
             }
         }

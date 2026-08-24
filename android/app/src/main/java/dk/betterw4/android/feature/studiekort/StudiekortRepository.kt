@@ -1,5 +1,6 @@
 package dk.betterw4.android.feature.studiekort
 
+import dk.betterw4.android.core.analytics.AppTelemetry
 import android.content.Context
 import android.net.Uri
 import androidx.core.content.FileProvider
@@ -94,6 +95,10 @@ class StudiekortRepository @Inject constructor(
             is AppResult.Success -> {
                 val bytes = res.data
                 if (bytes.size < 5 || String(bytes.copyOfRange(0, 5)) != "%PDF-") {
+                    AppTelemetry.reportParsingFailure(
+                        "letter_of_attendance",
+                        "Letter of Attendance was not a PDF",
+                    )
                     return@withContext AppResult.Failure(
                         AppError.Parsing("Letter of Attendance was not a PDF"),
                     )

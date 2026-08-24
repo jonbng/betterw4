@@ -36,6 +36,8 @@ wearProtoLayout = "1.4.1"
 wearWatchface = "1.3.0"
 playServicesWearable = "20.0.1"
 desugarJdkLibs = "2.1.5"
+posthogAndroid = "3.60.4"
+posthogGradlePlugin = "1.5.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -108,6 +110,7 @@ androidx-wear-protolayout-material3 = { group = "androidx.wear.protolayout", nam
 androidx-wear-watchface-complications-data-source-ktx = { group = "androidx.wear.watchface", name = "watchface-complications-data-source-ktx", version.ref = "wearWatchface" }
 play-services-wearable = { group = "com.google.android.gms", name = "play-services-wearable", version.ref = "playServicesWearable" }
 desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugarJdkLibs" }
+posthog-android = { group = "com.posthog", name = "posthog-android", version.ref = "posthogAndroid" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -117,3 +120,4 @@ kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+posthog = { id = "com.posthog.android", version.ref = "posthogGradlePlugin" }

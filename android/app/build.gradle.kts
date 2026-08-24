@@ -1,3 +1,4 @@
+import com.posthog.android.PostHogCliExecTask
 import java.io.FileInputStream
 import java.util.Properties
 
@@ -7,6 +8,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.posthog)
 }
 
 // Release signing (Play upload key). See SIGNING.md.
@@ -24,6 +26,46 @@ val hasReleaseKeystore =
         keystoreProperties["keyAlias"] != null &&
         keystoreProperties["storePassword"] != null &&
         keystoreProperties["keyPassword"] != null
+
+val environmentFile = rootProject.file(".env")
+val environmentProperties = Properties().apply {
+    if (environmentFile.exists()) {
+        load(FileInputStream(environmentFile))
+    }
+}
+val posthogProjectToken =
+    environmentProperties.getProperty("POSTHOG_PROJECT_TOKEN")
+        ?: System.getenv("POSTHOG_PROJECT_TOKEN").orEmpty()
+val posthogHost =
+    environmentProperties.getProperty("POSTHOG_HOST")
+        ?: System.getenv("POSTHOG_HOST").orEmpty()
+
+val validatePostHogReleaseConfiguration = tasks.register("validatePostHogReleaseConfiguration") {
+    inputs.property("posthogProjectToken", posthogProjectToken)
+    inputs.property("posthogHost", posthogHost)
+    doLast {
+        require(inputs.properties.getValue("posthogProjectToken").toString().isNotBlank()) {
+            "POSTHOG_PROJECT_TOKEN is required for release builds"
+        }
+        require(inputs.properties.getValue("posthogHost").toString().isNotBlank()) {
+            "POSTHOG_HOST is required for release builds"
+        }
+    }
+}
+
+tasks.matching { it.name == "preReleaseBuild" }.configureEach {
+    dependsOn(validatePostHogReleaseConfiguration)
+}
+
+tasks.withType<PostHogCliExecTask>().configureEach {
+    if (environmentFile.exists()) {
+        postHogDotenvFile.set(environmentFile.absolutePath)
+    }
+}
+
+posthog {
+    uploadNativeSymbols.set(true)
+}
 
 android {
     namespace = "dk.betterw4.android"
@@ -44,6 +86,8 @@ android {
 
         // Exposed via BuildConfig for debug-only tools later.
         buildConfigField("String", "W4_BASE_HOST", "\"w4.uwcrcn.no\"")
+        buildConfigField("String", "POSTHOG_PROJECT_TOKEN", "\"$posthogProjectToken\"")
+        buildConfigField("String", "POSTHOG_HOST", "\"$posthogHost\"")
     }
 
     signingConfigs {
@@ -135,6 +179,7 @@ dependencies {
     implementation(libs.okhttp.logging)
     implementation(libs.jsoup)
     implementation(libs.timber)
+    implementation(libs.posthog.android)
 
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.security.crypto)

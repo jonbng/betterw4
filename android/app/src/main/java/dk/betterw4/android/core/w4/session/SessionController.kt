@@ -1,8 +1,9 @@
 package dk.betterw4.android.core.w4.session
 
+import dk.betterw4.android.core.analytics.AppTelemetry
 import dk.betterw4.android.core.cache.OfflineDataCleaner
-import dk.betterw4.android.core.w4.model.W4Credentials
 import dk.betterw4.android.core.model.Student
+import dk.betterw4.android.core.w4.model.W4Credentials
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -88,12 +89,14 @@ class SessionController @Inject constructor(
         }
         val creds = credentialStore.loadCredentials(student.studentId)
         if (creds == null || creds.sessionId.isEmpty()) {
+            resetPostHog()
             lastSchoolStore.remember(student, LastSchoolReason.SESSION_EXPIRED)
             credentialStore.deleteStudent()
             _authState.value = AuthState.Unauthenticated
             return
         }
         _authState.value = AuthState.Authenticated(student)
+        identifyStudent(student)
     }
 
     fun installSession(student: Student, credentials: W4Credentials?) {
@@ -106,6 +109,7 @@ class SessionController @Inject constructor(
             lastSchoolStore.remember(student, LastSchoolReason.LOGGED_OUT)
         }
         _authState.value = AuthState.Authenticated(student)
+        identifyStudent(student)
         Timber.i(
             "Session installed for studentId=%s gymId=%s demo=%s",
             student.studentId,
@@ -118,10 +122,12 @@ class SessionController @Inject constructor(
         val demo = Student.Demo
         credentialStore.clearAll()
         credentialStore.saveStudent(demo)
+        resetPostHog()
         _authState.value = AuthState.Authenticated(demo)
     }
 
     fun clearSession(keepStudentProfile: Boolean = false) {
+        resetPostHog()
         val student = credentialStore.loadStudent()
         if (student != null && !student.isDemo) {
             credentialStore.deleteCredentials(student.studentId)
@@ -131,6 +137,21 @@ class SessionController @Inject constructor(
         }
         offlineDataCleaner.clearAll()
         _authState.value = AuthState.Unauthenticated
+    }
+
+    private fun identifyStudent(student: Student) {
+        if (student.isDemo) return
+        AppTelemetry.identify(
+            distinctId = student.id,
+            userProperties = buildMap {
+                student.name?.takeIf { it.isNotBlank() }?.let { put("name", it) }
+                student.schoolName?.takeIf { it.isNotBlank() }?.let { put("school_name", it) }
+            },
+        )
+    }
+
+    private fun resetPostHog() {
+        AppTelemetry.reset()
     }
 
     fun loadCredentialsForCurrentStudent(): W4Credentials? {
