@@ -7,6 +7,7 @@ import com.posthog.android.PostHogAndroid
 import com.posthog.android.PostHogAndroidConfig
 import dagger.hilt.android.HiltAndroidApp
 import dk.betterw4.android.core.analytics.AppTelemetry
+import dk.betterw4.android.core.analytics.CrashReporter
 import dk.betterw4.android.core.analytics.PreviousExitReporter
 import dk.betterw4.android.core.w4.session.SessionController
 import timber.log.Timber
@@ -24,10 +25,15 @@ class BetterW4App : Application(), SingletonImageLoader.Factory {
     override fun onCreate() {
         super.onCreate()
         plantLogging()
-        initializePostHog()
+        val postHogInitialized = initializePostHog()
+        CrashReporter.install(this)
+        if (postHogInitialized) {
+            CrashReporter.reportPendingCrash(this)
+            PreviousExitReporter.report(this)
+        }
     }
 
-    private fun initializePostHog() {
+    private fun initializePostHog(): Boolean {
         val projectToken = BuildConfig.POSTHOG_PROJECT_TOKEN
         val host = BuildConfig.POSTHOG_HOST
 
@@ -35,14 +41,14 @@ class BetterW4App : Application(), SingletonImageLoader.Factory {
             if (BuildConfig.DEBUG) {
                 error("POSTHOG_PROJECT_TOKEN variable required by PostHog is missing or un-configured, this causes events to be silently missed. This error stops appearing once POSTHOG_PROJECT_TOKEN is configured")
             }
-            return
+            return false
         }
 
         if (host.isBlank()) {
             if (BuildConfig.DEBUG) {
                 error("POSTHOG_HOST variable required by PostHog is missing or un-configured, this causes events to be silently missed. This error stops appearing once POSTHOG_HOST is configured")
             }
-            return
+            return false
         }
 
         val config = PostHogAndroidConfig(apiKey = projectToken, host = host).apply {
@@ -54,6 +60,10 @@ class BetterW4App : Application(), SingletonImageLoader.Factory {
             surveys = false
             preloadFeatureFlags = false
             sendFeatureFlagEvent = false
+            if (BuildConfig.DEBUG) {
+                flushAt = 1
+                flushIntervalSeconds = 5
+            }
             errorTrackingConfig.apply {
                 autoCapture = true
                 captureNativeCrashes = true
@@ -62,7 +72,7 @@ class BetterW4App : Application(), SingletonImageLoader.Factory {
         }
         PostHogAndroid.setup(this, config)
         AppTelemetry.markInitialized()
-        PreviousExitReporter.report(this)
+        return true
     }
 
     private fun plantLogging() {
