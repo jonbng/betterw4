@@ -2,10 +2,14 @@ package dk.betterw4.android.ui.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -75,6 +79,7 @@ class W4ChromeViewModel @Inject constructor(
 fun RowScope.W4ChromeActions(
     viewModel: W4ChromeViewModel = hiltViewModel(),
     onNotificationHref: ((String?) -> Unit)? = null,
+    compact: Boolean = false,
 ) {
     val snapshot by viewModel.notificationSnapshot.collectAsStateWithLifecycle()
     NotificationsBell(
@@ -87,12 +92,13 @@ fun RowScope.W4ChromeActions(
         onMarkAllRead = viewModel::markAllNotificationsRead,
         onMarkEmailsRead = viewModel::markAllNotificationEmailsRead,
     )
-    CampusStatusChip(viewModel)
+    CampusStatusChip(viewModel, compact = compact)
 }
 
 @Composable
 fun CampusStatusChip(
     viewModel: W4ChromeViewModel = hiltViewModel(),
+    compact: Boolean = false,
 ) {
     val campus by viewModel.campus.collectAsStateWithLifecycle()
     var menu by remember { mutableStateOf(false) }
@@ -100,17 +106,31 @@ fun CampusStatusChip(
     var otherText by remember { mutableStateOf(TextFieldValue()) }
 
     Box {
-        FilterChip(
-            selected = campus?.onCampus == true,
-            onClick = { menu = true },
-            label = {
-                Text(
-                    campus?.label ?: stringResource(R.string.campus_status),
-                    maxLines = 1,
-                    style = MaterialTheme.typography.labelMedium,
+        if (compact) {
+            IconButton(onClick = { menu = true }) {
+                Icon(
+                    Icons.Default.Place,
+                    contentDescription = campus?.label ?: stringResource(R.string.campus_status),
+                    tint = if (campus?.onCampus == true) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                 )
-            },
-        )
+            }
+        } else {
+            FilterChip(
+                selected = campus?.onCampus == true,
+                onClick = { menu = true },
+                label = {
+                    Text(
+                        campus?.label ?: stringResource(R.string.campus_status),
+                        maxLines = 1,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                },
+            )
+        }
         DropdownMenu(
             expanded = menu,
             onDismissRequest = { menu = false },

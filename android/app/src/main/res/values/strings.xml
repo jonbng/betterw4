@@ -197,6 +197,8 @@
     <string name="empty_directory_hint">Try another search, or switch Students, Teachers, or year.</string>
     <string name="schedule_week_badge">Week %1$d</string>
     <string name="schedule_go_to_today">Today</string>
+    <string name="schedule_compact_title">%1$s · W%2$d</string>
+    <string name="schedule_more_actions">More timetable actions</string>
     <string name="empty_assignments">No assignments</string>
     <string name="empty_assignments_hint">No assignments match this filter. Try another, or pull down to refresh.</string>
     <string name="empty_assignments_all_hint">When Lectio has submissions, they appear here.</string>

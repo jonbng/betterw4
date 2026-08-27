@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,12 +26,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -134,6 +139,7 @@ fun ScheduleScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     var confirmDelete by remember { mutableStateOf<ScheduleEvent?>(null) }
+    var scheduleActionsExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.message) {
         val message = state.message ?: return@LaunchedEffect
@@ -177,76 +183,171 @@ fun ScheduleScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(stringResource(R.string.tab_schedule))
-                        Text(
-                            subtitle,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+            BoxWithConstraints {
+                val compact = maxWidth < 600.dp
+                val compactDayName = state.selectedDate.dayOfWeek
+                    .getDisplayName(TextStyle.SHORT, locale)
+                    .replaceFirstChar {
+                        if (it.isLowerCase()) it.titlecase(locale) else it.toString()
                     }
-                },
-                actions = {
-                    IconButton(onClick = viewModel::openPrivateEventSheet) {
-                        Icon(
-                            Icons.Default.Add,
-                            contentDescription = stringResource(R.string.cd_add_custom_event),
-                        )
-                    }
-                    IconButton(
-                        onClick = { viewModel.setShowSchoolCalendar(!showSchoolCalendar) },
-                    ) {
-                        Icon(
-                            if (showSchoolCalendar) {
-                                Icons.Filled.CalendarMonth
-                            } else {
-                                Icons.Outlined.CalendarMonth
-                            },
-                            contentDescription = stringResource(
-                                if (showSchoolCalendar) {
-                                    R.string.cd_hide_school_calendar
-                                } else {
-                                    R.string.cd_show_school_calendar
-                                },
-                            ),
-                            tint = if (showSchoolCalendar) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                    }
-                    W4ChromeActions(
-                        onNotificationHref = { href ->
-                            when {
-                                href.isNullOrBlank() -> Unit
-                                FeatureFlags.MAIL_ENABLED &&
-                                    href.contains("mailer", ignoreCase = true) -> onOpenMail()
-                                href.contains("deadline", ignoreCase = true) ||
-                                    href.contains("assessment", ignoreCase = true) -> onOpenAssessments()
-                            }
-                        },
-                    )
-                    // Week is already in the subtitle — keep "today" up here so the strip stays short.
-                    AnimatedVisibility(
-                        visible = isAwayFromToday,
-                        enter = fadeIn(),
-                        exit = fadeOut(),
-                    ) {
-                        TextButton(onClick = { viewModel.selectDate(today) }) {
+
+                TopAppBar(
+                    title = {
+                        if (compact) {
                             Text(
-                                stringResource(R.string.schedule_go_to_today),
-                                fontWeight = FontWeight.SemiBold,
+                                stringResource(
+                                    R.string.schedule_compact_title,
+                                    compactDayName,
+                                    state.weekNum,
+                                ),
+                                maxLines = 1,
                             )
+                        } else {
+                            Column {
+                                Text(stringResource(R.string.tab_schedule), maxLines = 1)
+                                Text(
+                                    subtitle,
+                                    maxLines = 1,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
-            )
+                    },
+                    actions = {
+                        if (compact) {
+                            W4ChromeActions(
+                                compact = true,
+                                onNotificationHref = { href ->
+                                    handleScheduleNotificationHref(
+                                        href = href,
+                                        onOpenMail = onOpenMail,
+                                        onOpenAssessments = onOpenAssessments,
+                                    )
+                                },
+                            )
+                            Box {
+                                IconButton(onClick = { scheduleActionsExpanded = true }) {
+                                    Icon(
+                                        Icons.Default.MoreVert,
+                                        contentDescription = stringResource(R.string.schedule_more_actions),
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = scheduleActionsExpanded,
+                                    onDismissRequest = { scheduleActionsExpanded = false },
+                                ) {
+                                    if (isAwayFromToday) {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.schedule_go_to_today)) },
+                                            leadingIcon = {
+                                                Icon(Icons.Default.Today, contentDescription = null)
+                                            },
+                                            onClick = {
+                                                scheduleActionsExpanded = false
+                                                viewModel.selectDate(today)
+                                            },
+                                        )
+                                    }
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.cd_add_custom_event)) },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.Add, contentDescription = null)
+                                        },
+                                        onClick = {
+                                            scheduleActionsExpanded = false
+                                            viewModel.openPrivateEventSheet()
+                                        },
+                                    )
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                stringResource(
+                                                    if (showSchoolCalendar) {
+                                                        R.string.cd_hide_school_calendar
+                                                    } else {
+                                                        R.string.cd_show_school_calendar
+                                                    },
+                                                ),
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                if (showSchoolCalendar) {
+                                                    Icons.Filled.CalendarMonth
+                                                } else {
+                                                    Icons.Outlined.CalendarMonth
+                                                },
+                                                contentDescription = null,
+                                            )
+                                        },
+                                        onClick = {
+                                            scheduleActionsExpanded = false
+                                            viewModel.setShowSchoolCalendar(!showSchoolCalendar)
+                                        },
+                                    )
+                                }
+                            }
+                        } else {
+                            IconButton(onClick = viewModel::openPrivateEventSheet) {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = stringResource(R.string.cd_add_custom_event),
+                                )
+                            }
+                            IconButton(
+                                onClick = {
+                                    viewModel.setShowSchoolCalendar(!showSchoolCalendar)
+                                },
+                            ) {
+                                Icon(
+                                    if (showSchoolCalendar) {
+                                        Icons.Filled.CalendarMonth
+                                    } else {
+                                        Icons.Outlined.CalendarMonth
+                                    },
+                                    contentDescription = stringResource(
+                                        if (showSchoolCalendar) {
+                                            R.string.cd_hide_school_calendar
+                                        } else {
+                                            R.string.cd_show_school_calendar
+                                        },
+                                    ),
+                                    tint = if (showSchoolCalendar) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                )
+                            }
+                            W4ChromeActions(
+                                onNotificationHref = { href ->
+                                    handleScheduleNotificationHref(
+                                        href = href,
+                                        onOpenMail = onOpenMail,
+                                        onOpenAssessments = onOpenAssessments,
+                                    )
+                                },
+                            )
+                            AnimatedVisibility(
+                                visible = isAwayFromToday,
+                                enter = fadeIn(),
+                                exit = fadeOut(),
+                            ) {
+                                TextButton(onClick = { viewModel.selectDate(today) }) {
+                                    Text(
+                                        stringResource(R.string.schedule_go_to_today),
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                    ),
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
@@ -666,6 +767,19 @@ fun ScheduleScreen(
                 Spacer(Modifier.height(24.dp))
             }
         }
+    }
+}
+
+private fun handleScheduleNotificationHref(
+    href: String?,
+    onOpenMail: () -> Unit,
+    onOpenAssessments: () -> Unit,
+) {
+    when {
+        href.isNullOrBlank() -> Unit
+        FeatureFlags.MAIL_ENABLED && href.contains("mailer", ignoreCase = true) -> onOpenMail()
+        href.contains("deadline", ignoreCase = true) ||
+            href.contains("assessment", ignoreCase = true) -> onOpenAssessments()
     }
 }
 
