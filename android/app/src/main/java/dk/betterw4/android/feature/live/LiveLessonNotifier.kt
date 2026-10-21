@@ -7,11 +7,11 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dk.betterw4.android.MainActivity
 import dk.betterw4.android.R
+import dk.betterw4.android.core.analytics.AppTelemetry
 import dk.betterw4.android.core.w4.W4Dates
 import dk.betterw4.android.feature.schedule.ScheduleEvent
 import dk.betterw4.android.feature.schedule.SchoolCalendar
@@ -44,112 +44,44 @@ class LiveLessonNotifier @Inject constructor(
     }
 
     fun update(events: List<ScheduleEvent>, now: LocalDateTime = W4Dates.now()) {
-        val projection = LiveLessonBoundary.project(events, now)
-        if (projection == null || !nm.areNotificationsEnabled()) {
-            nm.cancel(notifId)
-            return
-        }
+        runCatching {
+            val projection = LiveLessonBoundary.project(events, now)
+            if (projection == null || !nm.areNotificationsEnabled()) {
+                nm.cancel(notifId)
+                return@runCatching
+            }
 
-        val copy = LiveLessonPresentation.present(
-            projection,
-            subjectOf = ::friendlyTitle,
-            nextLabel = { context.getString(R.string.live_next_line, it) },
-        )
-        val notification = when {
-            Build.VERSION.SDK_INT >= 37 -> buildMetricLiveUpdate(projection, copy)
-            Build.VERSION.SDK_INT >= 36 -> buildPromotedNotification(projection, copy)
-            else -> buildCompatNotification(projection, copy)
-        }
-        try {
-            nm.notify(notifId, notification)
-        } catch (_: SecurityException) {
-            // POST_NOTIFICATIONS can be revoked between the permission check and notify().
+            val copy = LiveLessonPresentation.present(
+                projection,
+                subjectOf = ::friendlyTitle,
+                nextLabel = { context.getString(R.string.live_next_line, it) },
+            )
+
+            // Platform Live Update APIs on Android 16/17 have caused startup-fatal
+            // failures on some devices. Keep the stable compat notification until
+            // the platform path can be reintroduced behind device-tested guards.
+            nm.notify(notifId, buildCompatNotification(projection, copy))
+        }.onFailure { error ->
+            AppTelemetry.captureException(
+                error,
+                mapOf(
+                    "operation" to "live_lesson_notification",
+                    "sdk_int" to Build.VERSION.SDK_INT,
+                ),
+            )
         }
     }
 
-    fun clear() = nm.cancel(notifId)
-
-    @RequiresApi(37)
-    private fun buildMetricLiveUpdate(
-        projection: LiveLessonBoundary.Projection,
-        copy: LiveLessonCopy,
-    ): Notification {
-        val timer = Notification.Metric.TimeDifference.forTimer(
-            projection.target.atZone(W4Dates.ZONE).toInstant(),
-            Notification.Metric.TimeDifference.FORMAT_ADAPTIVE,
-        )
-        val metricLabel = context.getString(
-            if (projection.phase == LiveLessonBoundary.Phase.CURRENT) {
-                R.string.live_metric_ends_in
-            } else {
-                R.string.live_metric_starts_in
-            },
-        )
-        val style = Notification.MetricStyle()
-            .addMetric(Notification.Metric(timer, metricLabel))
-            .setCriticalMetric(0)
-
-        return basePlatformBuilder(projection, copy, metricOwnsCardTime = true)
-            .setStyle(style)
-            .build()
-    }
-
-    @RequiresApi(36)
-    private fun buildPromotedNotification(
-        projection: LiveLessonBoundary.Projection,
-        copy: LiveLessonCopy,
-    ): Notification {
-        val builder = basePlatformBuilder(projection, copy, metricOwnsCardTime = false)
-        copy.expandedText?.let { expanded ->
-            // Promoted Live Updates stay expanded, so BigText must keep the
-            // primary line (teacher / next) and only append leftover facts.
-            builder.setStyle(Notification.BigTextStyle().bigText("${copy.text}\n$expanded"))
+    fun clear() {
+        runCatching { nm.cancel(notifId) }.onFailure { error ->
+            AppTelemetry.captureException(
+                error,
+                mapOf(
+                    "operation" to "clear_live_lesson_notification",
+                    "sdk_int" to Build.VERSION.SDK_INT,
+                ),
+            )
         }
-        return builder.build()
-    }
-
-    @RequiresApi(36)
-    private fun basePlatformBuilder(
-        projection: LiveLessonBoundary.Projection,
-        copy: LiveLessonCopy,
-        metricOwnsCardTime: Boolean,
-    ): Notification.Builder {
-        val builder = Notification.Builder(context, CHANNEL)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setColor(subjectColor(projection.event))
-            .setContentTitle(copy.title)
-            .setContentText(copy.text)
-            .setContentIntent(openScheduleIntent())
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setCategory(Notification.CATEGORY_PROGRESS)
-            .setRequestPromotedOngoing(true)
-        applyTimeSurfaces(builder, projection, copy, metricOwnsCardTime)
-        return builder
-    }
-
-    @RequiresApi(36)
-    private fun applyTimeSurfaces(
-        builder: Notification.Builder,
-        projection: LiveLessonBoundary.Projection,
-        copy: LiveLessonCopy,
-        metricOwnsCardTime: Boolean,
-    ) {
-        val targetMillis = projection.target
-            .atZone(W4Dates.ZONE)
-            .toInstant()
-            .toEpochMilli()
-        builder.setWhen(targetMillis)
-        copy.chipText?.let { builder.setShortCriticalText(it) }
-
-        // MetricStyle already ticks on the card. Chronometer is only needed as the
-        // card clock (pre-metric) or as the status chip when there is no room.
-        val chronometerInCard = !metricOwnsCardTime
-        val chronometerOnChip = copy.chipText == null
-        val useChronometer = chronometerInCard || chronometerOnChip
-        builder.setShowWhen(chronometerInCard)
-        builder.setUsesChronometer(useChronometer)
-        builder.setChronometerCountDown(useChronometer)
     }
 
     private fun buildCompatNotification(

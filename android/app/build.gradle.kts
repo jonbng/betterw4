@@ -39,6 +39,11 @@ val posthogProjectToken =
 val posthogHost =
     environmentProperties.getProperty("POSTHOG_HOST")
         ?: System.getenv("POSTHOG_HOST").orEmpty()
+val hasPostHogCliCredentials =
+    (environmentProperties.getProperty("POSTHOG_CLI_PROJECT_ID")
+        ?: System.getenv("POSTHOG_CLI_PROJECT_ID")).isNullOrBlank().not() &&
+        (environmentProperties.getProperty("POSTHOG_CLI_API_KEY")
+            ?: System.getenv("POSTHOG_CLI_API_KEY")).isNullOrBlank().not()
 
 val validatePostHogReleaseConfiguration = tasks.register("validatePostHogReleaseConfiguration") {
     inputs.property("posthogProjectToken", posthogProjectToken)
@@ -61,6 +66,7 @@ tasks.withType<PostHogCliExecTask>().configureEach {
     if (environmentFile.exists()) {
         postHogDotenvFile.set(environmentFile.absolutePath)
     }
+    enabled = hasPostHogCliCredentials
 }
 
 posthog {
@@ -79,8 +85,8 @@ android {
         applicationId = "dk.jonathanb.w4"
         minSdk = 29
         targetSdk = 36
-        versionCode = 13
-        versionName = "1.0.4"
+        versionCode = 14
+        versionName = "1.0.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

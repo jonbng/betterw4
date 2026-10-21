@@ -1,63 +1,111 @@
-# BetterW4
+<p align="center">
+  <img src="logo-512.png" alt="BetterW4 app icon" width="112" height="112">
+</p>
 
-Unofficial iOS and Android apps for [W4](https://w4.uwcrcn.no/), the student system at
-[UWC Red Cross Nordic](https://uwcrcn.no/).
+<h1 align="center">BetterW4</h1>
 
-W4 itself is a website. These apps sign in the same way a browser does, then show timetable, mail,
-assessments and the rest on a phone. There is no BetterW4 server — the apps talk to `w4.uwcrcn.no`
-and store everything on the device.
+<p align="center">
+  A faster, friendlier way to use W4 on iPhone, Android, and the web.
+</p>
 
-Not made by, endorsed by, or affiliated with the college.
+BetterW4 is an unofficial client for [W4](https://w4.uwcrcn.no/), the student system at [UWC Red Cross Nordic](https://uwcrcn.no/). It takes the timetable, assessments, mail, attendance, directories, and campus tools that normally live in the W4 website and gives them a home that feels natural on your phone.
 
-## Features
+The mobile apps connect directly to W4. There is no BetterW4 account or proxy server in the middle. Your session, settings, and cached pages stay on your device.
 
-- Native login with 2FA
-- Combined academics + extra-academics timetable, plus custom events stored on the device
-- Mail, assessments, grades, absences
-- Student / staff directory, houses, on duty
-- Campus status
-- Offline cache, plus a demo mode that needs no account
+BetterW4 is not made by, endorsed by, or affiliated with UWC Red Cross Nordic.
 
-## Repo
+## A look at the app
 
-| Path | |
+<p align="center">
+  <img src="android/play-store/assets/timetable-en-light.png" alt="BetterW4 timetable showing a day of lessons and activities" width="30%">
+  &nbsp;
+  <img src="android/play-store/assets/assessments-en-light.png" alt="BetterW4 assessments calendar and upcoming work" width="30%">
+  &nbsp;
+  <img src="android/play-store/assets/students-en-light.png" alt="BetterW4 student profile and timetable" width="30%">
+</p>
+
+<p align="center"><sub>Android shown with demo data. No real student information is included.</sub></p>
+
+## What you can do
+
+- See academics and extra academics together in one timetable
+- Add personal events that stay on your device
+- Check assessments in a calendar or list
+- Read mail and view attachments
+- Find grades, absence records, and attendance information
+- Browse student and staff directories, houses, and on-duty information
+- Check notifications and update your campus status
+- Keep recently viewed information available offline
+- Try the app without an account by using the built-in demo mode
+- Use light or dark mode and personalize subjects with names and colours
+
+The iOS and Android apps are native, so they follow the navigation and interface conventions of each platform. The browser extension keeps the familiar W4 layout while giving it updated styling, dark mode, and a cleaner login experience.
+
+## How it works
+
+W4 does not provide a public API, so BetterW4 reads the same pages and submits the same forms as a browser. Login credentials and two-factor authentication codes are sent straight to `w4.uwcrcn.no`. Passwords are never saved by BetterW4.
+
+Cached pages make the mobile apps useful with a weak connection or in airplane mode. Signing out removes the saved session and cached W4 data for that account. You can read the full [privacy policy](PRIVACY.md) or the technical [W4 protocol notes](PROTOCOL.md) for more detail.
+
+## Projects in this repository
+
+| Path | What is inside |
 |---|---|
-| [`ios/`](ios/) | SwiftUI app. See [`ios/README.md`](ios/README.md), and [`IOSGuide.md`](IOSGuide.md) to ship it. |
-| [`android/`](android/) | Kotlin + Compose app. See [`android/README.md`](android/README.md). |
-| [`extension/`](extension/) | Browser extension (WXT + Preact) for `w4.uwcrcn.no`. See [`extension/README.md`](extension/README.md). |
-| [`PROTOCOL.md`](PROTOCOL.md) | How W4's login, cookies and pages actually work. |
-| [`PRIVACY.md`](PRIVACY.md) | What the apps store and what they don't. |
-| `references/` | Saved W4 pages, and the BetterLectio client these apps were ported from. |
+| [`ios/`](ios/) | The SwiftUI app for iPhone and iPad |
+| [`android/`](android/) | The Kotlin and Jetpack Compose app for Android |
+| [`extension/`](extension/) | The WXT and Preact browser extension for Chrome and Firefox |
+| [`website/`](website/) | The Next.js project for the BetterW4 website |
+| [`PROTOCOL.md`](PROTOCOL.md) | Notes about W4 login, cookies, routes, and page parsing |
+| [`PRIVACY.md`](PRIVACY.md) | A plain-language explanation of what the apps store |
+| `references/` | Saved W4 pages and material from the BetterLectio project this work started from |
 
-Both apps use the application id `dk.jonathanb.w4`.
+The iOS and Android apps use the application ID `dk.jonathanb.w4`.
 
-## Run it
+## Run the iOS app
 
-**iOS** — Xcode 16.4+, iOS 18.5:
+You need Xcode 16.4 or newer and the iOS 18.5 SDK.
 
 ```bash
 open ios/BetterW4.xcodeproj
 ```
 
-**Android** — Android Studio, JDK 17+, SDK 36. Open the `android/` folder (not the repo root), then:
+Choose the BetterW4 scheme, select an iPhone simulator, and run the project. See the [iOS README](ios/README.md) for build details and [IOSGuide.md](IOSGuide.md) for release instructions.
+
+## Run the Android app
+
+You need Android Studio, JDK 17 or newer, and Android SDK 36. Open the `android/` directory in Android Studio, not the repository root.
 
 ```bash
 cd android
 ./gradlew :app:assembleDebug
 ```
 
-Log in with a real W4 account, or tap demo on the login screen.
+Android Studio normally creates `local.properties` for you. See the [Android README](android/README.md) for the full setup and test commands.
 
-**Browser extension** — [Bun](https://bun.sh/), then:
+## Run the browser extension
+
+The extension uses [Bun](https://bun.sh/).
 
 ```bash
 cd extension
 bun install
-bun run dev          # Chrome
-# bun run dev:firefox
+bun run dev
 ```
+
+Use `bun run dev:firefox` for Firefox. Production build and manual installation instructions are in the [extension README](extension/README.md).
+
+## Run the website
+
+```bash
+cd website
+bun install
+bun run dev
+```
+
+The development site will be available at `http://localhost:3000`.
 
 ## Privacy
 
-No backend, no analytics, no ads. Session cookie and cached pages live on the device. Details in
-[PRIVACY.md](PRIVACY.md).
+BetterW4 has no ads and does not send your W4 credentials or school pages through a BetterW4 server. The mobile apps keep sessions and cached school data on your device. Android builds can send limited usage and crash diagnostics when telemetry is configured, but W4 page content is kept out of those events.
+
+For the exact details, read [PRIVACY.md](PRIVACY.md).

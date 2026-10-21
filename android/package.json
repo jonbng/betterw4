@@ -1,0 +1,7 @@
+{
+  "name": "betterw4-android-build-tools",
+  "private": true,
+  "devDependencies": {
+    "@posthog/cli": "0.18.1"
+  }
+}

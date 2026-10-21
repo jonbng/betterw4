@@ -38,16 +38,12 @@ class BetterW4App : Application(), SingletonImageLoader.Factory {
         val host = BuildConfig.POSTHOG_HOST
 
         if (projectToken.isBlank()) {
-            if (BuildConfig.DEBUG) {
-                error("POSTHOG_PROJECT_TOKEN variable required by PostHog is missing or un-configured, this causes events to be silently missed. This error stops appearing once POSTHOG_PROJECT_TOKEN is configured")
-            }
+            Timber.e("PostHog disabled: POSTHOG_PROJECT_TOKEN is missing")
             return false
         }
 
         if (host.isBlank()) {
-            if (BuildConfig.DEBUG) {
-                error("POSTHOG_HOST variable required by PostHog is missing or un-configured, this causes events to be silently missed. This error stops appearing once POSTHOG_HOST is configured")
-            }
+            Timber.e("PostHog disabled: POSTHOG_HOST is missing")
             return false
         }
 

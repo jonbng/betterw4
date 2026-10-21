@@ -38,6 +38,7 @@ play-store-credentials.json
 .gradle/
 build/
 **/build/
+node_modules/
 !gradle/wrapper/gradle-wrapper.jar
 # Occasional local overrides (prefer not to commit)
 !gradle.properties
